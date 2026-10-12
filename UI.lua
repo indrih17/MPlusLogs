@@ -404,7 +404,7 @@ function MPL.InstallApplicantLogColumn(viewer)
     f:SetScript("OnEnter",function()
         GameTooltip:SetOwner(f,"ANCHOR_TOP"); GameTooltip:ClearLines()
         GameTooltip:AddLine(L["M+ Best % по уровню ключа"])
-        GameTooltip:AddLine(L["HPS для хилера, DPS для остальных"],1,1,1)
+        GameTooltip:AddLine(L["DPS для всех ролей; HPS доступен в полной сводке."],1,1,1)
         GameTooltip:AddLine(L["Серый процент: данные старше 24 часов"],0.7,0.7,0.7)
         GameTooltip:Show()
     end)
@@ -524,7 +524,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
     if knownRole then
         MPL.roles=MPL.roles or {}; MPL.roles[cell.key]=role
     end
-    cell.metric=knownRole=="HEALER" and "hps" or "dps"
+    cell.metric="dps"
     local profile=MPL.GetProfile(shortName,realm)
     if profile then
         local stale,lastDate=MPL.IsProfileStale(profile)

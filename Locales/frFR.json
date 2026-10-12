@@ -186,5 +186,6 @@
   "Загружаются только отсутствующие или устаревшие логи.": "Seuls les logs manquants ou périmés sont chargés.",
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nLes logs datent de plus de 24 heures ou la date est inconnue.",
   "Не загружены или старше 24 часов: ": "Manquants ou datant de plus de 24 heures : ",
-  "Серый процент: данные старше 24 часов": "Pourcentage gris : logs datant de plus de 24 heures"
+  "Серый процент: данные старше 24 часов": "Pourcentage gris : logs datant de plus de 24 heures",
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS pour tous les rôles ; HPS est disponible dans le profil complet."
 }

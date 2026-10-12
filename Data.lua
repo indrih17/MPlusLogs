@@ -27,8 +27,7 @@ function MPL.FilterFreshProfiles(players)
     local pending,skipped={},0
     for _,player in ipairs(players) do
         local profile=MPL.GetProfile(player.name,player.realm)
-        local metric=player.role and (player.role=="HEALER" and "hps" or "dps")
-        local usable=profile and (not metric or profile.dual or profile.metric==metric)
+        local usable=profile and (profile.dual or profile.metric=="dps")
         if usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
         else pending[#pending+1]=player end
     end
@@ -114,9 +113,7 @@ function MPL.MetricValues(profile, row, metric)
 end
 
 function MPL.PrimaryMetric(profile,name,realm)
-    local role=MPL.roles and MPL.roles[MPL.Key(name,realm)] or profile.role
-    if role then return role=="HEALER" and "hps" or "dps" end
-    return profile.metric
+    return "dps"
 end
 
 local function clean(value)

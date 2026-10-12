@@ -34,6 +34,7 @@ L["Ctrl+C > сохранить в requests.mplq > build_database.py --requests r
 L["Ctrl+C нажат. Это не подтверждение получения помощником. Ctrl+V: проверить ответ."] = "Ctrl+C wird gedrückt. Hierbei handelt es sich nicht um eine Empfangsbestätigung des Assistenten. Ctrl+V: Überprüfen Sie die Antwort."
 L["Ctrl+C — скопировать и закрыть, Esc — закрыть"] = "Ctrl+C – kopieren und schließen, Esc –"
 L["DPS / по уровню ключа"] = "DPS / nach Schlüsselsteinstufe"
+L["DPS для всех ролей; HPS доступен в полной сводке."] = "DPS für alle Rollen; HPS ist im vollständigen Profil verfügbar."
 L["HPS / по уровню ключа"] = "HPS / nach Schlüsselsteinstufe"
 L["HPS для хилера, DPS для остальных"] = "HPS für Heiler, DPS für andere"
 L["INCONCLUSIVE: неожиданное значение или число выполнений; скопируйте отчёт"] = "INCONCLUSIVE: unerwarteter Wert oder Anzahl der Ausführungen; Kopieren Sie den Bericht"

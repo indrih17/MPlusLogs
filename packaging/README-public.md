@@ -15,6 +15,7 @@ Use `/mpl demo` for a fictional preview without an account.
 
 The addon supports eleven locales, player panels, recruitment tooltips,
 dual DPS/HPS profiles, batch candidate loading, stale-data indicators and manual import.
+DPS is shown first for every role, including healers; HPS remains available in full profiles and tooltips.
 Percentiles describe available Warcraft Logs runs. They do not measure tank survival.
 
 ## Privacy

@@ -91,6 +91,18 @@ FRESHNESS={
  'zhCN':['。\n日志已超过24小时，或日期未知。','缺失或超过24小时：','灰色百分比：日志已超过24小时'],
  'zhTW':['。\n紀錄已超過24小時，或日期未知。','缺少或超過24小時：','灰色百分比：紀錄已超過24小時'],
 }
+DPS_FIRST={
+ 'enUS':'DPS for all roles; HPS is available in the full profile.',
+ 'deDE':'DPS für alle Rollen; HPS ist im vollständigen Profil verfügbar.',
+ 'esES':'DPS para todos los roles; HPS está disponible en el perfil completo.',
+ 'esMX':'DPS para todos los roles; HPS está disponible en el perfil completo.',
+ 'frFR':'DPS pour tous les rôles ; HPS est disponible dans le profil complet.',
+ 'itIT':'DPS per tutti i ruoli; HPS è disponibile nel profilo completo.',
+ 'ptBR':'DPS para todas as funções; HPS está disponível no perfil completo.',
+ 'koKR':'모든 역할에 DPS를 표시합니다. HPS는 전체 프로필에서 확인할 수 있습니다.',
+ 'zhCN':'所有职责均显示DPS；完整资料中可查看HPS。',
+ 'zhTW':'所有職責均顯示DPS；完整資料中可查看HPS。',
+}
 
 def main():
     for locale,terms in COMMON.items():
@@ -100,6 +112,7 @@ def main():
         data.update(dict(zip(KEYS,terms)))
         data.update(dict(zip(INCREMENTAL_KEYS,INCREMENTAL[locale])))
         data.update(dict(zip(FRESHNESS_KEYS,FRESHNESS[locale])))
+        data['DPS для всех ролей; HPS доступен в полной сводке.']=DPS_FIRST[locale]
         by_level=BY_LEVEL[locale]
         data.update({
             ' / по уровню ключа':' / '+by_level,
