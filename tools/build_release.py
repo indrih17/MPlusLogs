@@ -18,14 +18,15 @@ def version():
     return re.search(r"^## Version: (\d+\.\d+\.\d+)$", (ROOT / "MPlusLogs.toc").read_text(), re.M)[1]
 
 
-def addon(output, release_version):
-    toc = (ROOT / "MPlusLogs.toc").read_text(encoding="utf-8")
+def addon(output, release_version, source_root=None):
+    root = ROOT if source_root is None else Path(source_root)
+    toc = (root / "MPlusLogs.toc").read_text(encoding="utf-8")
     files = [line.strip() for line in toc.splitlines() if line.strip() and not line.startswith("#")]
     with zipfile.ZipFile(output / f"MPlusLogs-{release_version}.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.write(ROOT / "MPlusLogs.toc", "MPlusLogs/MPlusLogs.toc")
+        archive.write(root / "MPlusLogs.toc", "MPlusLogs/MPlusLogs.toc")
         for name in files:
-            path = (ROOT / name).resolve()
-            if (not path.is_relative_to(ROOT) or not path.is_file() or path.suffix.lower() not in {".lua", ".xml"}
+            path = (root / name).resolve()
+            if (not path.is_relative_to(root.resolve()) or not path.is_file() or path.suffix.lower() not in {".lua", ".xml"}
                 or any(part.startswith(".") for part in Path(name).parts)):
                 raise ValueError(f"Invalid TOC file: {name}")
             # Ship the demo explicitly via /mpl demo, without a real user's snapshot.
@@ -33,23 +34,25 @@ def addon(output, release_version):
                 archive.writestr("MPlusLogs/Snapshot.lua", "local _, MPL = ...\nMPL.snapshots = {}\n")
             else:
                 archive.write(path, "MPlusLogs/" + name.replace("\\", "/"))
-        archive.write(ROOT / "packaging/ADDON-README.txt", "MPlusLogs/README.txt")
-        archive.write(ROOT / "LICENSE", "MPlusLogs/LICENSE")
-        for path in sorted((ROOT / "assets/dungeons").glob("*.tga")):
+        archive.write(root / "packaging/ADDON-README.txt", "MPlusLogs/README.txt")
+        archive.write(root / "LICENSE", "MPlusLogs/LICENSE")
+        for path in sorted((root / "assets/dungeons").glob("*.tga")):
             archive.write(path, "MPlusLogs/assets/dungeons/" + path.name)
-        archive.write(ROOT / "assets/dungeons/README.md", "MPlusLogs/assets/dungeons/README.md")
-        archive.write(ROOT / "assets/mpluslogs-icon.tga", "MPlusLogs/assets/mpluslogs-icon.tga")
+        archive.write(root / "assets/dungeons/README.md", "MPlusLogs/assets/dungeons/README.md")
+        archive.write(root / "assets/mpluslogs-icon.tga", "MPlusLogs/assets/mpluslogs-icon.tga")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--addon-only", action="store_true")
+    parser.add_argument("--skip-addon", action="store_true")
     parser.add_argument("--iscc", type=Path)
     args = parser.parse_args()
     output = ROOT / "release-output"
     output.mkdir(exist_ok=True)
     release_version = version()
-    addon(output, release_version)
+    if not args.skip_addon:
+        addon(output, release_version)
     if not args.addon_only:
         companion_release = companion_version.version()
         build_metadata = ROOT / "tools/companion-build.json"

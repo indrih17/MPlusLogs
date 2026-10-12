@@ -28,6 +28,7 @@ jobs:
           git push origin HEAD:main
           if ($LASTEXITCODE -ne 0) { throw 'Source changed remotely; next queued run will release it' }
       - name: Build addon, exe, installer and portable ZIP
+        id: build
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,9 +36,16 @@ jobs:
           $companionVersion = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.version())"
           $existing = gh release view "companion-v$companionVersion" --json assets 2>$null
           $complete = $LASTEXITCODE -eq 0 -and 'companion-update.json' -in ($existing | ConvertFrom-Json).assets.name
-          if ($complete) { python tools/build_release.py --addon-only }
-          else { python tools/build_release.py --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          $addonVersion = python -c "import sys; sys.path.insert(0,'tools'); import addon_version; print(addon_version.version())"
+          $existingAddon = gh release view "v$addonVersion" --json assets 2>$null
+          $addonComplete = $LASTEXITCODE -eq 0 -and "MPlusLogs-$addonVersion.zip" -in ($existingAddon | ConvertFrom-Json).assets.name -and 'curseforge-upload.json' -in ($existingAddon | ConvertFrom-Json).assets.name
+          $buildArgs = @('tools/build_release.py')
+          if ($addonComplete) { $buildArgs += '--skip-addon' }
+          if ($complete) { $buildArgs += '--addon-only' }
+          else { $buildArgs += @('--iscc', 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe') }
+          python @buildArgs
           if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
+          "addon=$(!$addonComplete)".ToLowerInvariant() >> $env:GITHUB_OUTPUT
       - name: Publish independent Companion and update channel
         shell: pwsh
         env:
@@ -85,6 +93,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Update channel upload failed' }
           }
       - name: Publish GitHub release
+        if: steps.build.outputs.addon == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,6 +113,7 @@ jobs:
           gh release upload $releaseTag $releaseFiles.FullName --clobber
           if ($LASTEXITCODE -ne 0) { throw 'GitHub asset upload failed' }
       - name: Publish addon to CurseForge
+        if: steps.build.outputs.addon == 'true'
         shell: pwsh
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}

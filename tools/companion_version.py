@@ -22,7 +22,7 @@ def version():
 
 def source_hash():
     files = [ROOT / "tools" / name for name in RUNTIME]
-    files += [ROOT / name for name in ("realm-slugs.json", "packaging/companion.iss", "packaging/COMPANION-README.txt")]
+    files += [ROOT / name for name in ("realm-slugs.json", "LICENSE", "packaging/companion.iss", "packaging/COMPANION-README.txt")]
     files += list((ROOT / "tools/assets").glob("*")) + list((ROOT / "tools/companion_locales").glob("*.json"))
     digest = hashlib.sha256()
     for path in sorted(files):

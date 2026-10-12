@@ -1,6 +1,4 @@
-## 0.5.11
+## Companion 1.0.0
 
-- Release Companion independently with background update checks, verified downloads and one-click install and restart while preserving login and startup preferences.
-- Show a one-time Companion updater installation notice in the addon and support capability checks without disrupting compatible older Companions.
-
-Use the Setup exe or portable ZIP for Windows 10/11 x64. Python is included. Companion supports all WoW client languages with a language selector; binaries are unsigned.
+- Start the independent Companion 1.x version series and publish only components whose shipped files changed; Companion-only releases no longer update the addon or CurseForge.
+- Keep release notes focused on changes and remove the repeated Companion installation boilerplate.

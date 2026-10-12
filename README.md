@@ -47,7 +47,7 @@ development character snapshot from the shipped addon. The source snapshot is
 a development test fixture. Frozen resources are checked without account access.
 Release binaries are currently unsigned.
 
-Companion has an independent version. It checks for updates on startup and once a day, downloads a verified installer and offers an install-and-restart button. Settings, login and startup choices are preserved. Existing users must install this updater-enabled Companion once. Portable users can use the same update button; it installs into the current folder and registers the installation with Windows.
+Companion starts its own version series at 1.0.0; the addon keeps its 0.x series. Each component advances only when its shipped files change. Companion-only releases do not create addon updates on CurseForge. Companion has an independent version. It checks for updates on startup and once a day, downloads a verified installer and offers an install-and-restart button. Settings, login and startup choices are preserved. Existing users must install this updater-enabled Companion once. Portable users can use the same update button; it installs into the current folder and registers the installation with Windows.
 
 Every push to `main` runs the Windows tests and builds the addon. Companion binaries are built and released only when its shipped inputs change. The workflow
 publishes GitHub Release assets and uploads the addon to CurseForge with changelog.
