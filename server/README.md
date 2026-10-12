@@ -82,6 +82,11 @@ the backend secret must never be embedded in the addon or Companion.
   upstream attempts/hour globally; 300 API reads/minute per account; 600/minute
   per IP; ten login starts/hour per IP. The global attempt count includes login
   identity queries. Account and global limits survive service restart.
+  Each account additionally receives at most 20% of the observed hourly WCL
+  point allowance, reserved using conservative learned request cost. Observed
+  cost raises the account's charge after the reply; unknown first-request cost
+  can exceed the estimate once, after which further work is refused. This gate
+  protects the shared budget when individual profile requests are expensive.
   Login starts are additionally capped at 240/hour globally and 2,048 pending
   tickets. One-time bearer delivery is kept only in memory, not in SQLite pages.
 - Eight in-flight profiles per initiating account, 128 globally, round-robin

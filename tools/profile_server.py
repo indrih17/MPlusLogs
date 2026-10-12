@@ -42,6 +42,8 @@ class Store:
             self.db.execute("CREATE TABLE IF NOT EXISTS tickets (state TEXT PRIMARY KEY,poll TEXT UNIQUE,expires REAL,consumed INTEGER,session TEXT)")
             self.db.execute("CREATE TABLE IF NOT EXISTS usage (subject TEXT,at REAL)")
             self.db.execute("CREATE INDEX IF NOT EXISTS usage_subject ON usage(subject,at)")
+            self.db.execute("CREATE TABLE IF NOT EXISTS point_usage (user TEXT,at REAL,points REAL)")
+            self.db.execute("CREATE INDEX IF NOT EXISTS point_usage_user ON point_usage(user,at)")
 
     def limit(self, subject, count, seconds, charge=True):
         now = self.clock()
@@ -59,10 +61,25 @@ class Store:
             if charge:
                 self.db.execute("INSERT INTO usage VALUES (?,?)", (subject, now))
 
-    def charge_profile(self, user, hourly, daily):
+    def charge_profile(self, user, hourly, daily, cap=0, fraction=.2, estimate=1, charge=True):
         with self.lock:
             self.limit("fetch:" + user, hourly, 3600, False)
-            self.limit("fetch:" + user, daily, 86400)
+            self.limit("fetch:" + user, daily, 86400, False)
+            with self.db:
+                self.db.execute("BEGIN IMMEDIATE")
+                now = self.clock()
+                self.db.execute("DELETE FROM point_usage WHERE at<=?", (now - 3600,))
+                spent, oldest = self.db.execute("SELECT COALESCE(SUM(points),0),MIN(at) FROM point_usage WHERE user=?", (user,)).fetchone()
+                estimate = max(1, estimate)
+                if cap > 0 and spent + estimate > max(1, cap * fraction):
+                    raise ServiceError(429, "Account share of the WCL point budget reached", max(60, int((oldest or now) + 3600 - now)))
+                if charge:
+                    self.db.execute("INSERT INTO usage VALUES (?,?)", ("fetch:" + user, now))
+                    return self.db.execute("INSERT INTO point_usage VALUES (?,?,?)", (user, now, estimate)).lastrowid
+
+    def actual_points(self, reservation, cost):
+        with self.lock, self.db:
+            self.db.execute("UPDATE point_usage SET points=MAX(points,?) WHERE rowid=?", (cost, reservation))
 
     def issue_session(self, user):
         token, expiry = secrets.token_urlsafe(48), self.clock() + 30 * 86400
@@ -125,7 +142,7 @@ class Store:
 
 class Service:
     def __init__(self, directory, public_url, client_id="", secret="", hourly=60, daily=300,
-                 global_hourly=500, fetcher=None, clock=time.time, start_worker=True):
+                 global_hourly=500, fetcher=None, clock=time.time, start_worker=True, point_fraction=.2):
         self.directory, self.clock = Path(directory), clock
         self.directory.mkdir(parents=True, exist_ok=True)
         self.public_url = service_url(public_url)
@@ -135,6 +152,9 @@ class Service:
         self.client.budget.clock = clock
         self.fetcher = fetcher or self.client
         self.hourly, self.daily = hourly, daily
+        if not 0 < point_fraction <= 1:
+            raise ValueError("Account point fraction must be between zero and one")
+        self.point_fraction = point_fraction
         self.mapping = realm_resolver.load_mappings()
         self.cache = self.directory / "cache"
         self.cv = threading.Condition(threading.RLock())
@@ -198,8 +218,9 @@ class Service:
                 existing["users"].add(user)
                 self.client.budget.count("coalesced_requests")
                 return {"status": "queued", "job": existing["id"]}
-            self.store.limit("fetch:" + user, self.hourly, 3600, False)
-            self.store.limit("fetch:" + user, self.daily, 86400, False)
+            budget = self.client.budget.snapshot()
+            self.store.charge_profile(user, self.hourly, self.daily, budget["limitPerHour"], self.point_fraction,
+                                      budget["largestObservedCost"], charge=False)
             active = sum(1 for job in self.inflight.values() if job["owner"] == user)
             if len(self.inflight) >= 128 or active >= 8 or len(self.jobs) >= 2048:
                 raise ServiceError(429, "Profile queue is full; retry later", 60)
@@ -236,11 +257,23 @@ class Service:
             if self.clock() - job["created"] > 180:
                 raise ServiceError(429, "Profile queue wait expired", 60)
             def charged_fetch(args):
+                budget = self.client.budget.snapshot()
+                reservation = []
+                def admit():
+                    reservation.append(self.store.charge_profile(user, self.hourly, self.daily,
+                        budget["limitPerHour"], self.point_fraction, budget["largestObservedCost"]))
                 if self.fetcher is self.client:
-                    self.client.before_fetch = lambda: self.store.charge_profile(user, self.hourly, self.daily)
+                    self.client.before_fetch = admit
                 else:
-                    self.store.charge_profile(user, self.hourly, self.daily)
-                return self.fetcher(args)
+                    admit()
+                raw = self.fetcher(args)
+                limit = raw.get("data", {}).get("rateLimitData")
+                if limit and budget["resetAt"] > self.clock():
+                    delta = max(1, float(limit["pointsSpentThisHour"]) - budget["pointsSpentThisHour"])
+                    self.store.actual_points(reservation[0], delta)
+                if self.fetcher is not self.client:
+                    self.client.budget.observe(limit)
+                return raw
             builder.build([job["entry"]], self.cache, fetcher=charged_fetch, now=self.clock())
             result = self.cached(job["entry"], allow_stale=True)
             if result is None:
@@ -467,7 +500,8 @@ def main():
             raise SystemExit("Configure WCL_CLIENT_ID and WCL_CLIENT_SECRET on the server")
         service = Service(directory, os.environ["MPLUSLOGS_PUBLIC_URL"], client_id, secret,
             hourly=int(os.environ.get("MPLUSLOGS_USER_HOURLY", "60")), daily=int(os.environ.get("MPLUSLOGS_USER_DAILY", "300")),
-            global_hourly=int(os.environ.get("MPLUSLOGS_GLOBAL_HOURLY", "500")))
+            global_hourly=int(os.environ.get("MPLUSLOGS_GLOBAL_HOURLY", "500")),
+            point_fraction=float(os.environ.get("MPLUSLOGS_USER_POINT_FRACTION", ".2")))
         try:
             with Server(("0.0.0.0", 8080), service, os.environ.get("MPLUSLOGS_ADMIN_TOKEN", ""),
                         os.environ.get("MPLUSLOGS_TRUST_PROXY") == "1") as server:

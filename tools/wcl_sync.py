@@ -56,8 +56,13 @@ def request_json(url, body, headers):
             return json.load(response)
     except HTTPError as exc:
         # Do not echo request headers, credentials or arbitrary response bodies.
-        raise APIError(f"WCL HTTP {exc.code}; check credentials, API permissions or rate limit",
-                       exc.code, retry_seconds(exc.headers.get("Retry-After"))) from None
+        status, retry = exc.code, retry_seconds(exc.headers.get("Retry-After"))
+        if exc.fp is not None:
+            exc.close()
+        message = f"WCL HTTP {status}; check credentials, API permissions or rate limit"
+        if retry:
+            message += f"; retry after {int(retry)} seconds"
+        raise APIError(message, status, retry) from None
     except URLError:
         raise APIError("Could not connect to Warcraft Logs") from None
 

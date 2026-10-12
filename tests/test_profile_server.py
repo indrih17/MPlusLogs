@@ -71,6 +71,20 @@ class ServerTests(unittest.TestCase):
         # Cached reads remain available after exhausting new-profile quota.
         self.assertEqual(self.service.submit("42", self.entry)["status"], "ready")
 
+    def test_account_point_share_blocks_expensive_queries_and_survives_relogin(self):
+        store = self.service.store
+        reservation = store.charge_profile("42", 60, 300, cap=720, fraction=.2, estimate=10)
+        store.actual_points(reservation, 140)
+        # 60-load limit has not been reached, but only four points remain in this account's share.
+        with self.assertRaises(server.ServiceError):
+            store.charge_profile("42", 60, 300, cap=720, fraction=.2, estimate=10)
+        store.issue_session("42")
+        with self.assertRaises(server.ServiceError):
+            store.charge_profile("42", 60, 300, cap=720, fraction=.2, estimate=10)
+        self.assertIsNotNone(store.charge_profile("other", 60, 300, cap=720, fraction=.2, estimate=10))
+        self.clock[0] += 3600
+        self.assertIsNotNone(store.charge_profile("42", 60, 300, cap=720, fraction=.2, estimate=10))
+
     def test_negative_cache_shared_but_temporary_error_is_not_missing_logs(self):
         def empty(_):
             return {"data": {"characterData": {"character": None}}}

@@ -41,7 +41,10 @@ def request(base, path, body=None, token=None):
     except HTTPError as exc:
         # Only interpret authored, bounded JSON fields; never print headers/body.
         retry = wcl.retry_seconds(exc.headers.get("Retry-After"))
-        raise wcl.APIError(f"Profile server HTTP {exc.code}; sign in again or retry later", exc.code, retry) from None
+        status = exc.code
+        exc.close()
+        message = f"Profile server HTTP {status}; " + (f"retry after {int(retry)} seconds" if retry else "sign in again or retry later")
+        raise wcl.APIError(message, status, retry) from None
     except URLError:
         raise wcl.APIError("Could not connect to profile server") from None
 
