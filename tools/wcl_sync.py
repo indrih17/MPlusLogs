@@ -4,16 +4,39 @@ from __future__ import annotations
 import argparse
 import base64
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
 import math
 import os
 from pathlib import Path
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 ROOT = "https://www.warcraftlogs.com"
+
+
+class APIError(ValueError):
+    """Safe upstream error with machine-readable status and retry timing."""
+    def __init__(self, message, status=None, retry_after=0, rate_limit=None):
+        super().__init__(message)
+        self.status, self.retry_after, self.rate_limit = status, retry_after, rate_limit
+
+
+class NoProfile(ValueError):
+    """A valid response explicitly says there is no usable public profile."""
+
+
+def retry_seconds(value):
+    try:
+        return max(0, min(86400, float(value)))
+    except (ValueError, TypeError):
+        try:
+            return max(0, min(86400, parsedate_to_datetime(value).timestamp() - time.time()))
+        except (ValueError, TypeError, OverflowError):
+            return 0
 QUERY = """query MPlusLogs($id:Int, $name:String, $slug:String, $region:String, $zone:Int!, $spec:String) {
   rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn }
   characterData {
@@ -33,9 +56,10 @@ def request_json(url, body, headers):
             return json.load(response)
     except HTTPError as exc:
         # Do not echo request headers, credentials or arbitrary response bodies.
-        raise ValueError(f"WCL HTTP {exc.code}; check credentials, API permissions or rate limit") from None
+        raise APIError(f"WCL HTTP {exc.code}; check credentials, API permissions or rate limit",
+                       exc.code, retry_seconds(exc.headers.get("Retry-After"))) from None
     except URLError:
-        raise ValueError("Could not connect to Warcraft Logs") from None
+        raise APIError("Could not connect to Warcraft Logs") from None
 
 
 def access_token(client_id=None, secret=None):
@@ -59,8 +83,11 @@ def fetch(args, token=None, endpoint="client"):
                  "region": args.region, "zone": args.zone, "spec": args.spec}
     data = request_json(ROOT + "/api/v2/" + endpoint, json.dumps({"query": QUERY, "variables": variables}).encode(),
                         {"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+    if not isinstance(data, dict):
+        raise APIError("Invalid WCL response")
     if data.get("errors"):
-        raise ValueError("WCL GraphQL error; inspect API schema/query. No export written")
+        raise APIError("WCL GraphQL error; inspect API schema/query. No export written",
+                       rate_limit=(data.get("data") or {}).get("rateLimitData"))
     return data
 
 
@@ -100,14 +127,20 @@ HEALERS={"Holy","Discipline","Restoration","Mistweaver","Preservation"}
 TANKS={"Blood","Protection","Guardian","Brewmaster","Vengeance"}
 
 def normalize(raw, args):
-    character = raw.get("data", {}).get("characterData", {}).get("character")
+    data = raw.get("data") if isinstance(raw, dict) else None
+    characters = data.get("characterData") if isinstance(data, dict) else None
+    if not isinstance(characters, dict) or "character" not in characters or raw.get("errors"):
+        raise ValueError("Invalid WCL character response; no profile cached")
+    character = characters["character"]
+    if character is not None and not isinstance(character, dict):
+        raise ValueError("Invalid WCL character response; no profile cached")
     if not character or character.get("hidden"):
-        raise ValueError("Character not found or rankings hidden; absence is not a zero parse")
+        raise NoProfile("Character not found or rankings hidden; absence is not a zero parse")
     dual="damage" in character and "healing" in character
     damage=rankings(character["damage"]) if dual else None
     healing=rankings(character["healing"]) if dual else None
     if dual and not damage['rankings'] and not healing['rankings']:
-        raise ValueError("Публичные логи M+ не найдены")
+        raise NoProfile("Публичные логи M+ не найдены")
     role=getattr(args,"role",None)
     if role not in {"HEALER","TANK","DAMAGER"}:
         specs={}

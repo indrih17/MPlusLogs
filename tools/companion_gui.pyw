@@ -1,6 +1,7 @@
 """Browser sign-in, automatic clipboard processing, Windows tray. No client secret."""
 from pathlib import Path
 import json
+import hashlib
 import os
 import queue
 import threading
@@ -18,6 +19,7 @@ import windows_integration as windows
 import appearance
 import companion_i18n as i18n
 import companion_update as updates
+import profile_service
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
@@ -41,6 +43,7 @@ class App:
         self.update_worker = None
         self.available_update = self.update_installer = None
         self.installing_update = False
+        self.failed_update_version = None
         root.title("MPlusLogs Companion")
         root.geometry("500x360")
         root.resizable(False, False)
@@ -61,6 +64,10 @@ class App:
             variable.refresh()
         bundled = json.loads(Path(__file__).with_name("oauth_client.json").read_text(encoding="utf-8"))
         self.client_id = bundled["client_id"]
+        configured_url = os.environ.get("MPLUSLOGS_SERVICE_URL", self.config.get("service_url", bundled.get("service_url", "")))
+        if "--service-url" in sys.argv:
+            configured_url = sys.argv[sys.argv.index("--service-url") + 1]
+        self.service_url = profile_service.service_url(configured_url) if configured_url else ""
         self.sound.set(self.config.get("sound", True))
         theme = self.config.get("theme", "system")
         self.theme = tk.StringVar(value=theme if theme in {"system","light","dark"} else "system")
@@ -72,7 +79,8 @@ class App:
                 windows.ensure_retail_watcher()
             except OSError:
                 self.status.set("Не удалось запустить ожидание WoW Retail. Проверьте настройку автозапуска.")
-        if self.config.get("oauth") and self.config.get("oauth_client_id") == self.client_id:
+        if (self.config.get("oauth") and self.config.get("oauth_client_id") == self.client_id
+                and self.config["oauth"].get("_service_url", "") == self.service_url):
             self.session = self.make_session(self.config["oauth"])
             self.account.set("Warcraft Logs подключён")
         frame = ttk.Frame(root, padding=24)
@@ -100,6 +108,10 @@ class App:
         self.update_status = self.textvar("")
         ttk.Label(frame, textvariable=self.update_status, wraplength=440).pack(anchor="w")
         self.update_button = ttk.Button(frame, textvariable=self.textvar("Install update and restart"), command=self.install_update)
+        outcome = updates.last_result()
+        if outcome and not outcome["success"] and updates.version_tuple(outcome["expected_version"]) >= updates.version_tuple(updates.current_version()):
+            self.failed_update_version = outcome["expected_version"]
+            self.update_status.set("Companion update failed. Open the installation log in Settings.")
         self.refresh_theme()
         self.tray = None
         try:
@@ -133,6 +145,8 @@ class App:
             try:
                 data = updates.check()
                 if data:
+                    if not manual and data["version"] == self.failed_update_version:
+                        return
                     self.messages.put(("update_downloading", None))
                     target = updates.download(data)
                     self.messages.put(("update_ready", (data, target)))
@@ -142,6 +156,13 @@ class App:
                 self.messages.put(("update_error", manual))
         self.update_worker = threading.Thread(target=run, daemon=True)
         self.update_worker.start()
+
+    def open_update_log(self):
+        path = local_settings.PATH.parent / "update-install.log"
+        try:
+            os.startfile(str(path))
+        except OSError:
+            messagebox.showerror("MPlusLogs", i18n.tr("No installation log is available yet."), parent=self.root)
 
     def install_update(self):
         if not self.update_installer or self.installing_update:
@@ -171,6 +192,8 @@ class App:
         self.exit()
 
     def make_session(self, tokens):
+        if self.service_url:
+            return profile_service.Session(tokens)
         def persist(updated):
             with self.config_lock:
                 if self.session is not session:
@@ -194,10 +217,11 @@ class App:
         self.status.set("Завершите вход в браузере. Пароль вводится только на сайте Warcraft Logs.")
         def authenticate():
             try:
-                tokens = wcl_oauth.login(self.client_id, cancel)
+                tokens = profile_service.login(self.service_url, cancel) if self.service_url else wcl_oauth.login(self.client_id, cancel)
                 if cancel.is_set():
                     return
-                wcl_oauth.validate_access(tokens)
+                if not self.service_url:
+                    wcl_oauth.validate_access(tokens)
                 self.messages.put(("auth", (tokens, cancel)))
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.messages.put(("auth_error", (str(exc), cancel)))
@@ -261,6 +285,8 @@ class App:
         ttk.Label(frame, textvariable=self.textvar('Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.')).pack(anchor="w", pady=12)
         ttk.Button(frame, textvariable=self.textvar('Переподключить Warcraft Logs'), command=self.sign_in).pack(anchor="w", pady=4)
         ttk.Button(frame, textvariable=self.textvar('Check Companion updates'), command=lambda: self.check_updates(manual=True)).pack(anchor="w", pady=4)
+        if self.failed_update_version:
+            ttk.Button(frame, textvariable=self.textvar('Open update installation log'), command=self.open_update_log).pack(anchor="w", pady=4)
         ttk.Button(frame, textvariable=self.textvar('Выйти из Warcraft Logs'), command=self.sign_out).pack(anchor="w", pady=4)
         ttk.Label(frame, textvariable=self.textvar('Диагностика'), font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(20, 4))
         ttk.Button(frame, textvariable=self.textvar('Проверить связь с аддоном без WCL'), command=self.toggle_diagnostic).pack(anchor="w", pady=4)
@@ -333,7 +359,16 @@ class App:
             self.messages.put(("worker", (stop, kind, value)))
         try:
             clipboard = bridge.WindowsClipboard(owner=owner)
-            client = bridge.Client(token_provider=session.access_token, invalidate_token=session.invalidate) if session else None
+            if isinstance(session, profile_service.Session):
+                client = profile_service.Client(session, stop)
+            elif session:
+                # Do not reuse user-endpoint data between accounts or with public server data.
+                principal = session.tokens.get("refresh_token") or session.tokens.get("access_token", "")
+                scope = "user:" + hashlib.sha256((self.client_id + principal).encode()).hexdigest()
+                client = bridge.Client(token_provider=session.access_token, invalidate_token=session.invalidate,
+                    state_path=DATA_ROOT / ".wcl-cache/api-state.sqlite3", cache_scope=scope)
+            else:
+                client = None
             mapping = realm_resolver.load_mappings()
             post("status", "Проверка связи: ожидаю запрос из WoW." if diagnostic else "Готов к работе. Ожидаю запрос из WoW.")
             last_sequence = None
@@ -407,7 +442,7 @@ class App:
                     continue
                 try:
                     with self.config_lock:
-                        config = dict(self.config, oauth_client_id=self.client_id, oauth=tokens)
+                        config = dict(self.config, oauth_client_id=self.client_id, oauth=tokens, service_url=self.service_url)
                         local_settings.save_config(config)
                         self.config = config
                         self.session = self.make_session(tokens)

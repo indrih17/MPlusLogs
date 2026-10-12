@@ -1,0 +1,26 @@
+services:
+  profiles:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      WCL_CLIENT_ID: ${WCL_CLIENT_ID:?Set WCL_CLIENT_ID in server/.env}
+      WCL_CLIENT_SECRET: ${WCL_CLIENT_SECRET:?Set WCL_CLIENT_SECRET in server/.env}
+      MPLUSLOGS_PUBLIC_URL: http://localhost:8080
+      MPLUSLOGS_ADMIN_TOKEN: ${MPLUSLOGS_ADMIN_TOKEN:-}
+      MPLUSLOGS_USER_HOURLY: ${MPLUSLOGS_USER_HOURLY:-60}
+      MPLUSLOGS_USER_DAILY: ${MPLUSLOGS_USER_DAILY:-300}
+      MPLUSLOGS_GLOBAL_HOURLY: ${MPLUSLOGS_GLOBAL_HOURLY:-500}
+    volumes:
+      - profile-data:/data
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 256m
+    pids_limit: 128
+volumes:
+  profile-data:

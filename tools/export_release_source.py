@@ -10,12 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def entries():
-    files = list(ROOT.glob("*.lua")) + [ROOT / name for name in ("MPlusLogs.toc", "LICENSE", ".gitignore", "realm-slugs.json", "Start-Companion.vbs", "AGENTS.md", "CHANGELOG.md")]
+    files = list(ROOT.glob("*.lua")) + [ROOT / name for name in ("MPlusLogs.toc", "LICENSE", ".gitignore", ".dockerignore", "realm-slugs.json", "Start-Companion.vbs", "AGENTS.md", "CHANGELOG.md")]
     for directory, patterns in {"Locales": ["*.lua", "*.json", "README.md"], "tools": ["*.py", "*.pyw", "*.ps1", "requirements.txt", "oauth_client.json"],
         "tools/assets": ["*.png", "*.ico", "*.svg"], "assets": ["*.tga"], "assets/dungeons": ["*.tga", "README.md"], "tools/companion_locales": ["*.json", "README.md"], "tests": ["*.py"], "packaging": ["*"], ".github/workflows": ["*.yml"]}.items():
         for pattern in patterns:
             files.extend((ROOT / directory).glob(pattern))
     files.extend([ROOT / "experiments/wcl-points-and-damage.json"])
+    # Explicit server source allowlist: never export .env, volumes or databases.
+    files.extend(ROOT / "server" / name for name in ("Dockerfile", "compose.yaml", "compose.production.yaml", "Caddyfile", ".env.example", "README.md"))
     files.extend((ROOT / "experiments/ondemand").rglob("*.lua"))
     files.extend((ROOT / "experiments/ondemand").rglob("*.toc"))
     result = []

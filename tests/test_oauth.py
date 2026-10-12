@@ -96,7 +96,7 @@ class OAuthTests(unittest.TestCase):
             self.assertEqual(fetch.call_args.kwargs, {"endpoint": "user"})
         with patch.object(wcl_sync, "fetch", side_effect=ValueError("WCL HTTP 401")):
             with self.assertRaises(ValueError):
-                client(SimpleNamespace())
+                client(SimpleNamespace(name="Other"))
         invalidate.assert_called_once()
 
     def test_user_endpoint_preserves_rankings_query(self):

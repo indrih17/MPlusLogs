@@ -1,0 +1,8 @@
+{$MPLUSLOGS_DOMAIN} {
+    request_body {
+        max_size 8KB
+    }
+    reverse_proxy profiles:8080 {
+        header_up X-Real-IP {remote_host}
+    }
+}

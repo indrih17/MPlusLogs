@@ -1,5 +1,11 @@
 # MPlusLogs
 
+Companion reuses dual DPS/HPS profiles for 24 hours, caches valid missing-log
+responses for six hours, and persists its API budget across restarts. An optional
+shared public-profile service provides verified-account limits, a shared cache
+and a fair queue. See [Docker setup](server/README.md). No hosted server URL is
+configured in this release.
+
 Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows Companion.
 
 ## Install

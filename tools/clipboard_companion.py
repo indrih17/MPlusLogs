@@ -6,6 +6,7 @@ from ctypes import wintypes
 from pathlib import Path
 import sys
 import time
+from api_budget import Budget
 
 import build_database as builder
 import realm_resolver
@@ -117,7 +118,8 @@ class WindowsClipboard:
 
 
 class Client:
-    def __init__(self, max_hourly_queries=120, client_id=None, secret=None, token_provider=None, invalidate_token=None):
+    def __init__(self, max_hourly_queries=120, client_id=None, secret=None, token_provider=None, invalidate_token=None,
+                 state_path=None, cache_scope="public"):
         self.token = None
         self.queries = 0
         self.started = time.monotonic()
@@ -127,6 +129,9 @@ class Client:
         self.client_id,self.secret=client_id,secret
         self.token_provider=token_provider
         self.invalidate_token=invalidate_token
+        self.budget = Budget(state_path, max_hourly_queries)
+        self.cache_scope = cache_scope
+        self.before_fetch = None
 
     def __call__(self, args):
         now = time.monotonic()
@@ -136,12 +141,18 @@ class Client:
             raise ValueError("Local hourly query limit reached; use cache or wait")
         if self.remaining is not None and now < self.budget_reset and self.remaining < 100:
             raise ValueError("WCL API budget is low; wait for reset")
-        self.token = self.token_provider() if self.token_provider else self.token or wcl.access_token(self.client_id,self.secret)
+        key = builder.cache_path(Path(), dict({"realm": ""}, **vars(args), _cache_scope=self.cache_scope)).stem
+        delay = self.budget.reserve(key, self.before_fetch, pace=True)
+        if delay:
+            time.sleep(delay)
         self.queries += 1
         try:
+            self.token = self.token_provider() if self.token_provider else self.token or wcl.access_token(self.client_id,self.secret)
             result = wcl.fetch(args,self.token,endpoint="user") if self.token_provider else wcl.fetch(args,self.token)
         except ValueError as exc:
-            self.token = None  # Next explicit request may renew an expired token.
+            self.budget.failure(exc)
+            if getattr(exc, "status", None) == 401 or "WCL HTTP 401" in str(exc):
+                self.token = None
             if self.invalidate_token and "WCL HTTP 401" in str(exc):
                 self.invalidate_token()
             raise
@@ -149,10 +160,12 @@ class Client:
         if limit:
             self.remaining = limit["limitPerHour"] - limit["pointsSpentThisHour"]
             self.budget_reset = now + limit["pointsResetIn"]
+        self.budget.observe(limit)
+        self.budget.success(key)
         return result
 
 
-def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=1, batch=False):
+def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False):
     if not text.startswith(("MPLQ1\n","MPLQ1\r\n","MPLQ2\n","MPLQ2\r\n")):
         raise ValueError("Copy a MPlusLogs request in WoW first")
     batch=batch or text.startswith(("MPLQ2\n","MPLQ2\r\n"))
@@ -163,6 +176,8 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
     if len({builder.identity(e['region'],e['realm'],e['name']) for e in entries})!=len(entries):
         raise ValueError("Повторяющиеся кандидаты в запросе")
     valid_entries=[e for e in entries if not e.get('queue_error')]
+    for entry in valid_entries:
+        entry['_cache_scope'] = getattr(fetcher, 'cache_scope', 'public')
     profiles, report = builder.build(valid_entries,cache,ttl_hours=ttl_hours,max_fetch=len(entries) if batch else 20,
                                      offline=offline,fetcher=fetcher)
     report['errors'] += [{'character':e['name'],'realm':e['realm'],'error':e['queue_error']} for e in entries if e.get('queue_error')]
@@ -204,7 +219,7 @@ def main():
     parser.add_argument("--realm-slugs",type=Path,default=ROOT / "realm-slugs.json")
     parser.add_argument("--cache",type=Path,default=ROOT / ".wcl-cache")
     parser.add_argument("--output",type=Path,default=ROOT / "last-result.mpl")
-    parser.add_argument("--ttl-hours",type=float,default=1)
+    parser.add_argument("--ttl-hours",type=float,default=24)
     parser.add_argument("--max-hourly-queries",type=int,default=120)
     parser.add_argument("--offline",action="store_true")
     args = parser.parse_args()
@@ -214,7 +229,7 @@ def main():
         parser.error("Invalid TTL or hourly limit")
     try:
         mapping = realm_resolver.load_mappings(args.realm_slugs)
-        client = Client(args.max_hourly_queries)
+        client = Client(args.max_hourly_queries, state_path=args.cache / "api-state.sqlite3")
         if args.request:
             deliver(args.request.read_text(encoding="utf-8-sig"),None,mapping,args,client)
             return 0

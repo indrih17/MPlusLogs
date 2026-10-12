@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -13,6 +14,7 @@ from urllib.parse import unquote
 
 import wcl_sync as wcl
 import realm_resolver
+from api_budget import BudgetError
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,9 +70,38 @@ def arguments(entry):
 
 
 def cache_path(directory, entry):
-    # Query filters belong to the cache key. A Guardian cache cannot satisfy a healer request.
-    encoded = json.dumps({**vars(arguments(entry)),"query_version":"mplus-dual-v2"}, sort_keys=True, ensure_ascii=True).encode()
+    # Raw dual replies depend on WCL filters, not display role, metric or localized realm.
+    args = arguments(entry)
+    key = {"id": args.character_id, "name": (args.name or "").casefold(),
+           "slug": (args.server_slug or "").casefold(), "region": args.region.lower(),
+           "zone": args.zone, "season": args.season, "spec": args.spec,
+           "scope": entry.get("_cache_scope", "public"), "query_version": "mplus-dual-v3"}
+    encoded = json.dumps(key, sort_keys=True, ensure_ascii=True).encode()
     return directory / (hashlib.sha256(encoded).hexdigest() + ".json")
+
+
+def read_cache(path):
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        stamp = record.get("fetched_at")
+        return record if isinstance(stamp, (float, int)) and not isinstance(stamp, bool) and math.isfinite(stamp) else None
+    except (ValueError, OSError, AttributeError):
+        return None
+
+
+def validate_raw(raw, args):
+    # Presentation choice must never determine whether a raw reply is cacheable.
+    character = raw.get("data", {}).get("characterData", {}).get("character")
+    if character and "damage" in character and "healing" in character:
+        damage, healing = wcl.rankings(character["damage"]), wcl.rankings(character["healing"])
+        if not damage["rankings"] and not healing["rankings"] or character.get("hidden"):
+            wcl.normalize(raw, args)  # Produces the typed absence response.
+        for role, metric in (("DAMAGER", damage), ("HEALER", healing)):
+            # A DPS-only character may legitimately have no healing rankings.
+            if metric["rankings"]:
+                wcl.normalize(raw, SimpleNamespace(**dict(vars(args), role=role)))
+    else:
+        wcl.normalize(raw, args)  # Legacy fixtures / offline conversion.
 
 
 def lua_string(text):
@@ -101,25 +132,28 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
     now = time.time() if now is None else now
     cache_dir.mkdir(parents=True, exist_ok=True)
     profiles, errors, fetched = [], [], 0
+    hits = negative_hits = 0
     token = None
     auth_failure = None
     remaining = None
     for entry in entries:
         path = cache_path(cache_dir, entry)
-        cached = None
-        if path.exists():
-            try:
-                cached = json.loads(path.read_text(encoding="utf-8"))
-                if not isinstance(cached.get("fetched_at"), (float, int)):
-                    cached = None
-            except (ValueError, OSError, AttributeError):
-                cached = None
-        fresh = cached and 0 <= now - cached["fetched_at"] < ttl_hours * 3600
+        cached = read_cache(path)
+        ttl = 6 * 3600 if cached and cached.get("negative") else max(3600, ttl_hours * 3600)
+        fresh = cached and ("raw" in cached or cached.get("negative")) and 0 <= now - cached["fetched_at"] < ttl
         record = cached
         failure = None
+        if fresh:
+            if cached.get("negative"):
+                negative_hits += 1
+                errors.append({"character": entry.get("name") or entry.get("character_id"), "realm": entry["realm"], "error": cached["error"]})
+                continue
+            hits += 1
         if not fresh and not offline:
             if auth_failure:
                 failure = auth_failure
+            elif cached and now < cached.get("retry_until", 0):
+                failure = cached.get("refresh_error", "Profile refresh is cooling down")
             elif fetched >= max_fetch:
                 failure = "Per-run request limit reached"
             elif remaining is not None and remaining < 100:
@@ -133,21 +167,43 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
                     else:
                         token = token or wcl.access_token()
                         raw = wcl.fetch(args, token)
-                    wcl.normalize(raw, args)  # Validate before replacing a good cache.
-                    record = {"fetched_at": now, "raw": raw}
-                    atomic_write(path, json.dumps(record, ensure_ascii=False, indent=2))
+                    # Read budget before normalization, including valid empty replies.
                     limit = raw.get("data", {}).get("rateLimitData")
                     if limit:
                         remaining = limit["limitPerHour"] - limit["pointsSpentThisHour"]
+                    metadata = raw.pop("_mplus_cache", {})
+                    fetched_at = metadata.get("fetched_at", now)
+                    if not isinstance(fetched_at, (int, float)) or isinstance(fetched_at, bool) or not math.isfinite(fetched_at) or not 0 <= fetched_at <= now + 60:
+                        raise ValueError("Invalid profile cache timestamp")
+                    validate_raw(raw, args)  # Never replace good cache with malformed JSON.
+                    record = {"fetched_at": fetched_at, "raw": raw}
+                    if metadata.get("error"):
+                        failure = metadata["error"]
+                        record.update(retry_until=now + 300, refresh_error=failure)
+                    atomic_write(path, json.dumps(record, ensure_ascii=False, indent=2))
+                except wcl.NoProfile as exc:
+                    failure = str(exc)
+                    stamp = getattr(exc, "fetched_at", now)
+                    if not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or not math.isfinite(stamp) or not 0 <= stamp <= now + 60:
+                        stamp = now
+                    record = {"fetched_at": stamp, "negative": True, "error": failure}
+                    atomic_write(path, json.dumps(record, ensure_ascii=False))
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     failure = str(exc)
+                    status = getattr(exc, "status", None)
+                    if status == 429 or "HTTP 429" in failure or isinstance(exc, wcl.APIError) or isinstance(exc, BudgetError) and exc.global_stop:
+                        auth_failure = failure  # Stop this whole batch, rather than hammer upstream.
+                    # Back off for this key without discarding a previous good result.
+                    pause = max(300, getattr(exc, "retry_after", 0))
+                    record = dict(cached or {"fetched_at": 0}, retry_until=now + pause, refresh_error=failure)
+                    atomic_write(path, json.dumps(record, ensure_ascii=False))
                     if not token and not fetcher:
                         auth_failure = failure
         elif not fresh and offline:
             failure = "Offline: using cache without refresh"
         if failure:
             errors.append({"character": entry.get("name") or entry.get("character_id"), "realm": entry["realm"], "error": failure})
-        if not record:
+        if not record or record.get("negative") or "raw" not in record:
             continue
         try:
             profile = wcl.normalize(record["raw"], arguments(entry))
@@ -157,7 +213,12 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
             profiles.append(profile)
         except (ValueError, KeyError, TypeError) as exc:
             errors.append({"character": entry.get("name") or entry.get("character_id"), "realm": entry["realm"], "error": str(exc)})
-    return profiles, {"profiles": len(profiles), "fetched": fetched, "remainingApiPoints": remaining, "errors": errors}
+    budget = getattr(fetcher, "budget", None)
+    if budget:
+        for _ in range(hits): budget.count("cache_hits")
+        for _ in range(negative_hits): budget.count("negative_cache_hits")
+    return profiles, {"profiles": len(profiles), "fetched": fetched, "cacheHits": hits,
+                      "negativeCacheHits": negative_hits, "remainingApiPoints": remaining, "errors": errors}
 
 
 def main():
