@@ -61,6 +61,9 @@ def apply(root, mode, settings=None):
                     bordercolor=palette["border"], lightcolor=palette["border"], darkcolor=palette["border"], padding=(12,8))
     style.map("TButton", background=[("pressed",palette["accent"]),("active",palette["hover"])],
               foreground=[("disabled",palette["muted"]),("pressed","#ffffff")], bordercolor=[("focus",palette["accent"])])
+    style.configure("TMenubutton", background=palette["control"], foreground=palette["text"], padding=(12,8),
+                    bordercolor=palette["border"], lightcolor=palette["border"], darkcolor=palette["border"], arrowcolor=palette["text"], borderwidth=1)
+    style.map("TMenubutton", background=[("active",palette["hover"])])
     style.configure("TCheckbutton", background=palette["background"], foreground=palette["text"],
                     indicatorbackground=palette["control"], indicatorforeground="#ffffff",
                     indicatorbordercolor=palette["border"], indicatormargin=(0,0,8,0), indicatorsize=16)

@@ -49,6 +49,7 @@ def main():
             "--name", "MPlusLogs-Companion", "--paths", str(ROOT / "tools"), "--hidden-import", "retail_launcher",
             "--hidden-import", "release_smoke", "--icon", str(ROOT / "tools/assets/mpluslogs.ico"),
             "--add-data", f"{ROOT / 'tools/assets'};assets",
+            "--add-data", f"{ROOT / 'tools/companion_locales'};companion_locales",
             "--add-data", f"{ROOT / 'tools/oauth_client.json'};.",
             "--add-data", f"{ROOT / 'realm-slugs.json'};.",
             str(ROOT / "tools/companion_gui.pyw")], cwd=ROOT, check=True)

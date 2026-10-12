@@ -7,7 +7,7 @@ Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows
 Install the addon from [CurseForge](https://www.curseforge.com/wow/addons/mpluslogs).
 Download the Windows Companion from [Releases](https://github.com/indrih17/MPlusLogs/releases/latest):
 use the Setup exe or extract the complete portable ZIP. Windows 10/11 x64;
-no separate Python installation is needed. The Companion UI currently uses Russian.
+no separate Python installation is needed. The Companion supports all WoW client languages; select one in Settings > Language.
 
 Sign in through Warcraft Logs in the Companion. In WoW, right-click an applicant
 or open `/mpl`, request their M+ logs, press Ctrl+C, wait, then press Ctrl+V.

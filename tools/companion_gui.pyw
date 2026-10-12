@@ -16,6 +16,7 @@ import realm_resolver
 import wcl_oauth
 import windows_integration as windows
 import appearance
+import companion_i18n as i18n
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
@@ -27,6 +28,8 @@ class App:
         self.messages = queue.Queue()
         self.config_lock = threading.RLock()
         self.config = {}
+        self.textvars = []
+        self.language_menu = None
         self.session = self.worker = self.auth_worker = self.result = None
         self.stop, self.auth_cancel = threading.Event(), threading.Event()
         self.want_running = self.exiting = False
@@ -40,16 +43,21 @@ class App:
         root.iconbitmap(default=str(Path(__file__).with_name("assets") / "mpluslogs.ico"))
         root.protocol("WM_DELETE_WINDOW", self.hide)
         root.bind("<Unmap>", self.minimized)
-        self.status = tk.StringVar(value="Войдите в Warcraft Logs, чтобы загружать данные.")
-        self.account = tk.StringVar(value="Warcraft Logs не подключён")
+        self.status = self.textvar("Войдите в Warcraft Logs, чтобы загружать данные.")
+        self.account = self.textvar("Warcraft Logs не подключён")
         self.sound = tk.BooleanVar()
         try:
             self.config = local_settings.load()
         except (ValueError, OSError, KeyError, TypeError):
             self.status.set("Не удалось прочитать настройки. Войдите в Warcraft Logs заново.")
+        preference = self.config.get("language", "system")
+        self.language = tk.StringVar(value=preference if preference == "system" or preference in i18n.LANGUAGES else "system")
+        i18n.set_language(self.language.get())
+        for variable in self.textvars:
+            variable.refresh()
         bundled = json.loads(Path(__file__).with_name("oauth_client.json").read_text(encoding="utf-8"))
         self.client_id = bundled["client_id"]
-        self.sound.set(self.config.get("sound", False))
+        self.sound.set(self.config.get("sound", True))
         theme = self.config.get("theme", "system")
         self.theme = tk.StringVar(value=theme if theme in {"system","light","dark"} else "system")
         self.applied_theme = None
@@ -76,14 +84,14 @@ class App:
         ttk.Label(frame, textvariable=self.status, wraplength=420, justify="left").pack(anchor="w", fill="x")
         buttons = ttk.Frame(frame)
         buttons.pack(anchor="w", pady=16)
-        self.login_button = ttk.Button(buttons, text="Войти через Warcraft Logs", command=self.sign_in)
+        self.login_button = ttk.Button(buttons, textvariable=self.textvar('Войти через Warcraft Logs'), command=self.sign_in)
         self.login_button.pack(side="left")
-        self.settings_button = ttk.Button(buttons, text="Настройки", command=self.settings)
+        self.settings_button = ttk.Button(buttons, textvariable=self.textvar('Настройки'), command=self.settings)
         self.settings_button.pack(side="left", padx=(8, 0))
         if self.session:
             self.login_button.pack_forget()
-        self.copy_button = ttk.Button(frame, text="Скопировать последний ответ", command=self.copy)
-        ttk.Label(frame, text="В WoW: скопируйте запрос (Ctrl+C), дождитесь ответа\nи вставьте его (Ctrl+V).", justify="left", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
+        self.copy_button = ttk.Button(frame, textvariable=self.textvar('Скопировать последний ответ'), command=self.copy)
+        ttk.Label(frame, textvariable=self.textvar('В WoW: скопируйте запрос (Ctrl+C), дождитесь ответа\nи вставьте его (Ctrl+V).'), justify="left", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
         self.refresh_theme()
         self.tray = None
         try:
@@ -138,7 +146,7 @@ class App:
             try:
                 local_settings.save_config(config)
             except (ValueError, OSError) as exc:
-                messagebox.showerror("MPlusLogs", str(exc), parent=self.root)
+                messagebox.showerror("MPlusLogs", i18n.tr(str(exc)), parent=self.root)
                 return
             self.session, self.config = None, config
         self.want_running = False
@@ -154,11 +162,18 @@ class App:
             self.settings_window.lift()
             return
         window = self.settings_window = tk.Toplevel(self.root)
-        window.title("Настройки MPlusLogs")
+        window.title(i18n.tr("Настройки MPlusLogs"))
         window.resizable(False, False)
         frame = ttk.Frame(window, padding=20)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Тема оформления").pack(anchor="w", pady=(0,6))
+        ttk.Label(frame, textvariable=self.textvar("Language")).pack(anchor="w", pady=(0,6))
+        self.language_label = self.textvar("Follow Windows" if self.language.get() == "system" else i18n.LANGUAGES[self.language.get()])
+        language_picker = ttk.Menubutton(frame, textvariable=self.language_label, direction="below")
+        self.language_menu = tk.Menu(language_picker, tearoff=False)
+        language_picker.configure(menu=self.language_menu)
+        language_picker.pack(fill="x", pady=(0,16))
+        self.fill_language_menu()
+        ttk.Label(frame, textvariable=self.textvar('Тема оформления')).pack(anchor="w", pady=(0,6))
         names = {"system":"Как в Windows", "light":"Светлая", "dark":"Тёмная"}
         theme_buttons = ttk.Frame(frame)
         theme_buttons.pack(fill="x", pady=(0,16))
@@ -166,19 +181,19 @@ class App:
             self.refresh_theme(force=True)
             self.save_preferences()
         for index, (value, label) in enumerate(names.items()):
-            ttk.Radiobutton(theme_buttons, text=label, value=value, variable=self.theme,
+            ttk.Radiobutton(theme_buttons, textvariable=self.textvar(label), value=value, variable=self.theme,
                             command=select_theme, style="Theme.TRadiobutton").grid(row=0,column=index,sticky="ew",padx=(0,4))
             theme_buttons.columnconfigure(index, weight=1)
-        ttk.Checkbutton(frame, text="Запускать при входе в Windows", variable=self.autostart, command=self.save_preferences).pack(anchor="w", pady=6)
-        ttk.Checkbutton(frame, text="Запускать вместе с WoW Retail", variable=self.retail_autostart, command=self.save_preferences).pack(anchor="w", pady=6)
-        ttk.Label(frame, text="Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник.", style="Muted.TLabel").pack(anchor="w", pady=(0,8))
-        ttk.Checkbutton(frame, text="Звук готовности ответа", variable=self.sound, command=self.save_preferences).pack(anchor="w", pady=6)
-        ttk.Label(frame, text="Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.").pack(anchor="w", pady=12)
-        ttk.Button(frame, text="Переподключить Warcraft Logs", command=self.sign_in).pack(anchor="w", pady=4)
-        ttk.Button(frame, text="Выйти из Warcraft Logs", command=self.sign_out).pack(anchor="w", pady=4)
-        ttk.Label(frame, text="Диагностика", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(20, 4))
-        ttk.Button(frame, text="Проверить связь с аддоном без WCL", command=self.toggle_diagnostic).pack(anchor="w", pady=4)
-        ttk.Button(frame, text="Завершить помощник", command=self.exit).pack(anchor="w", pady=8)
+        ttk.Checkbutton(frame, textvariable=self.textvar('Запускать при входе в Windows'), variable=self.autostart, command=self.save_preferences).pack(anchor="w", pady=6)
+        ttk.Checkbutton(frame, textvariable=self.textvar('Запускать вместе с WoW Retail'), variable=self.retail_autostart, command=self.save_preferences).pack(anchor="w", pady=6)
+        ttk.Label(frame, textvariable=self.textvar('Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник.'), style="Muted.TLabel").pack(anchor="w", pady=(0,8))
+        ttk.Checkbutton(frame, textvariable=self.textvar('Звук готовности ответа'), variable=self.sound, command=self.save_preferences).pack(anchor="w", pady=6)
+        ttk.Label(frame, textvariable=self.textvar('Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.')).pack(anchor="w", pady=12)
+        ttk.Button(frame, textvariable=self.textvar('Переподключить Warcraft Logs'), command=self.sign_in).pack(anchor="w", pady=4)
+        ttk.Button(frame, textvariable=self.textvar('Выйти из Warcraft Logs'), command=self.sign_out).pack(anchor="w", pady=4)
+        ttk.Label(frame, textvariable=self.textvar('Диагностика'), font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(20, 4))
+        ttk.Button(frame, textvariable=self.textvar('Проверить связь с аддоном без WCL'), command=self.toggle_diagnostic).pack(anchor="w", pady=4)
+        ttk.Button(frame, textvariable=self.textvar('Завершить помощник'), command=self.exit).pack(anchor="w", pady=8)
         window.update_idletasks()
         self.refresh_theme(force=True)
 
@@ -190,7 +205,7 @@ class App:
             windows.set_autostart(self.autostart.get())
             windows.set_retail_autostart(self.retail_autostart.get())
             with self.config_lock:
-                config = dict(self.config, sound=self.sound.get(), autostart=self.autostart.get(), retail_autostart=self.retail_autostart.get(), theme=self.theme.get())
+                config = dict(self.config, sound=self.sound.get(), autostart=self.autostart.get(), retail_autostart=self.retail_autostart.get(), theme=self.theme.get(), language=self.language.get())
                 local_settings.save_config(config)
                 self.config = config
             windows.ensure_retail_watcher()
@@ -205,7 +220,7 @@ class App:
                 pass
             self.autostart.set(windows.autostart_enabled())
             self.retail_autostart.set(windows.retail_autostart_enabled())
-            messagebox.showerror("MPlusLogs", "Не удалось сохранить настройки: " + str(exc), parent=self.root)
+            messagebox.showerror("MPlusLogs", i18n.tr("Не удалось сохранить настройки: " + str(exc)), parent=self.root)
 
     def toggle_diagnostic(self):
         self.mode_diagnostic = not self.mode_diagnostic
@@ -353,6 +368,37 @@ class App:
             appearance.apply(self.root, mode, self.settings_window)
             self.applied_theme = mode
             self.root.after_idle(lambda: appearance.titlebar(self.root, mode == "dark"))
+            self.style_language_menu()
+
+    def textvar(self, text):
+        variable = i18n.TextVar(self.root, text)
+        self.textvars.append(variable)
+        return variable
+
+    def change_language(self):
+        i18n.set_language(self.language.get())
+        for variable in self.textvars:
+            variable.refresh()
+        if self.tray:
+            self.tray.refresh_language()
+        if self.settings_window and self.settings_window.winfo_exists():
+            self.settings_window.title(i18n.tr("Настройки MPlusLogs"))
+            self.language_label.set("Follow Windows" if self.language.get() == "system" else i18n.LANGUAGES[self.language.get()])
+            self.fill_language_menu()
+        self.save_preferences()
+
+    def fill_language_menu(self):
+        self.language_menu.delete(0, "end")
+        for value, label in {"system":i18n.tr("Follow Windows"), **i18n.LANGUAGES}.items():
+            self.language_menu.add_radiobutton(label=label, value=value, variable=self.language, command=self.change_language)
+        self.style_language_menu()
+
+    def style_language_menu(self):
+        if self.language_menu and self.language_menu.winfo_exists():
+            palette = appearance.PALETTES[self.applied_theme or "light"]
+            self.language_menu.configure(background=palette["control"], foreground=palette["text"],
+                                         activebackground=palette["accent"], activeforeground="#ffffff",
+                                         selectcolor=palette["text"], font=("Segoe UI",10), borderwidth=0)
 
     def copy(self):
         if self.result:

@@ -8,6 +8,9 @@ import windows_integration as windows
 
 
 def run(report_path):
+    import companion_i18n
+    for language in companion_i18n.LANGUAGES:
+        assert companion_i18n.catalog(language)["Настройки"]
     import retail_launcher  # Also verify the dynamically imported watcher is bundled.
     import wcl_oauth
     config = json.loads(Path(__file__).with_name("oauth_client.json").read_text(encoding="utf-8"))
@@ -30,4 +33,4 @@ def run(report_path):
     finally:
         root.destroy()
     Path(report_path).write_text(json.dumps({"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
-        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path"]}, indent=2), encoding="utf-8")
+        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales"]}, indent=2), encoding="utf-8")

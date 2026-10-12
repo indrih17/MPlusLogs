@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+
+- Add Companion translations for all WoW client languages with a saved language selector and Windows language detection.
+- Enable the ready-reply sound by default for new settings while preserving saved sound preferences.
+
 ## 0.5.1
 
 - Batch loading skips profiles updated within the last 24 hours; 30 fresh applicants plus 5 new applicants now requests only the 5 new profiles.

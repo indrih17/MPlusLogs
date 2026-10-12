@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 import webbrowser
 
 import wcl_sync as wcl
+from companion_i18n import tr
 
 REDIRECT_URI = "http://127.0.0.1:43827/callback"
 
@@ -75,7 +76,7 @@ def login(client_id, cancel=None, opener=webbrowser.open, timeout=180):
                 status, message = 200, "Вход в MPlusLogs отменён. Эту вкладку можно закрыть."
             except ValueError:
                 status, message = 400, "Invalid MPlusLogs callback."
-            body = message.encode()
+            body = tr(message).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Cache-Control", "no-store")

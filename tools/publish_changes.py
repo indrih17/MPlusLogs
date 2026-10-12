@@ -70,7 +70,7 @@ def main():
             content = re.sub(r"\b\d+\.\d+\.\d+\b", release, content)
         if name == "CHANGELOG.md": content = changelog
         if name == "packaging/RELEASE-NOTES.md":
-            content = notes + "\nUse the Setup exe or portable ZIP for Windows 10/11 x64. Python is included. Companion UI uses Russian; binaries are unsigned.\n"
+            content = notes + "\nUse the Setup exe or portable ZIP for Windows 10/11 x64. Python is included. Companion supports all WoW client languages with a language selector; binaries are unsigned.\n"
         path = REPO / name
         path.parent.mkdir(parents=True, exist_ok=True)
         if entry["encoding"] == "base64": path.write_bytes(base64.b64decode(content))

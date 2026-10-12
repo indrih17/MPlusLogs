@@ -32,5 +32,5 @@ downloads translations at runtime.
 Localization changes display text only. Character/realm names, `All specs`
 filter identifiers, clipboard envelopes and SavedVariables records stay
 unchanged. WCL-provided dungeon/season/spec names remain source data; known
-generic labels such as `All specs` are translated when displayed. The external
-local companion's own UI is outside this WoW localization layer.
+generic labels such as `All specs` are translated when displayed. The Companion uses a separate offline catalog in tools/companion_locales and has
+a language selector in Settings; it supports the same client languages.

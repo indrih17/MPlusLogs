@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+from companion_i18n import tr
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_NAME = "MPlusLogs Companion"
@@ -196,6 +197,10 @@ class Tray:
 
         @proc_type
         def proc(hwnd, message, wparam, lparam):
+            if message == icon_message + 1:
+                data.tip = tr("MPlusLogs — помощник Warcraft Logs")[:127]
+                shell.Shell_NotifyIconW(1, ctypes.byref(data))
+                return 0
             if message == restart_message:
                 shell.Shell_NotifyIconW(0, ctypes.byref(data))
                 return 0
@@ -204,9 +209,9 @@ class Tray:
                     self.messages.put(("show", None))
                 elif lparam in (0x205, 0x7B):
                     menu = user.CreatePopupMenu()
-                    user.AppendMenuW(menu, 0, 1, "Открыть MPlusLogs")
-                    user.AppendMenuW(menu, 0, 2, "Приостановить / Продолжить")
-                    user.AppendMenuW(menu, 0, 3, "Выйти")
+                    user.AppendMenuW(menu, 0, 1, tr("Открыть MPlusLogs"))
+                    user.AppendMenuW(menu, 0, 2, tr("Приостановить / Продолжить"))
+                    user.AppendMenuW(menu, 0, 3, tr("Выйти"))
                     point = wt.POINT()
                     user.GetCursorPos(ctypes.byref(point))
                     user.SetForegroundWindow(hwnd)
@@ -239,7 +244,7 @@ class Tray:
         custom_icon = user.LoadImageW(None, str(Path(__file__).with_name("assets") / "mpluslogs.ico"), 1,
                                       user.GetSystemMetrics(49), user.GetSystemMetrics(50), 0x10)
         data.icon = custom_icon or user.LoadIconW(None, ctypes.c_void_p(32512))
-        data.tip = "MPlusLogs — помощник Warcraft Logs"
+        data.tip = tr("MPlusLogs — помощник Warcraft Logs")[:127]
         try:
             if not shell.Shell_NotifyIconW(0, ctypes.byref(data)):
                 raise ctypes.WinError(ctypes.get_last_error())
@@ -260,6 +265,12 @@ class Tray:
             user.DestroyWindow(self.hwnd)
             self.hwnd = None
             user.UnregisterClassW(name, instance)
+
+    def refresh_language(self):
+        if self.hwnd:
+            user = ctypes.WinDLL("user32", use_last_error=True)
+            user.PostMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
+            user.PostMessageW(self.hwnd, 0x8002, 0, 0)
 
     def close(self):
         if self.hwnd:
