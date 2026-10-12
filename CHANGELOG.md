@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.6
+
+- Keep publishing metadata outside WoW, reject development files in addon archives, and support Windows short-path aliases in release checks.
+
 ## 0.5.5
 
 - Keep local publishing Git metadata and source snapshots outside the WoW installation to avoid Battle.net permission-repair loops.

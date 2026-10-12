@@ -16,7 +16,7 @@ class DevelopmentPathTests(unittest.TestCase):
             source=base/'World of Warcraft/_retail_/Interface/AddOns/MPlusLogs'
             data=base/'LocalAppData'
             destination=build_tools_dir(source,{'LOCALAPPDATA':str(data)})
-            self.assertEqual(destination,data/'MPlusLogsDevelopment/build-tools')
+            self.assertEqual(destination,(data/'MPlusLogsDevelopment/build-tools').resolve())
             self.assertFalse(destination.is_relative_to(base/'World of Warcraft'))
 
     def test_override_anywhere_in_game_is_rejected(self):
@@ -31,6 +31,6 @@ class DevelopmentPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='mpluslogs-paths-') as directory:
             source=Path(directory)/'source'
             external=Path(directory)/'development'
-            self.assertEqual(build_tools_dir(source,{'MPLUSLOGS_DEVELOPMENT_HOME':str(external)}),external/'build-tools')
+            self.assertEqual(build_tools_dir(source,{'MPLUSLOGS_DEVELOPMENT_HOME':str(external)}),(external/'build-tools').resolve())
 
 if __name__=='__main__': unittest.main()
