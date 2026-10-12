@@ -127,14 +127,14 @@ class AddonTests(unittest.TestCase):
         self.assertEqual(profile.runs, 162)
         self.assertEqual(len(profile.dungeons), 8)
 
-    def test_expiry_uses_48_hours_and_formats_date(self):
+    def test_expiry_uses_24_hours_and_formats_date(self):
         from datetime import datetime,timezone
         profile=self.lua.table_from({"updated":"2026-11-22 12:00 UTC"})
         stamp,display=self.mpl.ProfileDate(profile)
         self.assertEqual(display,"22.11.2026")
         self.assertEqual(stamp,datetime(2026,11,22,12,tzinfo=timezone.utc).timestamp())
-        self.assertFalse(self.mpl.IsProfileStale(profile,stamp+48*3600-1)[0])
-        self.assertTrue(self.mpl.IsProfileStale(profile,stamp+48*3600)[0])
+        self.assertFalse(self.mpl.IsProfileStale(profile,stamp+24*3600-1)[0])
+        self.assertTrue(self.mpl.IsProfileStale(profile,stamp+24*3600)[0])
         profile.updated="2026-02-30 12:00 UTC"
         self.assertTrue(self.mpl.IsProfileStale(profile,stamp)[0])
 

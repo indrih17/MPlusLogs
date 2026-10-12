@@ -42,8 +42,13 @@ development character snapshot from the shipped addon. The source snapshot is
 a development test fixture. Frozen resources are checked without account access.
 Release binaries are currently unsigned.
 
-The GitHub Actions workflow builds on Windows. Publishing a `vX.Y.Z` tag matching
-the TOC version creates a release with the addon ZIP, installer and portable ZIP.
-Manual workflow runs produce downloadable build artifacts.
+Every push to `main` runs the Windows tests, builds the addon and Companion,
+publishes GitHub Release assets and uploads the addon to CurseForge with changelog.
+Direct source commits automatically raise the patch version if needed.
+CurseForge moderation must still approve the upload.
+
+For the live addon folder, `tools/publish_changes.py --summary "Describe change"`
+runs tests, raises the patch version, writes CHANGELOG.md and pushes an allowlisted
+snapshot. A Codex heartbeat checks finished local edits every 15 minutes.
 
 See [LICENSE](LICENSE) for usage terms. Bundled third-party components retain their licenses.

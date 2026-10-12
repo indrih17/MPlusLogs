@@ -198,7 +198,7 @@ function MPL.ShowStaleNotice(name,realm,profile,lastDate)
     local f=MPL.staleWindow
     f.name=name; f.realm=realm; f.profile=profile
     f.applicant=MPL.panel and MPL.panel.applicant or false
-    f.message:SetText(name.." — "..realm..L["\nПоследняя дата загрузки - "]..lastDate..L[".\nДанные старше двух дней или дата неизвестна."])
+    f.message:SetText(name.." — "..realm..L["\nПоследняя дата загрузки - "]..lastDate..L[".\nДанные старше 24 часов или дата неизвестна."])
     f:Show()
 end
 
@@ -255,12 +255,20 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
         end
         f.begin=function()
             local spec=f.profile and f.profile.spec~="All specs" and f.profile.spec or ""
-            local id,request
+            local id,request,skipped,total
             if f.batch then
                 local players,err=MPL.CollectApplicants()
                 if err then f.status:SetText(err); return end
+                total=#players
+                players,skipped=MPL.FilterFreshProfiles(players)
+                if total>0 and #players==0 then
+                    f.character:SetText(L["Нужно загрузить: "].."0 / "..total)
+                    f.status:SetText(L["Все кандидаты уже имеют актуальные логи."])
+                    if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
+                    return
+                end
                 id,request=MPL.SendBatchRequest(players)
-                f.character:SetText(L["Все кандидаты: "]..#players)
+                f.character:SetText(L["Нужно загрузить: "]..#players.." / "..total)
             else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant) end
             if not id then f.status:SetText(request); return end
             f.phase="copy"; f.request=request
@@ -268,7 +276,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
             -- The paste step must remain accessible even if WoW does not
             -- deliver a Ctrl+C key-up event (or Ctrl is released first).
             f.refresh:Enable()
-            f.status:SetText(L["Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи."])
+            f.status:SetText(L["Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи."]
+                ..(skipped and skipped>0 and ("\n"..L["Актуальные данные: "]..skipped..L[" из "]..total) or ""))
             setText(request)
         end
         f.refresh=button(f,L["Получить ответ (Ctrl+V)"],144,24,232,checkStatus)
@@ -396,7 +405,7 @@ function MPL.InstallApplicantLogColumn(viewer)
         GameTooltip:SetOwner(f,"ANCHOR_TOP"); GameTooltip:ClearLines()
         GameTooltip:AddLine(L["M+ Best % по уровню ключа"])
         GameTooltip:AddLine(L["HPS для хилера, DPS для остальных"],1,1,1)
-        GameTooltip:AddLine(L["Серый процент: данные старше 48 часов"],0.7,0.7,0.7)
+        GameTooltip:AddLine(L["Серый процент: данные старше 24 часов"],0.7,0.7,0.7)
         GameTooltip:Show()
     end)
     f:SetScript("OnLeave",function() GameTooltip:Hide() end)

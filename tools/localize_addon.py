@@ -31,6 +31,7 @@ def literals(code):
 
 def extract():
     values = set(EXTRA)
+    if CATALOG.exists(): values.update(json.loads(CATALOG.read_text(encoding='utf-8')))
     for name in FILES:
         values.update(value for _,value in literals((ROOT/name).read_text(encoding='utf-8')))
     CATALOG.parent.mkdir(exist_ok=True)

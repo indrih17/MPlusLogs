@@ -191,13 +191,11 @@ function MPL.InstallBatchButton()
     local loaded,total=0,0
     local function update()
         local players,err=MPL.CollectApplicants()
-        loaded,total=0,#players
-        for _,player in ipairs(players) do
-            local profile=MPL.GetProfile(player.name,player.realm)
-            if profile and not MPL.IsProfileStale(profile) then loaded=loaded+1 end
-        end
+        local pending
+        pending,loaded=MPL.FilterFreshProfiles(players)
+        total=#players
         b:SetText(L["Загрузить логи всех ("]..loaded.."/"..total..")")
-        if #players>0 and not err then b:Enable() else b:Disable() end
+        if #pending>0 and not err then b:Enable() else b:Disable() end
         if MPL.RefreshApplicantLogs then MPL.RefreshApplicantLogs() end
         if MPL.UpdateProfileInvite then MPL.UpdateProfileInvite() end
     end
@@ -216,10 +214,12 @@ function MPL.InstallBatchButton()
         GameTooltip:ClearLines()
         GameTooltip:AddLine(L["Логи текущих кандидатов"])
         GameTooltip:AddLine(L["Актуальные данные: "]..loaded..L[" из "]..total,1,1,1)
-        GameTooltip:AddLine(L["Не загружены или старше 48 часов: "]..(total-loaded),0.7,0.7,0.7)
+        GameTooltip:AddLine(L["Не загружены или старше 24 часов: "]..(total-loaded),0.7,0.7,0.7)
+        GameTooltip:AddLine(L["Загружаются только отсутствующие или устаревшие логи."],0.7,0.7,0.7,true)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave",function() GameTooltip:Hide() end)
+    b:SetMotionScriptsWhileDisabled(true)
     update()
 end
 

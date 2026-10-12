@@ -2,7 +2,7 @@ local _, MPL = ...
 local L = MPL.L
 MPlusLogs = MPL
 MPL.zone = 55
-MPL.maxProfileAge = 48 * 60 * 60
+MPL.maxProfileAge = 24 * 60 * 60
 
 function MPL.ProfileDate(profile)
     local y,m,d,h,n=(profile.updated or ""):match("^(%d%d%d%d)%-(%d%d)%-(%d%d) (%d%d):(%d%d) UTC$")
@@ -21,6 +21,18 @@ end
 function MPL.IsProfileStale(profile, now)
     local timestamp,display=MPL.ProfileDate(profile)
     return not timestamp or (now or GetServerTime())-timestamp>=MPL.maxProfileAge,display
+end
+
+function MPL.FilterFreshProfiles(players)
+    local pending,skipped={},0
+    for _,player in ipairs(players) do
+        local profile=MPL.GetProfile(player.name,player.realm)
+        local metric=player.role and (player.role=="HEALER" and "hps" or "dps")
+        local usable=profile and (not metric or profile.dual or profile.metric==metric)
+        if usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
+        else pending[#pending+1]=player end
+    end
+    return pending,skipped
 end
 
 function MPL.SafeString(value)

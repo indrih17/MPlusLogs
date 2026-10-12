@@ -168,5 +168,74 @@ class BatchTests(unittest.TestCase):
         self.mpl.UpdateBatchButton()
         self.assertEqual(self.mpl.batchButton.text,"Загрузить логи всех (0/0)")
 
+    def test_30_fresh_plus_5_new_only_fetches_5_and_preserves_previous_profiles(self):
+        self.lua.execute('''
+            C_LFGList.GetApplicants=function() local ids={}; for i=1,35 do ids[i]=i end; return ids end
+            C_LFGList.GetApplicantInfo=function() return {numMembers=1,applicationStatus="applied"} end
+            C_LFGList.GetApplicantMemberInfo=function(id)
+                return "Player"..id.."-Гордунни",nil,nil,nil,nil,nil,false,false,true,"DAMAGER"
+            end
+            for i=1,30 do
+                local key=MPlusLogs.Key("Player"..i,"Гордунни")
+                MPlusLogsDB.profiles[key]={updated="2026-10-12 04:00 UTC",metric="dps",dual=true}
+            end
+            originalProfile=MPlusLogsDB.profiles[MPlusLogs.Key("Player1","Гордунни")]
+        ''')
+        self.mpl.ShowBatchDownload()
+        request=self.mpl.downloadWindow.request
+        parsed=realm_resolver.parse_queue(request.split('\n',2)[2],realm_resolver.load_mappings())
+        self.assertEqual(len(parsed),5)
+        self.assertEqual({entry['name'] for entry in parsed},{'Player'+str(i) for i in range(31,36)})
+        self.assertEqual(len(self.mpl.pendingReply.players),5)
+        self.assertIn('5 / 35',self.mpl.downloadWindow.character.text)
+        calls=[]
+        def fetch_new(args):
+            calls.append(args.name)
+            raw=self.fetch(type('Args',(),{'name':'Alice'})())
+            raw['data']['characterData']['character']['name']=args.name
+            return raw
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,fetch_new)
+        self.assertEqual(self.mpl.ReceiveReply(response,True),5)
+        self.assertEqual(len(calls),5)
+        self.assertTrue(self.lua.eval('originalProfile==MPlusLogsDB.profiles[MPlusLogs.Key("Player1","Гордунни")]'))
+        # Opening again makes no request when every candidate is fresh.
+        self.mpl.ShowBatchDownload()
+        self.assertIsNone(self.mpl.pendingReply)
+        self.assertEqual(self.mpl.downloadWindow.request,'')
+        self.assertIn('актуальные логи',self.mpl.downloadWindow.status.text)
+
+    def test_expired_unknown_date_and_missing_role_metric_are_requested(self):
+        self.lua.execute('''
+            MPlusLogsDB.profiles[MPlusLogs.Key("Alice","Гордунни")]=
+                {updated="2026-10-12 04:00 UTC",metric="dps",dual=false}
+            MPlusLogsDB.profiles[MPlusLogs.Key("Bob","Гордунни")]=
+                {updated="2026-10-12 04:00 UTC",metric="dps",dual=true}
+        ''')
+        pending,skipped=self.mpl.FilterFreshProfiles(self.players())
+        self.assertEqual(len(pending),1)
+        self.assertEqual(pending[1].name,'Alice')
+        self.assertEqual(skipped,1)
+        bob,_,_=self.mpl.GetProfile('Bob','Гордунни')
+        for date in ['2026-10-01 04:00 UTC','date unknown']:
+            bob.updated=date
+            pending,skipped=self.mpl.FilterFreshProfiles(self.players())
+            self.assertEqual(len(pending),2)
+            self.assertEqual(skipped,0)
+
+    def test_all_fresh_disables_batch_button_but_explicit_refresh_still_works(self):
+        self.mpl.InstallBatchButton()
+        self.lua.execute('''
+            for _,name in ipairs({"Alice","Bob"}) do
+                MPlusLogsDB.profiles[MPlusLogs.Key(name,"Гордунни")]=
+                    {updated="2026-10-12 04:00 UTC",metric="dps",dual=true}
+            end
+        ''')
+        self.mpl.UpdateBatchButton()
+        self.assertEqual(self.mpl.batchButton.text,'Загрузить логи всех (2/2)')
+        self.assertFalse(self.mpl.batchButton.enabled)
+        self.mpl.ShowDownload('Alice','Гордунни',None)
+        self.assertIsNotNone(self.mpl.pendingReply)
+        self.assertFalse(self.mpl.pendingReply.batch)
+
 
 if __name__=='__main__':unittest.main()

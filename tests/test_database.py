@@ -103,9 +103,14 @@ class DatabaseTests(unittest.TestCase):
 
     def test_archon_decoder_matches_installed_record(self):
         import json
-        report = json.loads((ROOT / "archon-inspection.json").read_text(encoding="utf-8"))
+        report_path = ROOT / "archon-inspection.json"
+        if not report_path.exists():
+            self.skipTest("Optional integration check requires a local Archon inspection report")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
         import re
         path = Path(report["source"]) / report["character"][0]["file"]
+        if not path.exists():
+            self.skipTest("Optional integration check requires the installed Archon database")
         text = path.read_text(encoding="utf-8-sig")
         encoded = re.search(r"Киндрих:([A-Za-z0-9+/]+={0,2})[.]",text).group(1)
         lookup = re.findall(r"'([^']*)'",re.search(r"local lookup = \{([^\n]+)\}",text).group(1))

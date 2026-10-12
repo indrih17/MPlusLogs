@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def entries():
-    files = list(ROOT.glob("*.lua")) + [ROOT / name for name in ("MPlusLogs.toc", "LICENSE", ".gitignore", "realm-slugs.json", "Start-Companion.vbs")]
+    files = list(ROOT.glob("*.lua")) + [ROOT / name for name in ("MPlusLogs.toc", "LICENSE", ".gitignore", "realm-slugs.json", "Start-Companion.vbs", "AGENTS.md", "CHANGELOG.md")]
     for directory, patterns in {"Locales": ["*.lua", "*.json", "README.md"], "tools": ["*.py", "*.pyw", "*.ps1", "requirements.txt", "oauth_client.json"],
         "tools/assets": ["*.png", "*.ico", "*.svg"], "tests": ["*.py"], "packaging": ["*"], ".github/workflows": ["*.yml"]}.items():
         for pattern in patterns:
@@ -43,4 +43,4 @@ if __name__ == "__main__":
     else:
         snapshot = json.loads((ROOT / ".build-tools/source-snapshot.json").read_text())
         index = int(sys.argv[1])
-        print(json.dumps(snapshot[index:index+8], ensure_ascii=True))
+        print(json.dumps(snapshot[index:index+1], ensure_ascii=False))

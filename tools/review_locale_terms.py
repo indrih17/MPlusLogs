@@ -63,6 +63,34 @@ LAST_LOADED={'enUS':'Last loaded: ','deDE':'Zuletzt geladen: ','esES':'Última c
 INVITE_GROUP={'enUS':'Invite group (','deDE':'Gruppe einladen (','esES':'Invitar al grupo (',
  'esMX':'Invitar al grupo (','frFR':'Inviter le groupe (','itIT':'Invita gruppo (',
  'ptBR':'Convidar grupo (','koKR':'파티 초대 (','zhCN':'邀请队伍 (','zhTW':'邀請隊伍 ('}
+INCREMENTAL_KEYS=['Нужно загрузить: ','Все кандидаты уже имеют актуальные логи.',
+ 'Загружаются только отсутствующие или устаревшие логи.']
+INCREMENTAL={
+ 'enUS':['To load: ','All applicants already have up-to-date logs.','Only missing or outdated logs are loaded.'],
+ 'deDE':['Zu laden: ','Alle Bewerber haben bereits aktuelle Logs.','Nur fehlende oder veraltete Logs werden geladen.'],
+ 'esES':['Por cargar: ','Todos los candidatos ya tienen logs actualizados.','Solo se cargan los logs que faltan o están desactualizados.'],
+ 'esMX':['Por cargar: ','Todos los candidatos ya tienen logs actualizados.','Solo se cargan los logs que faltan o están desactualizados.'],
+ 'frFR':['À charger : ','Tous les candidats ont déjà des logs à jour.','Seuls les logs manquants ou périmés sont chargés.'],
+ 'itIT':['Da caricare: ','Tutti i candidati hanno già log aggiornati.','Vengono caricati solo i log mancanti o non aggiornati.'],
+ 'ptBR':['A carregar: ','Todos os candidatos já têm logs atualizados.','Apenas logs ausentes ou desatualizados são carregados.'],
+ 'koKR':['불러올 로그: ','모든 신청자의 로그가 이미 최신 상태입니다.','없거나 오래된 로그만 불러옵니다.'],
+ 'zhCN':['需要加载：','所有申请者的日志都已是最新。','仅加载缺失或过期的日志。'],
+ 'zhTW':['需要載入：','所有申請者的紀錄都已是最新。','僅載入缺少或過期的紀錄。'],
+}
+FRESHNESS_KEYS=['.\nДанные старше 24 часов или дата неизвестна.',
+ 'Не загружены или старше 24 часов: ','Серый процент: данные старше 24 часов']
+FRESHNESS={
+ 'enUS':['.\nLogs are older than 24 hours or the date is unknown.','Missing or older than 24 hours: ','Gray percentage: logs older than 24 hours'],
+ 'deDE':['.\nDie Logs sind älter als 24 Stunden oder das Datum ist unbekannt.','Fehlend oder älter als 24 Stunden: ','Grauer Prozentwert: Logs älter als 24 Stunden'],
+ 'esES':['.\nLos logs tienen más de 24 horas o la fecha es desconocida.','Sin cargar o con más de 24 horas: ','Porcentaje gris: logs de más de 24 horas'],
+ 'esMX':['.\nLos logs tienen más de 24 horas o la fecha es desconocida.','Sin cargar o con más de 24 horas: ','Porcentaje gris: logs de más de 24 horas'],
+ 'frFR':['.\nLes logs datent de plus de 24 heures ou la date est inconnue.','Manquants ou datant de plus de 24 heures : ','Pourcentage gris : logs datant de plus de 24 heures'],
+ 'itIT':['.\nI log hanno più di 24 ore o la data è sconosciuta.','Mancanti o più vecchi di 24 ore: ','Percentuale grigia: log più vecchi di 24 ore'],
+ 'ptBR':['.\nOs logs têm mais de 24 horas ou a data é desconhecida.','Ausentes ou com mais de 24 horas: ','Porcentagem cinza: logs com mais de 24 horas'],
+ 'koKR':['.\n로그가 24시간 이상 지났거나 날짜를 알 수 없습니다.','없거나 24시간 이상 지난 로그: ','회색 백분율: 24시간 이상 지난 로그'],
+ 'zhCN':['。\n日志已超过24小时，或日期未知。','缺失或超过24小时：','灰色百分比：日志已超过24小时'],
+ 'zhTW':['。\n紀錄已超過24小時，或日期未知。','缺少或超過24小時：','灰色百分比：紀錄已超過24小時'],
+}
 
 def main():
     for locale,terms in COMMON.items():
@@ -70,6 +98,8 @@ def main():
         data=json.loads(path.read_text(encoding='utf-8'))
         if locale=='enUS': data.update(ENGLISH)
         data.update(dict(zip(KEYS,terms)))
+        data.update(dict(zip(INCREMENTAL_KEYS,INCREMENTAL[locale])))
+        data.update(dict(zip(FRESHNESS_KEYS,FRESHNESS[locale])))
         by_level=BY_LEVEL[locale]
         data.update({
             ' / по уровню ключа':' / '+by_level,
