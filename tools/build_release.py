@@ -37,6 +37,7 @@ def addon(output, release_version):
         for path in sorted((ROOT / "assets/dungeons").glob("*.tga")):
             archive.write(path, "MPlusLogs/assets/dungeons/" + path.name)
         archive.write(ROOT / "assets/dungeons/README.md", "MPlusLogs/assets/dungeons/README.md")
+        archive.write(ROOT / "assets/mpluslogs-icon.tga", "MPlusLogs/assets/mpluslogs-icon.tga")
 
 
 def main():

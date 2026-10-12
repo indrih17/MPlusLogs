@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.8
+
+- Show the MPlusLogs logo in the WoW addon list.
+
 ## 0.5.7
 
 - Redesign the full profile table to match Warcraft Logs with score summary, grouped columns, dungeon icons and DPS/HPS tabs.

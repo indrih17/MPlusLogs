@@ -20,6 +20,9 @@ class ArchiveTests(unittest.TestCase):
             validate_archive(archive)
             with zipfile.ZipFile(archive) as z:
                 self.assertIn('MPlusLogs/Settings.lua',z.namelist())
+                self.assertIn('MPlusLogs/assets/mpluslogs-icon.tga',z.namelist())
+                toc=z.read('MPlusLogs/MPlusLogs.toc').decode('utf-8')
+                self.assertIn(r'## IconTexture: Interface\AddOns\MPlusLogs\assets\mpluslogs-icon.tga',toc)
                 self.assertNotIn('MPlusLogs/.git/config',z.namelist())
 
     def test_builder_rejects_hidden_git_file_even_if_added_to_toc(self):
