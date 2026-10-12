@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.9
+
+- Clearly require MPlusLogs Companion for online log loading
+
 ## 0.5.8
 
 - Show the MPlusLogs logo in the WoW addon list.

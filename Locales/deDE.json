@@ -90,7 +90,6 @@
   "Лучший DPS": "Bestes DPS",
   "Лучший HPS": "Bestes HPS",
   "Метрика не соответствует роли": "-Metrik stimmt nicht mit der Rolle",
-  "Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи.": "Klicken Sie auf |cffffd100Ctrl+C|r, um den Download zu starten.\nDer Assistent empfängt die Anfrage und bereitet Protokolle vor.",
   "Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен.": "Klicken Sie auf „M+-Protokolle herunterladen“. Der lokale Assistent muss ausgeführt werden.",
   "Нажмите для полной сводки": "Klicken Sie für die vollständige Zusammenfassung",
   "Не загружено. ": "Nicht geladen. ",
@@ -138,7 +137,6 @@
   "Повторный результат загрузки": "Wiederholtes Download-Ergebnis",
   "Подготовка запроса…": "Die Anfrage wird vorbereitet...",
   "Подготовлено: B загружен, A не загружен. Напишите в чат Codex «Готово»; файл изменит помощник.": "Vorbereitet: B ist geladen, A ist nicht geladen. Schreiben Sie „Fertig“ in den Codex-Chat; Die Datei wird vom Assistenten geändert.",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nМожно повторять проверку до получения ответа.": "Warten Sie einen Moment und drücken Sie |cffffd100Ctrl+V|r.\nSie können die Prüfung wiederholen, bis Sie eine Antwort erhalten.",
   "Позже": "Später",
   "Показать": "Zeigen",
   "Показать профиль": "Profil anzeigen",
@@ -211,5 +209,7 @@
   "Место": "Rang",
   "Рейтинг": "Wertung",
   "Лучший % в среднем:": "Best % Ø:",
-  "Медианный % в среднем:": "Median % Ø:"
+  "Медианный % в среднем:": "Median % Ø:",
+  "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030ZUERST MPlusLogs Companion INSTALLIEREN UND STARTEN!|r\nOhne Companion funktioniert das Laden von Logs nicht. Dann Ctrl+C drücken.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Warten Sie kurz und drücken Sie dann |cffffd100Ctrl+V|r.\nWenn keine Antwort kommt, prüfen Sie, ob MPlusLogs Companion läuft."
 }

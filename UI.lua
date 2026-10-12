@@ -365,7 +365,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
             -- The paste step must remain accessible even if WoW does not
             -- deliver a Ctrl+C key-up event (or Ctrl is released first).
             f.refresh:Enable()
-            f.status:SetText(L["Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи."]
+            f.status:SetText(L["|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C."]
                 ..(skipped and skipped>0 and ("\n"..L["Актуальные данные: "]..skipped..L[" из "]..total) or ""))
             setText(request)
         end
@@ -377,7 +377,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
             if key=="C" and f.phase=="copy" then
                 f.phase="waiting"; f.refresh:Enable()
                 f.steps:SetText(L["|cff8888881. Отправка запроса|r    /    |cffffd1002. Получение логов|r"])
-                f.status:SetText(L["Подождите немного и нажмите |cffffd100Ctrl+V|r.\nМожно повторять проверку до получения ответа."])
+                f.status:SetText(L["Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен."])
                 edit:HighlightText()
             end
         end

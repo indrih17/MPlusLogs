@@ -90,7 +90,6 @@
   "Лучший DPS": "Best DPS",
   "Лучший HPS": "Best HPS",
   "Метрика не соответствует роли": "Metric does not match the role",
-  "Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи.": "Press |cffffd100Ctrl+C|r to send the request.\nThe companion will fetch the logs.",
   "Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен.": "Click \"Load M+ logs\". The local companion must be running.",
   "Нажмите для полной сводки": "Click for full summary",
   "Не загружено. ": "Not loaded. ",
@@ -138,7 +137,6 @@
   "Повторный результат загрузки": "Repeated download result",
   "Подготовка запроса…": "Preparing the request...",
   "Подготовлено: B загружен, A не загружен. Напишите в чат Codex «Готово»; файл изменит помощник.": "Prepared: B is loaded, A is not loaded. Write “Done” to the Codex chat; The file will be changed by the assistant.",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nМожно повторять проверку до получения ответа.": "Wait a moment and press |cffffd100Ctrl+V|r.\nYou can repeat the check until you receive a response.",
   "Позже": "Later",
   "Показать": "Show",
   "Показать профиль": "Show profile",
@@ -211,5 +209,7 @@
   "Место": "Rank",
   "Рейтинг": "Score",
   "Лучший % в среднем:": "Best % Avg:",
-  "Медианный % в среднем:": "Median % Avg:"
+  "Медианный % в среднем:": "Median % Avg:",
+  "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030FIRST INSTALL AND START MPlusLogs Companion!|r\nLog loading does not work without it. Then press Ctrl+C.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Wait a moment, then press |cffffd100Ctrl+V|r.\nIf there is no response, make sure MPlusLogs Companion is running."
 }

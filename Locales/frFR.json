@@ -90,7 +90,6 @@
   "Лучший DPS": "Meilleur DPS",
   "Лучший HPS": "Meilleur HPS",
   "Метрика не соответствует роли": "ne correspond pas au rôle",
-  "Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи.": "Cliquez sur |cffffd100Ctrl+C|r pour lancer le téléchargement.\nL'assistant recevra la demande et préparera les journaux.",
   "Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен.": "Cliquez sur « Télécharger les journaux M+ ». Local Assistant doit être en cours d'exécution.",
   "Нажмите для полной сводки": "Cliquez pour le résumé complet",
   "Не загружено. ": "Non chargé. ",
@@ -138,7 +137,6 @@
   "Повторный результат загрузки": "Résultat de téléchargement répété",
   "Подготовка запроса…": "Préparation de la demande...",
   "Подготовлено: B загружен, A не загружен. Напишите в чат Codex «Готово»; файл изменит помощник.": "Préparé : B est chargé, A n'est pas chargé. Écrivez « Terminé » sur le chat du Codex ; Le fichier sera modifié par l'assistant.",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nМожно повторять проверку до получения ответа.": "Attendez un instant et appuyez sur |cffffd100Ctrl+V|r.\nVous pouvez répéter la vérification jusqu'à ce que vous receviez une réponse.",
   "Позже": "Plus tard",
   "Показать": "Afficher",
   "Показать профиль": "Afficher le profil",
@@ -211,5 +209,7 @@
   "Место": "Rang",
   "Рейтинг": "Score",
   "Лучший % в среднем:": "Meilleur % moyen :",
-  "Медианный % в среднем:": "% médian moyen :"
+  "Медианный % в среднем:": "% médian moyen :",
+  "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030INSTALLEZ ET LANCEZ D’ABORD MPlusLogs Companion !|r\nSans lui, le chargement des journaux ne fonctionne pas. Puis appuyez sur Ctrl+C.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Patientez un instant, puis appuyez sur |cffffd100Ctrl+V|r.\nSans réponse, vérifiez que MPlusLogs Companion est lancé."
 }

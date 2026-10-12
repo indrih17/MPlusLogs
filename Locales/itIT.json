@@ -90,7 +90,6 @@
   "Лучший DPS": "Migliore DPS",
   "Лучший HPS": "Migliore HPS",
   "Метрика не соответствует роли": "La metrica non corrisponde al ruolo",
-  "Нажмите |cffffd100Ctrl+C|r, чтобы начать загрузку.\nПомощник получит запрос и подготовит логи.": "Fare clic su |cffffd100Ctrl+C|r per avviare il download.\nL'assistente riceverà la richiesta e preparerà i log.",
   "Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен.": "Fare clic su \"Scarica registri M+\". L'Assistente locale deve essere in esecuzione.",
   "Нажмите для полной сводки": "Fare clic per il riepilogo completo",
   "Не загружено. ": "Non caricato. ",
@@ -138,7 +137,6 @@
   "Повторный результат загрузки": "Risultato download ripetuto",
   "Подготовка запроса…": "Preparazione della richiesta...",
   "Подготовлено: B загружен, A не загружен. Напишите в чат Codex «Готово»; файл изменит помощник.": "Preparato: B è caricato, A non è caricato. Scrivi \"Fatto\" nella chat del Codice; Il file verrà modificato dall'assistente.",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nМожно повторять проверку до получения ответа.": "Attendi un attimo e premi |cffffd100Ctrl+V|r.\nPuoi ripetere il controllo finché non ricevi una risposta.",
   "Позже": "Successivamente",
   "Показать": "Mostra",
   "Показать профиль": "Mostra profilo",
@@ -211,5 +209,7 @@
   "Место": "Posizione",
   "Рейтинг": "Punteggio",
   "Лучший % в среднем:": "Miglior % medio:",
-  "Медианный % в среднем:": "% mediano medio:"
+  "Медианный % в среднем:": "% mediano medio:",
+  "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030PRIMA INSTALLA E AVVIA MPlusLogs Companion!|r\nSenza, il caricamento dei log non funziona. Poi premi Ctrl+C.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Attendi un momento, poi premi |cffffd100Ctrl+V|r.\nSe non ricevi risposta, verifica che MPlusLogs Companion sia in esecuzione."
 }
