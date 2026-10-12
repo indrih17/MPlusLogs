@@ -5,9 +5,10 @@ third-party components retain their own licenses and notices.
 
 ## Current status
 
-Official Companion downloads are currently unsigned. We are preparing an
-application for the SignPath Foundation open-source program. Approval has not
-been granted; this page does not claim that current binaries are signed.
+Official Companion downloads are currently unsigned. An application to the
+SignPath Foundation open-source program was submitted on 2026-10-13 and is
+awaiting review. Approval has not been granted; this page does not claim that
+current binaries are signed.
 
 If approved, the signing attribution will be:
 

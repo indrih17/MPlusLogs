@@ -30,7 +30,7 @@ Percentiles describe available Warcraft Logs runs. They do not measure tank surv
 
 See our [Code signing policy](CODE-SIGNING.md) for the current signing status,
 responsible maintainer and approval process. Official downloads are currently
-unsigned; a SignPath application is being prepared and has not been approved.
+unsigned; a SignPath application has been submitted and is awaiting review.
 
 ## Privacy policy
 
