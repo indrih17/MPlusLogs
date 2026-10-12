@@ -1,5 +1,9 @@
 # Changelog
 
+## Companion 1.0.4
+
+- Fix installer startup with existing Windows or WoW Retail autostart settings by reading the selected directory before the app constant is initialized.
+
 ## Companion 1.0.3
 
 - Limit each verified account to a configurable share of the shared WCL point budget, in addition to hourly and daily profile-load limits.

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.3"
+  #define AppVersion "1.0.4"
 #endif
 
 [Setup]
@@ -69,7 +69,9 @@ const
 
 function StartupCommand(Mode: String): String;
 begin
-  Result := '"' + ExpandConstant('{app}\MPlusLogs-Companion.exe') + '" ' + Mode;
+  // InitializeWizard runs before the app constant is initialized.
+  // WizardDirValue respects the previous directory and the /DIR override.
+  Result := '"' + AddBackslash(WizardDirValue) + 'MPlusLogs-Companion.exe" ' + Mode;
 end;
 
 function ExistingStartupChoice: Integer;
@@ -78,11 +80,11 @@ var
 begin
   if RegQueryStringValue(HKCU, StartupRunKey, StartupWindowsName, Command) and
      ((Command = StartupCommand('--background')) or
-      (Command = ExpandConstant('{app}\MPlusLogs-Companion.exe') + ' --background')) then
+      (Command = AddBackslash(WizardDirValue) + 'MPlusLogs-Companion.exe --background')) then
     Result := 0
   else if RegQueryStringValue(HKCU, StartupRunKey, StartupRetailName, Command) and
           ((Command = StartupCommand('--watch-retail')) or
-           (Command = ExpandConstant('{app}\MPlusLogs-Companion.exe') + ' --watch-retail')) then
+           (Command = AddBackslash(WizardDirValue) + 'MPlusLogs-Companion.exe --watch-retail')) then
     Result := 1
   else
     Result := 2;
