@@ -57,7 +57,7 @@ def load():
 
 def save_config(config):
     """Persist preferences and DPAPI-protected OAuth tokens, never plaintext tokens."""
-    data={key:config[key] for key in ("oauth_client_id","sound","autostart","retail_autostart","theme","language","service_url","personal_client_id","api_mode") if key in config}
+    data={key:config[key] for key in ("oauth_client_id","sound","autostart","retail_autostart","theme","language","personal_client_id","api_mode") if key in config}
     if config.get("oauth"):
         data["oauth_dpapi"]=base64.b64encode(crypt(json.dumps(config["oauth"]).encode(),True)).decode()
     PATH.parent.mkdir(parents=True,exist_ok=True)

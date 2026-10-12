@@ -18,4 +18,3 @@ archon-inspection.json
 .env
 *.sqlite3
 *.sqlite3-*
-server/data/

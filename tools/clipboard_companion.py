@@ -132,7 +132,6 @@ class Client:
         self.invalidate_token=invalidate_token
         self.budget = Budget(state_path, max_hourly_queries)
         self.cache_scope = cache_scope
-        self.before_fetch = None
 
     def __call__(self, args):
         now = time.monotonic()
@@ -143,7 +142,7 @@ class Client:
         if self.remaining is not None and now < self.budget_reset and self.remaining < 100:
             raise ValueError("WCL API budget is low; wait for reset")
         key = builder.cache_path(Path(), dict({"realm": ""}, **vars(args), _cache_scope=self.cache_scope)).stem
-        delay = self.budget.reserve(key, self.before_fetch, pace=True)
+        delay = self.budget.reserve(key, pace=True)
         if delay:
             time.sleep(delay)
         self.queries += 1

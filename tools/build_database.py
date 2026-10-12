@@ -171,22 +171,12 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
                     limit = raw.get("data", {}).get("rateLimitData")
                     if limit:
                         remaining = limit["limitPerHour"] - limit["pointsSpentThisHour"]
-                    metadata = raw.pop("_mplus_cache", {})
-                    fetched_at = metadata.get("fetched_at", now)
-                    if not isinstance(fetched_at, (int, float)) or isinstance(fetched_at, bool) or not math.isfinite(fetched_at) or not 0 <= fetched_at <= now + 60:
-                        raise ValueError("Invalid profile cache timestamp")
                     validate_raw(raw, args)  # Never replace good cache with malformed JSON.
-                    record = {"fetched_at": fetched_at, "raw": raw}
-                    if metadata.get("error"):
-                        failure = metadata["error"]
-                        record.update(retry_until=now + 300, refresh_error=failure)
+                    record = {"fetched_at": now, "raw": raw}
                     atomic_write(path, json.dumps(record, ensure_ascii=False, indent=2))
                 except wcl.NoProfile as exc:
                     failure = str(exc)
-                    stamp = getattr(exc, "fetched_at", now)
-                    if not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or not math.isfinite(stamp) or not 0 <= stamp <= now + 60:
-                        stamp = now
-                    record = {"fetched_at": stamp, "negative": True, "error": failure}
+                    record = {"fetched_at": now, "negative": True, "error": failure}
                     atomic_write(path, json.dumps(record, ensure_ascii=False))
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     failure = str(exc)

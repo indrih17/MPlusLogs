@@ -36,7 +36,7 @@ class Budget:
     def _set(self, key, value):
         self.db.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, value))
 
-    def reserve(self, key, authorize=None, pace=False):
+    def reserve(self, key, pace=False):
         now = self.clock()
         with self.lock, self.db:
             self.db.execute("BEGIN IMMEDIATE")
@@ -58,8 +58,6 @@ class Budget:
             scheduled = max(now, self._value("next_request_at")) if pace else now
             if scheduled - now > 30:
                 raise BudgetError("WCL requests are cooling down", scheduled - now)
-            if authorize:
-                authorize()
             self.db.execute("INSERT INTO attempts VALUES (?,?)", (now, key))
             # Even unsuccessful attempts cannot be spammed for one identity.
             self._set("profile:" + key, now + 300)

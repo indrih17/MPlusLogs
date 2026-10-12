@@ -2,6 +2,7 @@
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -98,6 +99,30 @@ class PersonalSetupTests(unittest.TestCase):
         p=patch.object(self.app,'start'); p.start(); self.addCleanup(p.stop)
         self.addCleanup(self.app.exit)
 
+    def test_removed_service_settings_cannot_redirect_wcl_login_or_restore_service_tokens(self):
+        for old_service_session in (False,True):
+            with self.subTest(old_service_session=old_service_session):
+                config=dict(self.old,service_url='https://retired.example',api_mode='service' if old_service_session else 'shared')
+                config['oauth']=dict(self.old['oauth'])
+                if old_service_session: config['oauth']['_service_url']='https://retired.example'
+                with patch.object(local_settings,'load',return_value=config), \
+                     patch.dict(os.environ,{'MPLUSLOGS_SERVICE_URL':'https://retired.example'}), \
+                     patch.object(sys,'argv',['test','--service-url','https://retired.example']):
+                    window=tk.Toplevel(self.root)
+                    app=self.gui.App(window)
+                    try:
+                        self.assertEqual(app.api_mode,'shared')
+                        self.assertEqual(app.client_id,self.shared)
+                        self.assertNotIn('service_url',app.config)
+                        self.assertFalse(hasattr(app,'service_url'))
+                        if old_service_session:
+                            self.assertIsNone(app.session)
+                            self.assertNotIn('oauth',app.config)
+                        else:
+                            self.assertEqual(app.session.client_id,self.shared)
+                    finally:
+                        app.exit()
+
     def test_guide_fields_remain_readable_and_canvas_matches_both_themes(self):
         self.app.show_personal_setup()
         wizard=self.app.personal_setup
@@ -175,7 +200,7 @@ class PersonalSetupTests(unittest.TestCase):
                 else:
                     wizard.pending=True
                     self.app.auth_cancel=threading.Event()
-                    self.app.messages.put(('configured_auth',({'access_token':'fake'},self.app.auth_cancel,'own-client-123','personal','')))
+                    self.app.messages.put(('configured_auth',({'access_token':'fake'},self.app.auth_cancel,'own-client-123','personal')))
                     with patch.object(local_settings,'save_config',side_effect=OSError('test save failed')):
                         self.app.poll()
                     self.assertFalse(wizard.pending); wizard.close()

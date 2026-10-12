@@ -19,7 +19,6 @@ import windows_integration as windows
 import appearance
 import companion_i18n as i18n
 import companion_update as updates
-import profile_service
 import personal_api
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,14 +65,13 @@ class App:
             variable.refresh()
         bundled = json.loads(Path(__file__).with_name("oauth_client.json").read_text(encoding="utf-8"))
         self.shared_client_id = bundled["client_id"]
-        self.api_mode = self.config.get("api_mode", "shared")
+        self.api_mode = "personal" if self.config.get("api_mode") == "personal" else "shared"
+        self.config["api_mode"] = self.api_mode
+        self.config.pop("service_url", None)
+        if (self.config.get("oauth") or {}).get("_service_url"):
+            self.config.pop("oauth", None)
+            self.config.pop("oauth_dpapi", None)
         self.client_id = self.config.get("personal_client_id", "") if self.api_mode == "personal" else self.shared_client_id
-        configured_url = os.environ.get("MPLUSLOGS_SERVICE_URL", self.config.get("service_url", bundled.get("service_url", "")))
-        if "--service-url" in sys.argv:
-            configured_url = sys.argv[sys.argv.index("--service-url") + 1]
-        self.service_url = profile_service.service_url(configured_url) if configured_url else ""
-        if self.service_url:
-            self.api_mode = "service"
         self.sound.set(self.config.get("sound", True))
         theme = self.config.get("theme", "system")
         self.theme = tk.StringVar(value=theme if theme in {"system","light","dark"} else "system")
@@ -85,8 +83,7 @@ class App:
                 windows.ensure_retail_watcher()
             except OSError:
                 self.status.set("Не удалось запустить ожидание WoW Retail. Проверьте настройку автозапуска.")
-        if (self.config.get("oauth") and self.config.get("oauth_client_id") == self.client_id
-                and self.config["oauth"].get("_service_url", "") == self.service_url):
+        if self.config.get("oauth") and self.config.get("oauth_client_id") == self.client_id:
             self.session = self.make_session(self.config["oauth"])
             self.account.set("Warcraft Logs подключён")
         frame = ttk.Frame(root, padding=24)
@@ -211,8 +208,6 @@ class App:
         self.exit()
 
     def make_session(self, tokens):
-        if self.service_url:
-            return profile_service.Session(tokens)
         def persist(updated):
             with self.config_lock:
                 if self.session is not session:
@@ -247,7 +242,7 @@ class App:
             self.api_title.set("Connect personal API — recommended")
             self.api_description.set("A short guide will help you create your own WCL client. You only need to do this once.")
             self.personal_button_text.set("Set up personal API")
-        self.login_text.set("Войти через Warcraft Logs" if self.api_mode == "personal" or self.service_url else "Use shared API")
+        self.login_text.set("Войти через Warcraft Logs" if self.api_mode == "personal" else "Use shared API")
         quota = (self.config.get("oauth") or {}).get("_api_budget")
         if quota and quota.get("reset_at", 0) > time.time():
             self.api_quota.set_format("WCL allowance: {remaining} / {limit} points. Reset in {minutes} min.",
@@ -262,7 +257,6 @@ class App:
             return False
         selected_id = candidate or self.client_id
         selected_mode = mode or self.api_mode
-        selected_service = self.service_url if selected_mode == "service" else ""
         self.want_running = False
         self.stop.set()
         self.auth_cancel = threading.Event()
@@ -271,14 +265,13 @@ class App:
         self.status.set("Завершите вход в браузере. Пароль вводится только на сайте Warcraft Logs.")
         def authenticate():
             try:
-                tokens = profile_service.login(selected_service, cancel) if selected_service else wcl_oauth.login(selected_id, cancel)
+                tokens = wcl_oauth.login(selected_id, cancel)
                 if cancel.is_set():
                     return
-                if not selected_service:
-                    quota = personal_api.quota_record(wcl_oauth.validate_access(tokens), time.time())
-                    if quota:
-                        tokens["_api_budget"] = quota
-                self.messages.put(("configured_auth", (tokens, cancel, selected_id, selected_mode, selected_service)))
+                quota = personal_api.quota_record(wcl_oauth.validate_access(tokens), time.time())
+                if quota:
+                    tokens["_api_budget"] = quota
+                self.messages.put(("configured_auth", (tokens, cancel, selected_id, selected_mode)))
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.messages.put(("auth_error", (str(exc), cancel)))
         self.auth_worker = threading.Thread(target=authenticate, daemon=True)
@@ -417,10 +410,8 @@ class App:
             self.messages.put(("worker", (stop, kind, value)))
         try:
             clipboard = bridge.WindowsClipboard(owner=owner)
-            if isinstance(session, profile_service.Session):
-                client = profile_service.Client(session, stop)
-            elif session:
-                # Do not reuse user-endpoint data between accounts or with public server data.
+            if session:
+                # Do not reuse user-endpoint data between accounts.
                 principal = session.tokens.get("refresh_token") or session.tokens.get("access_token", "")
                 scope = "user:" + hashlib.sha256((self.client_id + principal).encode()).hexdigest()
                 state_path = personal_api.budget_path(DATA_ROOT, self.api_mode, self.client_id)
@@ -511,17 +502,17 @@ class App:
             elif kind in {"auth", "configured_auth"}:
                 if kind == "auth":
                     tokens, cancel = value
-                    selected_id, selected_mode, selected_service = self.client_id, self.api_mode, self.service_url
+                    selected_id, selected_mode = self.client_id, self.api_mode
                 else:
-                    tokens, cancel, selected_id, selected_mode, selected_service = value
+                    tokens, cancel, selected_id, selected_mode = value
                 if cancel is not self.auth_cancel or cancel.is_set():
                     continue
                 try:
                     with self.config_lock:
-                        config = dict(self.config, oauth_client_id=selected_id, oauth=tokens, service_url=selected_service, api_mode=selected_mode)
+                        config = dict(self.config, oauth_client_id=selected_id, oauth=tokens, api_mode=selected_mode)
                         if selected_mode == "personal": config["personal_client_id"] = selected_id
                         local_settings.save_config(config)
-                        self.client_id, self.api_mode, self.service_url = selected_id, selected_mode, selected_service
+                        self.client_id, self.api_mode = selected_id, selected_mode
                         self.config = config
                         self.session = self.make_session(tokens)
                     self.account.set("Warcraft Logs подключён")
