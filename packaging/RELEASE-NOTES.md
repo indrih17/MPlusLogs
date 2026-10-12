@@ -1,6 +1,6 @@
-## 0.5.3
+## 0.5.4
 
-- Show DPS first for all roles, including healers, in applicant rows, profiles and tooltips; keep HPS as the secondary metric.
-- Refresh legacy HPS-only profiles during batch loading when DPS data is missing.
+- Add native WoW addon settings for healer HPS priority, Best avg or Median priority, log freshness, tooltips and stale-log alerts.
+- Apply saved display preferences immediately to applicant rows, profiles and tooltips without reloading log data.
 
 Use the Setup exe or portable ZIP for Windows 10/11 x64. Python is included. Companion supports all WoW client languages with a language selector; binaries are unsigned.

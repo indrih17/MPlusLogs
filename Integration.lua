@@ -2,7 +2,7 @@ local addonName, MPL = ...
 local L = MPL.L
 
 function MPL.AddTooltip(tooltip, fullName, realm)
-    if InCombatLockdown() or not MPlusLogsDB or MPlusLogsDB.tooltips == false then return end
+    if InCombatLockdown() or not MPlusLogsDB or not MPL.GetOption("tooltips") then return end
     local profile, name, server = MPL.GetProfile(fullName,realm)
     if not name then return end
     local key = MPL.Key(name,server)
@@ -17,9 +17,11 @@ function MPL.AddTooltip(tooltip, fullName, realm)
         local secondary=primary=="hps" and "dps" or "hps"
         local _,_,best,median=MPL.MetricValues(profile,nil,primary)
         local _,_,otherBest,otherMedian=MPL.MetricValues(profile,nil,secondary)
+        best,median=MPL.OrderPercentiles(best,median)
+        otherBest,otherMedian=MPL.OrderPercentiles(otherBest,otherMedian)
         tooltip:AddLine(MPL.T(profile.spec) .. L[" / по уровню ключа"],0.8,0.8,0.8)
-        tooltip:AddDoubleLine(primary:upper().." Best / Median",MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
-        tooltip:AddDoubleLine(secondary:upper().." Best / Median",MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale))
+        tooltip:AddDoubleLine(primary:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
+        tooltip:AddDoubleLine(secondary:upper().." "..MPL.PercentileCaption(),MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale))
         tooltip:AddDoubleLine(L["Залогированные прохождения"],tostring(profile.runs or "—"))
         tooltip:AddLine(MPL.T(profile.source).." / "..lastDate,0.65,0.65,0.65,true)
         if stale then tooltip:AddLine(L["Обновите логи персонажа"],0.65,0.65,0.65) end
@@ -214,7 +216,8 @@ function MPL.InstallBatchButton()
         GameTooltip:ClearLines()
         GameTooltip:AddLine(L["Логи текущих кандидатов"])
         GameTooltip:AddLine(L["Актуальные данные: "]..loaded..L[" из "]..total,1,1,1)
-        GameTooltip:AddLine(L["Не загружены или старше 24 часов: "]..(total-loaded),0.7,0.7,0.7)
+        GameTooltip:AddLine(L["Нет актуальных данных: "]..(total-loaded),0.7,0.7,0.7)
+        GameTooltip:AddLine(L["Срок актуальности логов"]..": "..string.format(L["%d ч."],MPL.GetOption("freshHours")),0.7,0.7,0.7)
         GameTooltip:AddLine(L["Загружаются только отсутствующие или устаревшие логи."],0.7,0.7,0.7,true)
         GameTooltip:Show()
     end)
@@ -236,6 +239,7 @@ events:SetScript("OnEvent",function(_,event,loaded)
         MPL.LoadBundle()
     end
     if event == "PLAYER_LOGIN" then
+        if MPL.RegisterSettings then MPL.RegisterSettings() end
         GameTooltip:HookScript("OnTooltipCleared",function(self) self.mplKey = nil end)
         GameTooltip:HookScript("OnHide",function(self) self.mplKey = nil end)
         if TooltipDataProcessor and Enum and Enum.TooltipDataType then
@@ -262,14 +266,15 @@ SLASH_MPLUSLOGS1 = "/mpl"
 SLASH_MPLUSLOGS2 = "/mpluslogs"
 SlashCmdList.MPLUSLOGS = function(text)
     text = strtrim(text or "")
-    if text == "import" then MPL.ShowImport()
+    if text == "settings" then MPL.OpenSettings()
+    elseif text == "import" then MPL.ShowImport()
     elseif text == "applicants" then MPL.ShowBatchDownload()
     elseif text == "results" then MPL.OpenBatchResults()
     elseif text == "probe" then MPL.ShowProbe()
     elseif text == "requests" then MPL.ShowRequests()
     elseif text == "demo" then MPL.ShowProfile("Киндрих","Гордунни")
     elseif text == "tooltip" then
-        MPlusLogsDB.tooltips = MPlusLogsDB.tooltips == false
+        MPL.SetOption("tooltips",not MPL.GetOption("tooltips"))
         print(L["MPlusLogs: тултипы "] .. (MPlusLogsDB.tooltips and L["включены"] or L["выключены"]))
     elseif text ~= "" then MPL.ShowProfile(text)
     elseif UnitExists("target") and UnitIsPlayer("target") then

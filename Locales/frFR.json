@@ -187,5 +187,20 @@
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nLes logs datent de plus de 24 heures ou la date est inconnue.",
   "Не загружены или старше 24 часов: ": "Manquants ou datant de plus de 24 heures : ",
   "Серый процент: данные старше 24 часов": "Pourcentage gris : logs datant de plus de 24 heures",
-  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS pour tous les rôles ; HPS est disponible dans le profil complet."
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS pour tous les rôles ; HPS est disponible dans le profil complet.",
+  "%d ч.": "%d h",
+  ".\nПревышен срок актуальности или дата неизвестна.": ".\nLa période de validité est dépassée ou la date est inconnue.",
+  "DPS/HPS: в соответствии с настройками.": "DPS/HPS : selon réglages.",
+  "HPS первым для хилов": "HPS première pour les guérisseurs",
+  "Более старые данные считаются устаревшими и обновляются при общей загрузке.": "Les données plus anciennes sont considérées comme obsolètes et sont mises à jour lors du chargement général.",
+  "В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.": "L'indicateur sélectionné est affiché dans les commandes ; dans le résumé et l'info-bulle, il vient en premier.",
+  "Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.": "Pour les guérisseurs, affichez HPS avant DPS dans les applications, l'info-bulle et le résumé complet.",
+  "Добавлять показатели M+ при наведении на персонажей и заявки.": "Ajoutez des indicateurs M+ lors du survol des caractères et des requêtes.",
+  "Нет актуальных данных: ": "Aucune donnée actuelle : ",
+  "Основной процентиль": "Centile principal",
+  "Показывать логи в тултипах": "Afficher les journaux dans les info-bulles",
+  "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Afficher la fenêtre de mise à jour lors de l'ouverture d'un profil obsolète. La couleur grise des données est conservée.",
+  "Предупреждать об устаревших логах": "Avertir en cas de journaux obsolètes",
+  "Серый процент: данные устарели.": "Pourcentage de gris : les données sont obsolètes.",
+  "Срок актуальности логов": "Période de validité des journaux"
 }

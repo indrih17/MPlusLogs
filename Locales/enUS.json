@@ -187,5 +187,20 @@
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nLogs are older than 24 hours or the date is unknown.",
   "Не загружены или старше 24 часов: ": "Missing or older than 24 hours: ",
   "Серый процент: данные старше 24 часов": "Gray percentage: logs older than 24 hours",
-  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS for all roles; HPS is available in the full profile."
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS for all roles; HPS is available in the full profile.",
+  "%d ч.": "%d h",
+  ".\nПревышен срок актуальности или дата неизвестна.": ".\nThe validity period has been exceeded or the date is unknown.",
+  "DPS/HPS: в соответствии с настройками.": "DPS/HPS: according to settings.",
+  "HPS первым для хилов": "HPS first for healers",
+  "Более старые данные считаются устаревшими и обновляются при общей загрузке.": "Older logs are marked stale and included in batch updates.",
+  "В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.": "Applicant rows show the selected statistic; it appears first in profiles and tooltips.",
+  "Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.": "Show HPS before DPS for healers in applicant rows, tooltips and full profiles.",
+  "Добавлять показатели M+ при наведении на персонажей и заявки.": "Add M+ indicators when hovering over characters and requests.",
+  "Нет актуальных данных: ": "No current data: ",
+  "Основной процентиль": "Primary percentile",
+  "Показывать логи в тултипах": "Show logs in tooltips",
+  "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Show update window when opening an outdated profile. The gray color of the data is retained.",
+  "Предупреждать об устаревших логах": "Warn about outdated logs",
+  "Серый процент: данные устарели.": "Gray percentage: data is out of date.",
+  "Срок актуальности логов": "Log freshness period"
 }

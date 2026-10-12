@@ -4,6 +4,12 @@ from pathlib import Path
 
 DIRECTORY=Path(__file__).resolve().parents[1]/'Locales'
 ENGLISH={
+    '%d ч.':'%d h',
+    'Основной процентиль':'Primary percentile',
+    'Срок актуальности логов':'Log freshness period',
+    'Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.':'Show HPS before DPS for healers in applicant rows, tooltips and full profiles.',
+    'В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.':'Applicant rows show the selected statistic; it appears first in profiles and tooltips.',
+    'Более старые данные считаются устаревшими и обновляются при общей загрузке.':'Older logs are marked stale and included in batch updates.',
     ' из ':' of ', 'Загружено: ':'Loaded: ', 'Отправлено':'Sent',
     'Залогированные прохождения':'Logged runs', 'Прохождения':'Runs',
     'В группе недостаточно свободных мест':'Not enough free slots in the group',
@@ -113,6 +119,8 @@ def main():
         data.update(dict(zip(INCREMENTAL_KEYS,INCREMENTAL[locale])))
         data.update(dict(zip(FRESHNESS_KEYS,FRESHNESS[locale])))
         data['DPS для всех ролей; HPS доступен в полной сводке.']=DPS_FIRST[locale]
+        data['%d ч.']={'enUS':'%d h','deDE':'%d Std.','esES':'%d h','esMX':'%d h','frFR':'%d h',
+            'itIT':'%d h','ptBR':'%d h','koKR':'%d시간','zhCN':'%d小时','zhTW':'%d小時'}[locale]
         by_level=BY_LEVEL[locale]
         data.update({
             ' / по уровню ключа':' / '+by_level,

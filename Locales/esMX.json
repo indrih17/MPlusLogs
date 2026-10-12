@@ -187,5 +187,20 @@
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nLos logs tienen más de 24 horas o la fecha es desconocida.",
   "Не загружены или старше 24 часов: ": "Sin cargar o con más de 24 horas: ",
   "Серый процент: данные старше 24 часов": "Porcentaje gris: logs de más de 24 horas",
-  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS para todos los roles; HPS está disponible en el perfil completo."
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS para todos los roles; HPS está disponible en el perfil completo.",
+  "%d ч.": "%d h",
+  ".\nПревышен срок актуальности или дата неизвестна.": ".\nSe ha excedido el período de validez o se desconoce la fecha.",
+  "DPS/HPS: в соответствии с настройками.": "DPS/HPS: según configuración.",
+  "HPS первым для хилов": "HPS primero en curaciones",
+  "Более старые данные считаются устаревшими и обновляются при общей загрузке.": "Los datos más antiguos se consideran obsoletos y se actualizan durante la carga general.",
+  "В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.": "Las aplicaciones muestran el indicador seleccionado; en el resumen y la información sobre herramientas, aparece primero.",
+  "Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.": "Para los sanadores, muestre HPS antes de DPS en las aplicaciones, información sobre herramientas y resumen completo.",
+  "Добавлять показатели M+ при наведении на персонажей и заявки.": "Agregue indicadores M+ al pasar el cursor sobre personajes y aplicaciones.",
+  "Нет актуальных данных: ": "Sin datos actuales: ",
+  "Основной процентиль": "percentil principal",
+  "Показывать логи в тултипах": "Mostrar registros en información sobre herramientas",
+  "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Muestra una ventana de actualización al abrir un perfil desactualizado. Se conserva el color gris de los datos.",
+  "Предупреждать об устаревших логах": "Advertir sobre registros obsoletos",
+  "Серый процент: данные устарели.": "Porcentaje gris: los datos están desactualizados.",
+  "Срок актуальности логов": "Período de validez de los registros"
 }

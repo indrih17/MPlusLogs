@@ -187,5 +187,20 @@
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nI log hanno più di 24 ore o la data è sconosciuta.",
   "Не загружены или старше 24 часов: ": "Mancanti o più vecchi di 24 ore: ",
   "Серый процент: данные старше 24 часов": "Percentuale grigia: log più vecchi di 24 ore",
-  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS per tutti i ruoli; HPS è disponibile nel profilo completo."
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS per tutti i ruoli; HPS è disponibile nel profilo completo.",
+  "%d ч.": "%d h",
+  ".\nПревышен срок актуальности или дата неизвестна.": ".\nIl periodo di validità è stato superato o la data è sconosciuta.",
+  "DPS/HPS: в соответствии с настройками.": "DPS/HPS: in base alle impostazioni.",
+  "HPS первым для хилов": "HPS primo per i guaritori",
+  "Более старые данные считаются устаревшими и обновляются при общей загрузке.": "I dati più vecchi sono considerati obsoleti e vengono aggiornati durante il caricamento generale.",
+  "В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.": "L'indicatore selezionato viene mostrato in ordine; nel riepilogo e nel tooltip viene prima.",
+  "Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.": "Per i guaritori, mostra HPS prima di DPS nelle applicazioni, nella descrizione comando e nel riepilogo completo.",
+  "Добавлять показатели M+ при наведении на персонажей и заявки.": "Aggiungi gli indicatori M+ quando passi il mouse sopra personaggi e richieste.",
+  "Нет актуальных данных: ": "Nessun dato corrente: ",
+  "Основной процентиль": "percentile principale",
+  "Показывать логи в тултипах": "Mostra i log nelle descrizioni comandi",
+  "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Mostra la finestra di aggiornamento quando si apre un profilo obsoleto. Il colore grigio dei dati viene mantenuto.",
+  "Предупреждать об устаревших логах": "Avvisa sui registri obsoleti",
+  "Серый процент: данные устарели.": "Percentuale grigia: i dati non sono aggiornati.",
+  "Срок актуальности логов": "Periodo di validità dei registri"
 }

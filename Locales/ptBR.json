@@ -187,5 +187,20 @@
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nOs logs têm mais de 24 horas ou a data é desconhecida.",
   "Не загружены или старше 24 часов: ": "Ausentes ou com mais de 24 horas: ",
   "Серый процент: данные старше 24 часов": "Porcentagem cinza: logs com mais de 24 horas",
-  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS para todas as funções; HPS está disponível no perfil completo."
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS para todas as funções; HPS está disponível no perfil completo.",
+  "%d ч.": "%d h",
+  ".\nПревышен срок актуальности или дата неизвестна.": ".\nO período de validade foi excedido ou a data é desconhecida.",
+  "DPS/HPS: в соответствии с настройками.": "DPS/HPS: de acordo com as configurações.",
+  "HPS первым для хилов": "HPS primeiro para curandeiros",
+  "Более старые данные считаются устаревшими и обновляются при общей загрузке.": "Os dados mais antigos são considerados desatualizados e são atualizados durante o carregamento geral.",
+  "В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.": "O indicador selecionado é mostrado em ordens; no resumo e na dica, ele vem primeiro.",
+  "Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.": "Para curandeiros, mostre HPS antes de DPS em aplicativos, dica de ferramenta e resumo completo.",
+  "Добавлять показатели M+ при наведении на персонажей и заявки.": "Adiciona indicadores M+ ao passar o mouse sobre caracteres e solicitações.",
+  "Нет актуальных данных: ": "Sem dados atuais: ",
+  "Основной процентиль": "Percentil principal",
+  "Показывать логи в тултипах": "Mostrar logs nas dicas de ferramentas",
+  "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Mostrar janela de atualização ao abrir um perfil desatualizado. A cor cinza dos dados é mantida.",
+  "Предупреждать об устаревших логах": "Avisar sobre logs desatualizados",
+  "Серый процент: данные устарели.": "Porcentagem cinza: os dados estão desatualizados.",
+  "Срок актуальности логов": "Período de validade dos registros"
 }

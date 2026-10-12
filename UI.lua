@@ -100,7 +100,7 @@ function MPL.UpdateProfileInvite()
     f.inviteInfo:SetText(f.inviteSent and L["Запрос приглашения отправлен"] or (err or (size>1 and L["Пригласится вся заявка: "]..size..L[" чел."] or L["Приглашение выбранного кандидата"])))
 end
 
-function MPL.ShowProfile(fullName, realm,context)
+function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     if not MPL.SafeString(fullName) then fullName, realm = UnitFullName("player") end
     local profile, name, server = MPL.GetProfile(fullName, realm)
     if not name then return end
@@ -123,6 +123,9 @@ function MPL.ShowProfile(fullName, realm,context)
     f.headings[8]:SetText(L["Лучший "]..secondary:upper())
     f.primaryGroup:SetText(primary:upper()..L[" / по уровню ключа"])
     f.secondaryGroup:SetText(secondary:upper()..L[" / по уровню ключа"])
+    local firstPercent,secondPercent=MPL.OrderPercentiles(L["Best %"],L["Median %"])
+    f.headings[5]:SetText(firstPercent); f.headings[6]:SetText(secondPercent)
+    f.headings[9]:SetText(firstPercent); f.headings[10]:SetText(secondPercent)
     f.loadButton:ClearAllPoints()
     for _,heading in ipairs(f.headings) do if profile then heading:Show() else heading:Hide() end end
     if profile then
@@ -138,7 +141,10 @@ function MPL.ShowProfile(fullName, realm,context)
         f.context:SetText(profile.season .. "  /  " .. MPL.T(profile.spec) .. "  /  " .. primary:upper() .. L[" и "]..secondary:upper()..L[" по уровню ключа"])
         local _,_,best,median=MPL.MetricValues(profile,nil,primary)
         local _,_,otherBest,otherMedian=MPL.MetricValues(profile,nil,secondary)
-        f.summary:SetText(L["WCL score: "] .. (profile.score and string.format("%.0f",profile.score) or "—") .. "    "..primary:upper()..L[" Best / Median: "] .. MPL.Percent(best,stale) .. " / " .. MPL.Percent(median,stale) .. "    "..secondary:upper()..L[" Best / Median: "] .. MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale)..L["    Логи: "] .. (profile.runs or "—"))
+        best,median=MPL.OrderPercentiles(best,median)
+        otherBest,otherMedian=MPL.OrderPercentiles(otherBest,otherMedian)
+        local caption=MPL.GetOption("percentile")=="median" and L[" Median / Best: "] or L[" Best / Median: "]
+        f.summary:SetText(L["WCL score: "] .. (profile.score and string.format("%.0f",profile.score) or "—") .. "    "..primary:upper()..caption .. MPL.Percent(best,stale) .. " / " .. MPL.Percent(median,stale) .. "    "..secondary:upper()..caption .. MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale)..L["    Логи: "] .. (profile.runs or "—"))
         f.source:SetText(MPL.T(profile.source) .. L["  /  Последняя загрузка: "] .. lastDate .. (stale and L[" / Обновите логи"] or ""))
         f.note:SetText(L["Процентиль урона/исцеления не оценивает выживание, прерывания и механику."])
         for index, dungeon in ipairs(profile.dungeons) do
@@ -151,7 +157,9 @@ function MPL.ShowProfile(fullName, realm,context)
             end
             local level,amount,best,median=MPL.MetricValues(profile,dungeon,primary)
             local otherLevel,otherAmount,otherBest,otherMedian=MPL.MetricValues(profile,dungeon,secondary)
-            local values = {dungeon.name,dungeon.runs or "—",level and "+"..level or "—",amount and string.format("%.2fK",amount/1000) or "—",MPL.Percent(best,stale)..(dungeon.flagged and profile.metric==primary and "*" or ""),MPL.Percent(median,stale),otherLevel and "+"..otherLevel or "—",otherAmount and string.format("%.2fK",otherAmount/1000) or "—",MPL.Percent(otherBest,stale),MPL.Percent(otherMedian,stale)}
+            local first,second=MPL.OrderPercentiles(MPL.Percent(best,stale)..(dungeon.flagged and profile.metric==primary and "*" or ""),MPL.Percent(median,stale))
+            local otherFirst,otherSecond=MPL.OrderPercentiles(MPL.Percent(otherBest,stale),MPL.Percent(otherMedian,stale))
+            local values = {dungeon.name,dungeon.runs or "—",level and "+"..level or "—",amount and string.format("%.2fK",amount/1000) or "—",first,second,otherLevel and "+"..otherLevel or "—",otherAmount and string.format("%.2fK",otherAmount/1000) or "—",otherFirst,otherSecond}
             for i, value in ipairs(values) do
                 row.cells[i]:SetText(value)
                 row.cells[i]:SetTextColor(stale and 0.53 or 1,stale and 0.53 or 1,stale and 0.53 or 1)
@@ -177,10 +185,11 @@ function MPL.ShowProfile(fullName, realm,context)
     f:Show()
     MPL.UpdateProfileInvite()
     MPL.UpdatePanelScroll(f)
-    if stale then MPL.ShowStaleNotice(name,server,profile,lastDate) end
+    if stale and not suppressNotice then MPL.ShowStaleNotice(name,server,profile,lastDate) end
 end
 
 function MPL.ShowStaleNotice(name,realm,profile,lastDate)
+    if not MPL.GetOption("stalePopup") then return end
     MPL.staleWarnings=MPL.staleWarnings or {}
     local key=MPL.Key(name,realm)..":"..profile.updated
     if MPL.staleWarnings[key] then return end
@@ -198,7 +207,7 @@ function MPL.ShowStaleNotice(name,realm,profile,lastDate)
     local f=MPL.staleWindow
     f.name=name; f.realm=realm; f.profile=profile
     f.applicant=MPL.panel and MPL.panel.applicant or false
-    f.message:SetText(name.." — "..realm..L["\nПоследняя дата загрузки - "]..lastDate..L[".\nДанные старше 24 часов или дата неизвестна."])
+    f.message:SetText(name.." — "..realm..L["\nПоследняя дата загрузки - "]..lastDate..L[".\nПревышен срок актуальности или дата неизвестна."])
     f:Show()
 end
 
@@ -403,9 +412,9 @@ function MPL.InstallApplicantLogColumn(viewer)
     f:EnableMouse(true)
     f:SetScript("OnEnter",function()
         GameTooltip:SetOwner(f,"ANCHOR_TOP"); GameTooltip:ClearLines()
-        GameTooltip:AddLine(L["M+ Best % по уровню ключа"])
-        GameTooltip:AddLine(L["DPS для всех ролей; HPS доступен в полной сводке."],1,1,1)
-        GameTooltip:AddLine(L["Серый процент: данные старше 24 часов"],0.7,0.7,0.7)
+        GameTooltip:AddLine("M+ "..MPL.PrimaryPercentileLabel()..L[" по уровню ключа"])
+        GameTooltip:AddLine(L["DPS/HPS: в соответствии с настройками."],1,1,1)
+        GameTooltip:AddLine(L["Серый процент: данные устарели."],0.7,0.7,0.7)
         GameTooltip:Show()
     end)
     f:SetScript("OnLeave",function() GameTooltip:Hide() end)
@@ -501,7 +510,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
         end)
         cell:SetScript("OnEnter",function()
             GameTooltip:SetOwner(cell,"ANCHOR_RIGHT"); GameTooltip:ClearLines()
-            GameTooltip:AddLine(cell.metric:upper()..L[" Best % по уровню ключа"])
+            GameTooltip:AddLine(cell.metric:upper().." "..MPL.PrimaryPercentileLabel()..L[" по уровню ключа"])
             GameTooltip:AddLine(cell.detail,0.8,0.8,0.8,true)
             GameTooltip:AddLine(L["Нажмите для полной сводки"],1,1,1); GameTooltip:Show()
         end)
@@ -524,13 +533,14 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
     if knownRole then
         MPL.roles=MPL.roles or {}; MPL.roles[cell.key]=role
     end
-    cell.metric="dps"
+    cell.metric=MPL.PrimaryMetric(nil,shortName,realm,knownRole)
     local profile=MPL.GetProfile(shortName,realm)
     if profile then
         local stale,lastDate=MPL.IsProfileStale(profile)
         cell.metric=MPL.PrimaryMetric(profile,shortName,realm)
-        local _,_,best=MPL.MetricValues(profile,nil,cell.metric)
-        cell.text:SetText(MPL.Percent(best,stale))
+        local _,_,best,median=MPL.MetricValues(profile,nil,cell.metric)
+        local first=MPL.OrderPercentiles(best,median)
+        cell.text:SetText(MPL.Percent(first,stale))
         cell.detail=L["Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or "")
     else cell.text:SetText("|cff888888—|r") end
     cell:Show()

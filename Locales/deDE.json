@@ -187,5 +187,20 @@
   ".\nДанные старше 24 часов или дата неизвестна.": ".\nDie Logs sind älter als 24 Stunden oder das Datum ist unbekannt.",
   "Не загружены или старше 24 часов: ": "Fehlend oder älter als 24 Stunden: ",
   "Серый процент: данные старше 24 часов": "Grauer Prozentwert: Logs älter als 24 Stunden",
-  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS für alle Rollen; HPS ist im vollständigen Profil verfügbar."
+  "DPS для всех ролей; HPS доступен в полной сводке.": "DPS für alle Rollen; HPS ist im vollständigen Profil verfügbar.",
+  "%d ч.": "%d Std.",
+  ".\nПревышен срок актуальности или дата неизвестна.": ".\nDer Gültigkeitszeitraum wurde überschritten oder das Datum ist unbekannt.",
+  "DPS/HPS: в соответствии с настройками.": "DPS/HPS: entsprechend den Einstellungen.",
+  "HPS первым для хилов": "HPS zuerst für Heiler",
+  "Более старые данные считаются устаревшими и обновляются при общей загрузке.": "Ältere Daten gelten als veraltet und werden beim allgemeinen Laden aktualisiert.",
+  "В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым.": "Der ausgewählte Indikator wird in Bestellungen angezeigt; In der Zusammenfassung und im Tooltip steht es an erster Stelle.",
+  "Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке.": "Für Heiler: HPS vor DPS in Anwendungen, Tooltip und vollständiger Zusammenfassung anzeigen.",
+  "Добавлять показатели M+ при наведении на персонажей и заявки.": "Fügen Sie M+-Indikatoren hinzu, wenn Sie mit der Maus über Zeichen und Anfragen fahren.",
+  "Нет актуальных данных: ": "Keine aktuellen Daten: ",
+  "Основной процентиль": "Hauptperzentil",
+  "Показывать логи в тултипах": "Protokolle in Tooltips anzeigen",
+  "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Aktualisierungsfenster anzeigen, wenn ein veraltetes Profil geöffnet wird. Die graue Farbe der Daten bleibt erhalten.",
+  "Предупреждать об устаревших логах": "Warnung vor veralteten Protokollen",
+  "Серый процент: данные устарели.": "Grauer Prozentsatz: Daten sind veraltet.",
+  "Срок актуальности логов": "Protokolliert den Gültigkeitszeitraum"
 }

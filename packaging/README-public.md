@@ -16,6 +16,9 @@ Use `/mpl demo` for a fictional preview without an account.
 The addon supports eleven locales, player panels, recruitment tooltips,
 dual DPS/HPS profiles, batch candidate loading, stale-data indicators and manual import.
 DPS is shown first for every role, including healers; HPS remains available in full profiles and tooltips.
+Customize healer HPS priority, Best avg/Median priority, freshness (6/12/24/48 hours),
+tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl settings`.
+Changes apply immediately and are saved between sessions.
 Percentiles describe available Warcraft Logs runs. They do not measure tank survival.
 
 ## Privacy

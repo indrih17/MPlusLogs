@@ -5,7 +5,7 @@ import unittest
 from test_addon import ROOT,MOCK,LuaRuntime,load_locales
 
 LOCALES=['enUS','enGB','ruRU','deDE','esES','esMX','frFR','itIT','ptBR','koKR','zhCN','zhTW']
-PROTECTED=re.compile(r'\|c[0-9a-fA-F]{8}|\|r|Ctrl\+[ACV]|/reload|/mpl|MPlusLogs|DPS|HPS|WCL')
+PROTECTED=re.compile(r'\|c[0-9a-fA-F]{8}|\|r|Ctrl\+[ACV]|/reload|/mpl|MPlusLogs|DPS|HPS|WCL|%[0-9.*]*[sdif]')
 
 class LocalizationTests(unittest.TestCase):
     def runtime(self,locale):
@@ -28,7 +28,9 @@ class LocalizationTests(unittest.TestCase):
                     self.assertIsInstance(translated,str)
                     self.assertTrue(translated.strip())
                     self.assertNotRegex(translated,r'ZX(?:START|END|PH|NEWLINE)')
-                    self.assertEqual(PROTECTED.findall(translated),PROTECTED.findall(key),msg=(locale,key))
+                    self.assertEqual(sorted(PROTECTED.findall(translated)),sorted(PROTECTED.findall(key)),msg=(locale,key))
+                    colors=r'\|c[0-9a-fA-F]{8}|\|r'
+                    self.assertEqual(re.findall(colors,translated),re.findall(colors,key),msg=(locale,key))
 
     def test_profile_download_and_wire_identity_in_every_locale(self):
         for locale in LOCALES:

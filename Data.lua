@@ -3,6 +3,41 @@ local L = MPL.L
 MPlusLogs = MPL
 MPL.zone = 55
 MPL.maxProfileAge = 24 * 60 * 60
+local defaults={healerHpsFirst=false,percentile="best",freshHours=24,tooltips=true,stalePopup=true}
+
+function MPL.GetOption(key)
+    local options=MPlusLogsDB and MPlusLogsDB.options
+    if options and options[key]~=nil then return options[key] end
+    if key=="tooltips" and MPlusLogsDB and MPlusLogsDB.tooltips~=nil then return MPlusLogsDB.tooltips end
+    return defaults[key]
+end
+
+function MPL.SetOption(key,value)
+    if defaults[key]==nil then return false end
+    if key=="percentile" then
+        if value~="best" and value~="median" then return false end
+    elseif key=="freshHours" then
+        if not ({[6]=true,[12]=true,[24]=true,[48]=true})[value] then return false end
+    elseif type(value)~="boolean" then return false end
+    MPlusLogsDB=MPlusLogsDB or {}; MPlusLogsDB.options=MPlusLogsDB.options or {}
+    MPlusLogsDB.options[key]=value
+    if key=="tooltips" then MPlusLogsDB.tooltips=value end
+    if MPL.RefreshSettingsDisplays then MPL.RefreshSettingsDisplays() end
+    return true
+end
+
+function MPL.OrderPercentiles(best,median)
+    if MPL.GetOption("percentile")=="median" then return median,best end
+    return best,median
+end
+
+function MPL.PercentileCaption()
+    return MPL.GetOption("percentile")=="median" and "Median / Best" or "Best / Median"
+end
+
+function MPL.PrimaryPercentileLabel()
+    return MPL.GetOption("percentile")=="median" and L["Median %"] or L["Best %"]
+end
 
 function MPL.ProfileDate(profile)
     local y,m,d,h,n=(profile.updated or ""):match("^(%d%d%d%d)%-(%d%d)%-(%d%d) (%d%d):(%d%d) UTC$")
@@ -20,14 +55,15 @@ end
 
 function MPL.IsProfileStale(profile, now)
     local timestamp,display=MPL.ProfileDate(profile)
-    return not timestamp or (now or GetServerTime())-timestamp>=MPL.maxProfileAge,display
+    return not timestamp or (now or GetServerTime())-timestamp>=MPL.GetOption("freshHours")*3600,display
 end
 
 function MPL.FilterFreshProfiles(players)
     local pending,skipped={},0
     for _,player in ipairs(players) do
         local profile=MPL.GetProfile(player.name,player.realm)
-        local usable=profile and (profile.dual or profile.metric=="dps")
+        local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
+        local usable=profile and (profile.dual or profile.metric==metric)
         if usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
         else pending[#pending+1]=player end
     end
@@ -112,7 +148,9 @@ function MPL.MetricValues(profile, row, metric)
     return row.otherLevel,row.otherAmount,row.otherBest,row.otherMedian
 end
 
-function MPL.PrimaryMetric(profile,name,realm)
+function MPL.PrimaryMetric(profile,name,realm,role)
+    role=role or (MPL.roles and MPL.roles[MPL.Key(name,realm)]) or (profile and profile.role)
+    if MPL.GetOption("healerHpsFirst") and role=="HEALER" then return "hps" end
     return "dps"
 end
 

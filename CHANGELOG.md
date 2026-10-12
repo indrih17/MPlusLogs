@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4
+
+- Add native WoW addon settings for healer HPS priority, Best avg or Median priority, log freshness, tooltips and stale-log alerts.
+- Apply saved display preferences immediately to applicant rows, profiles and tooltips without reloading log data.
+
 ## 0.5.3
 
 - Show DPS first for all roles, including healers, in applicant rows, profiles and tooltips; keep HPS as the secondary metric.

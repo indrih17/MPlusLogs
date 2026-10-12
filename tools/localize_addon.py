@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ['Data.lua', 'Transport.lua', 'UI.lua', 'Integration.lua', 'Probe.lua']
+FILES = ['Data.lua', 'Transport.lua', 'UI.lua', 'Settings.lua', 'Integration.lua', 'Probe.lua']
 TOKEN = re.compile(r'--\[\[.*?\]\]|--[^\n]*|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', re.S)
 CYRILLIC = re.compile('[\u0400-\u04ff]')
 SKIP = {'Киндрих', 'Гордунни', 'Снимок со скриншота пользователя'}
@@ -44,7 +44,7 @@ def request_translation(values, lang):
         tokens={}
         def protect(match):
             token=f'ZXPH{index}N{len(tokens)}XZ'; tokens[token]=match.group(); return token
-        content=re.sub(r'\|c[0-9a-fA-F]{8}|\|r|Ctrl\+[ACV]|/reload|/mpl|MPlusLogs|DPS|HPS|WCL|M\+',protect,value)
+        content=re.sub(r'\|c[0-9a-fA-F]{8}|\|r|Ctrl\+[ACV]|/reload|/mpl|MPlusLogs|DPS|HPS|WCL|M\+|%[0-9.*]*[sdif]',protect,value)
         content=content.replace('\n',' ZXNEWLINEXZ ')
         payload.append(content if len(values)==1 else f'ZXSTART{index}XZ {content} ZXEND{index}XZ')
         replacements[index]=tokens
@@ -82,11 +82,12 @@ def translate():
     values=json.loads(CATALOG.read_text(encoding='utf-8'))
     for locale,lang in LOCALES.items():
         path=CATALOG.parent/(locale+'.json')
-        if path.exists(): continue
+        result=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+        missing=[value for value in values if value not in result]
+        if not missing: continue
         if locale=='esMX' and (CATALOG.parent/'esES.json').exists():
             path.write_text((CATALOG.parent/'esES.json').read_text(encoding='utf-8'),encoding='utf-8'); continue
-        chunks=[values[i:i+5] for i in range(0,len(values),5)]
-        result={}
+        chunks=[missing[i:i+5] for i in range(0,len(missing),5)]
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             for translated in pool.map(lambda group: request_translation(group,lang),chunks): result.update(translated)
         path.write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
