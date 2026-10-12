@@ -1,0 +1,8 @@
+## Interface: 120007, 120100, 120105
+## Title: MPlusLogs Probe A (experiment)
+## Notes: Unloaded file-read probe. Do not load before the experiment.
+## Dependencies: MPlusLogs
+## LoadOnDemand: 1
+## DefaultState: enabled
+
+Payload.lua

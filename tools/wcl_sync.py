@@ -1,0 +1,206 @@
+"""Fetch public WCL profiles and export data-only MPL1 files. Python 3.10+, stdlib only."""
+from __future__ import annotations
+
+import argparse
+import base64
+from datetime import datetime, timezone
+import json
+import math
+import os
+from pathlib import Path
+import sys
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
+
+ROOT = "https://www.warcraftlogs.com"
+QUERY = """query MPlusLogs($id:Int, $name:String, $slug:String, $region:String, $zone:Int!, $spec:String) {
+  rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn }
+  characterData {
+    character(id:$id, name:$name, serverSlug:$slug, serverRegion:$region) {
+      id name hidden server { name slug region { slug } }
+      damage: zoneRankings(zoneID:$zone, metric:points_and_damage, byBracket:true, specName:$spec)
+      healing: zoneRankings(zoneID:$zone, metric:points_and_healing, byBracket:true, specName:$spec)
+    }
+  }
+}"""
+
+
+def request_json(url, body, headers):
+    req = Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urlopen(req, timeout=45) as response:
+            return json.load(response)
+    except HTTPError as exc:
+        # Do not echo request headers, credentials or arbitrary response bodies.
+        raise ValueError(f"WCL HTTP {exc.code}; check credentials, API permissions or rate limit") from None
+    except URLError:
+        raise ValueError("Could not connect to Warcraft Logs") from None
+
+
+def access_token(client_id=None, secret=None):
+    client_id = client_id or os.environ.get("WCL_CLIENT_ID")
+    secret = secret or os.environ.get("WCL_CLIENT_SECRET")
+    if not client_id or not secret:
+        raise ValueError("Set WCL_CLIENT_ID and WCL_CLIENT_SECRET locally; do not paste secrets into chat")
+    basic = base64.b64encode(f"{client_id}:{secret}".encode()).decode()
+    token = request_json(ROOT + "/oauth/token", urlencode({"grant_type": "client_credentials"}).encode(),
+                         {"Authorization": "Basic " + basic, "Content-Type": "application/x-www-form-urlencoded"})
+    if not token.get("access_token"):
+        raise ValueError("WCL did not return an access token")
+    return token["access_token"]
+
+
+def fetch(args, token=None, endpoint="client"):
+    if endpoint not in {"client", "user"}:
+        raise ValueError("Unsupported WCL endpoint")
+    token = token or access_token()
+    variables = {"id": args.character_id, "name": args.name, "slug": args.server_slug,
+                 "region": args.region, "zone": args.zone, "spec": args.spec}
+    data = request_json(ROOT + "/api/v2/" + endpoint, json.dumps({"query": QUERY, "variables": variables}).encode(),
+                        {"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+    if data.get("errors"):
+        raise ValueError("WCL GraphQL error; inspect API schema/query. No export written")
+    return data
+
+
+def numeric(value, maximum=1e12, integer=False):
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (float, int)):
+        raise ValueError("Unexpected numeric field in WCL JSON")
+    if not math.isfinite(value) or value < 0 or value > maximum or (integer and value % 1):
+        raise ValueError("Numeric field outside supported range")
+    return int(value) if integer else value
+
+
+def rankings(value):
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict) or not isinstance(value.get("rankings"), list):
+        raise ValueError("Unknown zoneRankings JSON shape; preserve raw JSON and update the adapter")
+    return value
+
+
+HEALERS={"Holy","Discipline","Restoration","Mistweaver","Preservation"}
+TANKS={"Blood","Protection","Guardian","Brewmaster","Vengeance"}
+
+def normalize(raw, args):
+    character = raw.get("data", {}).get("characterData", {}).get("character")
+    if not character or character.get("hidden"):
+        raise ValueError("Character not found or rankings hidden; absence is not a zero parse")
+    dual="damage" in character and "healing" in character
+    damage=rankings(character["damage"]) if dual else None
+    healing=rankings(character["healing"]) if dual else None
+    if dual and not damage['rankings'] and not healing['rankings']:
+        raise ValueError("Публичные логи M+ не найдены")
+    role=getattr(args,"role",None)
+    if role not in {"HEALER","TANK","DAMAGER"}:
+        specs={}
+        for row in (damage or rankings(character.get("performance")))["rankings"]:
+            spec=row.get("bestSpec") or row.get("spec")
+            if spec: specs[spec]=specs.get(spec,0)+(numeric(row.get("totalKills")) or 0)
+        spec=args.spec or (max(specs,key=specs.get) if specs else None)
+        role="HEALER" if spec in HEALERS or args.metric=="hps" else "TANK" if spec in TANKS else "DAMAGER"
+    metric="hps" if role=="HEALER" else "dps"
+    performance=(healing if metric=="hps" else damage) if dual else rankings(character.get("performance"))
+    secondary=(damage if metric=="hps" else healing) if dual else None
+    other=secondary.get("throughputRankings",{}) if secondary else {}
+    if not isinstance(other,dict): raise ValueError("Unknown secondary throughputRankings shape")
+    throughput = performance.get("throughputRankings")
+    if not isinstance(throughput, dict):
+        raise ValueError("M+ throughputRankings missing; refresh using points_and_damage/points_and_healing")
+    server = character.get("server") or {}
+    region = (server.get("region") or {}).get("slug", args.region).lower()
+    if region not in {"eu", "us", "kr", "tw", "cn"}:
+        raise ValueError("Unknown region")
+    dungeons = []
+    for r in performance["rankings"]:
+        encounter = r.get("encounter") or {}
+        if not encounter.get("name"):
+            raise ValueError("Encounter name missing; unknown WCL JSON shape")
+        t = throughput.get(str(encounter.get("id")), {})
+        if not isinstance(t,dict): raise ValueError("Unknown M+ throughput row shape")
+        level = numeric(t.get("best_level"),100,True)
+        second=other.get(str(encounter.get("id")),{})
+        if not isinstance(second,dict): raise ValueError("Unknown secondary M+ throughput row")
+        dungeons.append({"name": encounter["name"], "level": level, "time": "",
+                         "runs": numeric(r.get("totalKills"), 10000000, True),
+                         "amount": numeric(t.get("best_per_second_amount")),
+                         "best": numeric(t.get("best_historical_percentile"), 100),
+                         "median": numeric(t.get("median_historical_percentile"), 100),
+                         "points": numeric(r.get("bestAmount")), "rank": None,
+                         "otherLevel":numeric(second.get("best_level"),100,True),
+                         "otherAmount":numeric(second.get("best_per_second_amount")),
+                         "otherBest":numeric(second.get("best_historical_percentile"),100),
+                         "otherMedian":numeric(second.get("median_historical_percentile"),100)})
+    stars = performance.get("allStars", [])
+    points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 else None
+    runs = sum(d["runs"] for d in dungeons) if dungeons and all(d["runs"] is not None for d in dungeons) else None
+    return {"region": region, "realm": args.realm, "name": character["name"], "zone": args.zone,
+            "season": args.season, "spec": args.spec or "All specs", "metric": metric,"role":role,"dual":dual,
+            "otherBest":numeric(secondary.get("bestPerformanceAverage"),100) if secondary else None,
+            "otherMedian":numeric(secondary.get("medianPerformanceAverage"),100) if secondary else None,
+            "score": points, "best": numeric(performance.get("bestPerformanceAverage"), 100),
+            "median": numeric(performance.get("medianPerformanceAverage"), 100), "runs": runs,
+            "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            "source": "WCL API: M+ по уровню ключа", "characterID": numeric(character.get("id"), 1000000000, True),
+            "realmSlug": server.get("slug", args.server_slug or ""), "dungeons": dungeons}
+
+
+def line(*values):
+    return "\t".join(quote("" if v is None else str(v), safe="-._~") for v in values)
+
+
+def export(profile):
+    p = profile
+    rows = ["MPL1", line("P", *(p.get(k) for k in ("region", "realm", "name", "zone", "season", "spec", "metric",
+                                                  "score", "best", "median", "runs", "updated", "source", "characterID", "realmSlug")))]
+    if p.get("dual"):
+        rows[1]+= "\t"+"\t".join(quote("" if p.get(k) is None else str(p[k]),safe="-._~") for k in ("role","otherBest","otherMedian"))
+    for d in p["dungeons"]:
+        keys=("name", "level", "time", "runs", "amount", "best", "median", "points", "rank")
+        if p.get("dual"): keys+=("otherLevel","otherAmount","otherBest","otherMedian")
+        rows.append(line("D", *(d.get(k) for k in keys)))
+    rows.append("E")
+    return "\n".join(rows) + "\n"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--character-id", type=int)
+    parser.add_argument("--name")
+    parser.add_argument("--server-slug")
+    parser.add_argument("--region", default="eu", choices=["eu", "us", "kr", "tw", "cn"])
+    parser.add_argument("--realm", required=True, help="Realm name exactly as displayed in WoW (e.g. Гордунни)")
+    parser.add_argument("--zone", type=int, default=55)
+    parser.add_argument("--season", default="Midnight M+ Season 2")
+    parser.add_argument("--spec", help="WCL spec slug, e.g. Guardian; omitted = all specs")
+    parser.add_argument("--metric", default="dps", choices=["dps", "hps"])
+    parser.add_argument("--role",choices=["HEALER","TANK","DAMAGER"],help="Current group role; otherwise inferred from logged specs")
+    parser.add_argument("--raw-input", type=Path, help="Convert a previously saved GraphQL response without network")
+    parser.add_argument("--output", type=Path, default=Path("profile.mpl"))
+    parser.add_argument("--raw-output", type=Path, default=Path("profile.wcl.json"))
+    args = parser.parse_args()
+    if args.zone != 55:
+        parser.error("This addon version supports zone 55; update Data.lua for a new season")
+    if not args.raw_input and not args.character_id and not (args.name and args.server_slug):
+        parser.error("Use --character-id or --name and --server-slug")
+    try:
+        if args.raw_input:
+            raw = json.loads(args.raw_input.read_text(encoding="utf-8-sig"))
+        else:
+            raw = fetch(args)
+            args.raw_output.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+        profile = normalize(raw, args)
+        args.output.write_text(export(profile), encoding="utf-8")
+        print(f"Exported {profile['name']}-{profile['realm']}: {len(profile['dungeons'])} dungeons -> {args.output}")
+        print("Paste this .mpl into /mpl import in WoW. Missing API fields appear as a dash.")
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

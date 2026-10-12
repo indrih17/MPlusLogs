@@ -1,0 +1,36 @@
+# MPlusLogs translations
+
+The addon chooses the language using WoW's `GetLocale()`. Supported client
+locales: enUS, enGB, ruRU, deDE, esES, esMX, frFR, itIT, ptBR, koKR, zhCN, zhTW.
+enGB shares enUS. Unknown locales use English. English loads first; a missing
+entry in another locale retains its English translation.
+
+`catalog.json` contains the source keys. Keys are the original Russian UI
+strings and must remain unchanged. Each locale JSON maps these keys to text.
+Generated Lua files are loaded by the TOC before the addon code.
+
+To contribute:
+
+1. Edit values in your locale's JSON file; do not change the keys.
+2. Preserve WoW color tags (`|c...`, `|r`), keyboard shortcuts, command names,
+   leading/trailing spaces and newlines used by the existing UI.
+3. Run `python tools/localize_addon.py apply` from the addon folder.
+4. Run `python -m unittest discover -s tests -p test_localization.py`.
+5. Check text wrapping and button labels in that language in WoW.
+
+Russian retains the original authored UI. English has edited terminology.
+Other locales started as Google Translate drafts with selected recruitment
+and Mythic+ terms edited. They still need native-speaker review before a
+public release; automated checks do not establish linguistic quality.
+
+`tools/review_locale_terms.py` records initial terminology edits. Do not rerun
+it over contributor edits unless intentionally reapplying those defaults.
+`tools/localize_addon.py translate` is an optional build tool that sends only
+catalog strings to Google Translate. Players do not need it. The addon never
+downloads translations at runtime.
+
+Localization changes display text only. Character/realm names, `All specs`
+filter identifiers, clipboard envelopes and SavedVariables records stay
+unchanged. WCL-provided dungeon/season/spec names remain source data; known
+generic labels such as `All specs` are translated when displayed. The external
+local companion's own UI is outside this WoW localization layer.

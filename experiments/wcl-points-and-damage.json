@@ -1,0 +1,707 @@
+{
+  "data": {
+    "rateLimitData": {
+      "limitPerHour": 720,
+      "pointsSpentThisHour": 11.02,
+      "pointsResetIn": 3162
+    },
+    "characterData": {
+      "character": {
+        "id": 81818678,
+        "name": "Киндрих",
+        "hidden": false,
+        "server": {
+          "name": "Гордунни",
+          "slug": "gordunni",
+          "region": {
+            "slug": "EU"
+          }
+        },
+        "performance": {
+          "bestPerformanceAverage": 37.375,
+          "medianPerformanceAverage": 22.375,
+          "difficulty": 5000,
+          "metric": "points_and_damage",
+          "partition": 1,
+          "zone": 55,
+          "size": 5000,
+          "allStars": [
+            {
+              "partition": 1,
+              "spec": "Guardian",
+              "points": 3774.33,
+              "possiblePoints": 960,
+              "rank": 780,
+              "regionRank": 447,
+              "serverRank": 27,
+              "rankPercent": 99.39036797044967,
+              "total": 127782,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day."
+            }
+          ],
+          "rankings": [
+            {
+              "encounter": {
+                "id": 12993,
+                "name": "Altar of Fangs"
+              },
+              "rankPercent": 99.9038,
+              "medianPercent": 99.2226,
+              "lockedIn": true,
+              "totalKills": 28,
+              "fastestKill": -378233731,
+              "allStars": {
+                "partition": 1,
+                "points": 470.70272916667,
+                "rank": 1314,
+                "regionRank": 702,
+                "serverRank": 38,
+                "rankPercent": 99.4321818401979,
+                "total": 231236
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 470.70272916667,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 56505923,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 470.70272916667,
+                "ilvl": 19,
+                "fight_metadata": 993801,
+                "score": 470.70272916667,
+                "leaderboard": 1,
+                "speed": -758233731,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12825,
+                "name": "Den of Nalorakk"
+              },
+              "rankPercent": 99.8507,
+              "medianPercent": 99.5543,
+              "lockedIn": true,
+              "totalKills": 27,
+              "fastestKill": -378208369,
+              "allStars": {
+                "partition": 1,
+                "points": 472.50720703125,
+                "rank": 1747,
+                "regionRank": 968,
+                "serverRank": 43,
+                "rankPercent": 99.19059120219922,
+                "total": 215713
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 472.50720703125,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 56112882,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 472.50720703125,
+                "ilvl": 19,
+                "fight_metadata": 993802,
+                "score": 472.50720703125,
+                "leaderboard": 0,
+                "speed": -758208369,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 61762,
+                "name": "Kings' Rest"
+              },
+              "rankPercent": 99.844,
+              "medianPercent": 99.6507,
+              "lockedIn": true,
+              "totalKills": 22,
+              "fastestKill": -378094168,
+              "allStars": {
+                "partition": 1,
+                "points": 471.4046969697,
+                "rank": 1651,
+                "regionRank": 907,
+                "serverRank": 41,
+                "rankPercent": 99.26355066771406,
+                "total": 224048
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 471.4046969697,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 59680468,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 471.4046969697,
+                "ilvl": 19,
+                "fight_metadata": 993803,
+                "score": 471.4046969697,
+                "leaderboard": 0,
+                "speed": -758094168,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12813,
+                "name": "Murder Row"
+              },
+              "rankPercent": 99.9023,
+              "medianPercent": 99.7606,
+              "lockedIn": true,
+              "totalKills": 15,
+              "fastestKill": -378249643,
+              "allStars": {
+                "partition": 1,
+                "points": 475.32431985294,
+                "rank": 790,
+                "regionRank": 457,
+                "serverRank": 18,
+                "rankPercent": 99.68280004341901,
+                "total": 248739
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 475.32431985294,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 86584916,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 475.32431985294,
+                "ilvl": 19,
+                "fight_metadata": 993804,
+                "score": 475.32431985294,
+                "leaderboard": 1,
+                "speed": -758249643,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 112521,
+                "name": "Ruby Life Pools"
+              },
+              "rankPercent": 99.9101,
+              "medianPercent": 99.4558,
+              "lockedIn": true,
+              "totalKills": 16,
+              "fastestKill": -398249099,
+              "allStars": {
+                "partition": 1,
+                "points": 471.39089285714,
+                "rank": 989,
+                "regionRank": 580,
+                "serverRank": 25,
+                "rankPercent": 99.52247924137998,
+                "total": 206902
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 471.39089285714,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 51890515,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 471.39089285714,
+                "ilvl": 19,
+                "fight_metadata": 993805,
+                "score": 471.39089285714,
+                "leaderboard": 1,
+                "speed": -758382312,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 61877,
+                "name": "Temple of Sethraliss"
+              },
+              "rankPercent": 99.8945,
+              "medianPercent": 99.3484,
+              "lockedIn": true,
+              "totalKills": 20,
+              "fastestKill": -378127797,
+              "allStars": {
+                "partition": 1,
+                "points": 470.93353515625,
+                "rank": 1762,
+                "regionRank": 995,
+                "serverRank": 49,
+                "rankPercent": 99.17845413152199,
+                "total": 214352
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 470.93353515625,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 49492684,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 470.93353515625,
+                "ilvl": 19,
+                "fight_metadata": 993806,
+                "score": 470.93353515625,
+                "leaderboard": 0,
+                "speed": -758127797,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12859,
+                "name": "The Blinding Vale"
+              },
+              "rankPercent": 99.9041,
+              "medianPercent": 99.7751,
+              "lockedIn": true,
+              "totalKills": 15,
+              "fastestKill": -378270546,
+              "allStars": {
+                "partition": 1,
+                "points": 471.46970833333,
+                "rank": 1195,
+                "regionRank": 652,
+                "serverRank": 33,
+                "rankPercent": 99.41597127791745,
+                "total": 204442
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 471.46970833333,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 54771253,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 471.46970833333,
+                "ilvl": 19,
+                "fight_metadata": 993807,
+                "score": 471.46970833333,
+                "leaderboard": 1,
+                "speed": -758270546,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12923,
+                "name": "Voidscar Arena"
+              },
+              "rankPercent": 99.8991,
+              "medianPercent": 99.7382,
+              "lockedIn": true,
+              "totalKills": 19,
+              "fastestKill": -378228744,
+              "allStars": {
+                "partition": 1,
+                "points": 470.59883333333,
+                "rank": 1509,
+                "regionRank": 804,
+                "serverRank": 34,
+                "rankPercent": 99.30486090303548,
+                "total": 216935
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 470.59883333333,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 51013739,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 470.59883333333,
+                "ilvl": 19,
+                "fight_metadata": 993808,
+                "score": 470.59883333333,
+                "leaderboard": 0,
+                "speed": -758228744,
+                "affixes": 859
+              }
+            }
+          ],
+          "throughputRankings": {
+            "12993": {
+              "best_per_second_amount": 194056.5877699852,
+              "best_level": 19,
+              "best_historical_percentile": 22,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 20
+            },
+            "12825": {
+              "best_per_second_amount": 168105.4945499897,
+              "best_level": 19,
+              "best_historical_percentile": 62,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 34
+            },
+            "61762": {
+              "best_per_second_amount": 128036.05738002062,
+              "best_level": 19,
+              "best_historical_percentile": 50,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 28
+            },
+            "12813": {
+              "best_per_second_amount": 170785.01042997837,
+              "best_level": 19,
+              "best_historical_percentile": 49,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 15
+            },
+            "112521": {
+              "best_per_second_amount": 199005.502120018,
+              "best_level": 19,
+              "best_historical_percentile": 52,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 27
+            },
+            "61877": {
+              "best_per_second_amount": 152214.95955997705,
+              "best_level": 19,
+              "best_historical_percentile": 11,
+              "best_historical_low_parses": true,
+              "median_historical_percentile": 11
+            },
+            "12859": {
+              "best_per_second_amount": 185056.17743998766,
+              "best_level": 19,
+              "best_historical_percentile": 38,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 34
+            },
+            "12923": {
+              "best_per_second_amount": 157954.59482997656,
+              "best_level": 19,
+              "best_historical_percentile": 15,
+              "best_historical_low_parses": false,
+              "median_historical_percentile": 10
+            }
+          }
+        },
+        "score": {
+          "bestPerformanceAverage": 99.88857499999999,
+          "medianPerformanceAverage": 99.56321249999999,
+          "difficulty": 10,
+          "metric": "playerscore",
+          "partition": 1,
+          "zone": 55,
+          "size": 5,
+          "allStars": [
+            {
+              "partition": 1,
+              "spec": "Guardian",
+              "points": 3774.33,
+              "possiblePoints": 960,
+              "rank": 780,
+              "regionRank": 447,
+              "serverRank": 27,
+              "rankPercent": 99.39036797044967,
+              "total": 127782,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day."
+            }
+          ],
+          "rankings": [
+            {
+              "encounter": {
+                "id": 12993,
+                "name": "Altar of Fangs"
+              },
+              "rankPercent": 99.9038,
+              "medianPercent": 99.2226,
+              "lockedIn": true,
+              "totalKills": 28,
+              "fastestKill": -378233731,
+              "allStars": {
+                "partition": 1,
+                "points": 470.70272916667,
+                "rank": 1314,
+                "regionRank": 702,
+                "serverRank": 38,
+                "rankPercent": 99.4321818401979,
+                "total": 231236
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 470.70272916667,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 56505923,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 470.70272916667,
+                "ilvl": 19,
+                "fight_metadata": 993801,
+                "score": 470.70272916667,
+                "leaderboard": 1,
+                "speed": -758233731,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12825,
+                "name": "Den of Nalorakk"
+              },
+              "rankPercent": 99.8507,
+              "medianPercent": 99.5543,
+              "lockedIn": true,
+              "totalKills": 27,
+              "fastestKill": -378208369,
+              "allStars": {
+                "partition": 1,
+                "points": 472.50720703125,
+                "rank": 1747,
+                "regionRank": 968,
+                "serverRank": 43,
+                "rankPercent": 99.19059120219922,
+                "total": 215713
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 472.50720703125,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 56112882,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 472.50720703125,
+                "ilvl": 19,
+                "fight_metadata": 993802,
+                "score": 472.50720703125,
+                "leaderboard": 0,
+                "speed": -758208369,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 61762,
+                "name": "Kings' Rest"
+              },
+              "rankPercent": 99.844,
+              "medianPercent": 99.6507,
+              "lockedIn": true,
+              "totalKills": 22,
+              "fastestKill": -378094168,
+              "allStars": {
+                "partition": 1,
+                "points": 471.4046969697,
+                "rank": 1651,
+                "regionRank": 907,
+                "serverRank": 41,
+                "rankPercent": 99.26355066771406,
+                "total": 224048
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 471.4046969697,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 59680468,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 471.4046969697,
+                "ilvl": 19,
+                "fight_metadata": 993803,
+                "score": 471.4046969697,
+                "leaderboard": 0,
+                "speed": -758094168,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12813,
+                "name": "Murder Row"
+              },
+              "rankPercent": 99.9023,
+              "medianPercent": 99.7606,
+              "lockedIn": true,
+              "totalKills": 15,
+              "fastestKill": -378249643,
+              "allStars": {
+                "partition": 1,
+                "points": 475.32431985294,
+                "rank": 790,
+                "regionRank": 457,
+                "serverRank": 18,
+                "rankPercent": 99.68280004341901,
+                "total": 248739
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 475.32431985294,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 86584916,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 475.32431985294,
+                "ilvl": 19,
+                "fight_metadata": 993804,
+                "score": 475.32431985294,
+                "leaderboard": 1,
+                "speed": -758249643,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 112521,
+                "name": "Ruby Life Pools"
+              },
+              "rankPercent": 99.9101,
+              "medianPercent": 99.4558,
+              "lockedIn": true,
+              "totalKills": 16,
+              "fastestKill": -398249099,
+              "allStars": {
+                "partition": 1,
+                "points": 471.39089285714,
+                "rank": 989,
+                "regionRank": 580,
+                "serverRank": 25,
+                "rankPercent": 99.52247924137998,
+                "total": 206902
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 471.39089285714,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 51890515,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 471.39089285714,
+                "ilvl": 19,
+                "fight_metadata": 993805,
+                "score": 471.39089285714,
+                "leaderboard": 1,
+                "speed": -758382312,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 61877,
+                "name": "Temple of Sethraliss"
+              },
+              "rankPercent": 99.8945,
+              "medianPercent": 99.3484,
+              "lockedIn": true,
+              "totalKills": 20,
+              "fastestKill": -378127797,
+              "allStars": {
+                "partition": 1,
+                "points": 470.93353515625,
+                "rank": 1762,
+                "regionRank": 995,
+                "serverRank": 49,
+                "rankPercent": 99.17845413152199,
+                "total": 214352
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 470.93353515625,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 49492684,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 470.93353515625,
+                "ilvl": 19,
+                "fight_metadata": 993806,
+                "score": 470.93353515625,
+                "leaderboard": 0,
+                "speed": -758127797,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12859,
+                "name": "The Blinding Vale"
+              },
+              "rankPercent": 99.9041,
+              "medianPercent": 99.7751,
+              "lockedIn": true,
+              "totalKills": 15,
+              "fastestKill": -378270546,
+              "allStars": {
+                "partition": 1,
+                "points": 471.46970833333,
+                "rank": 1195,
+                "regionRank": 652,
+                "serverRank": 33,
+                "rankPercent": 99.41597127791745,
+                "total": 204442
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 471.46970833333,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 54771253,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 471.46970833333,
+                "ilvl": 19,
+                "fight_metadata": 993807,
+                "score": 471.46970833333,
+                "leaderboard": 1,
+                "speed": -758270546,
+                "affixes": 859
+              }
+            },
+            {
+              "encounter": {
+                "id": 12923,
+                "name": "Voidscar Arena"
+              },
+              "rankPercent": 99.8991,
+              "medianPercent": 99.7382,
+              "lockedIn": true,
+              "totalKills": 19,
+              "fastestKill": -378228744,
+              "allStars": {
+                "partition": 1,
+                "points": 470.59883333333,
+                "rank": 1509,
+                "regionRank": 804,
+                "serverRank": 34,
+                "rankPercent": 99.30486090303548,
+                "total": 216935
+              },
+              "spec": "Guardian",
+              "bestSpec": "Guardian",
+              "bestAmount": 470.59883333333,
+              "rankTooltip": "Dungeon scores update immediately, while dungeon ranks update once per day.",
+              "bestRank": {
+                "rank_id": 51013739,
+                "class": 2,
+                "spec": 3,
+                "per_second_amount": 470.59883333333,
+                "ilvl": 19,
+                "fight_metadata": 993808,
+                "score": 470.59883333333,
+                "leaderboard": 0,
+                "speed": -758228744,
+                "affixes": 859
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

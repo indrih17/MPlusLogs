@@ -1,0 +1,27 @@
+## Interface: 120007, 120100
+## Title: MPlusLogs
+## Notes: Mythic+ Warcraft Logs profiles for group recruitment.
+## Author: indri
+## Version: 0.5.0
+## SavedVariables: MPlusLogsDB
+## Category: Dungeons & Raids
+
+Localization.lua
+Locales/enUS.lua
+Locales/ruRU.lua
+Locales/deDE.lua
+Locales/esES.lua
+Locales/esMX.lua
+Locales/frFR.lua
+Locales/itIT.lua
+Locales/koKR.lua
+Locales/ptBR.lua
+Locales/zhCN.lua
+Locales/zhTW.lua
+Data.lua
+Database.lua
+Snapshot.lua
+Transport.lua
+UI.lua
+Integration.lua
+Probe.lua

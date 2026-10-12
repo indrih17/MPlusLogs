@@ -1,0 +1,17 @@
+__pycache__/
+*.mpl
+*.wcl.json
+.test-deps/
+.wcl-cache/
+database-build-report.json
+requests.mplq
+.test-work-*/
+companion-status.json
+.build-venv/
+.build-tools/
+build/
+dist/
+backups/
+release-output/
+archon-inspection.json
+*.spec
