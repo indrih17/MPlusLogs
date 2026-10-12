@@ -37,6 +37,28 @@ with Windows DPAPI. Startup with Windows or WoW Retail is optional. Response sou
 Settings, tokens, cache and recent results are stored in `%LOCALAPPDATA%\MPlusLogs`.
 Sign out to remove saved tokens; uninstall preserves local data.
 
+## Personal API — recommended
+
+Click **Set up personal API** in Companion. If you already signed in with the
+author's shared client, click **Switch to personal API**. The shared allowance
+is used by everyone who selects that client.
+
+1. Open [WCL clients](https://www.warcraftlogs.com/api/clients), sign in and choose **Create Client**.
+2. Enter Name `MPlusLogs Companion`, Redirect URIs `http://127.0.0.1:43827/callback`, and enable **Public Client**. Click **Create**. Companion has copy buttons for both fields.
+3. Copy your new **Client ID**, paste it into Companion and click **Connect and check**. Finish authorization in your browser. **Client Secret is not needed.**
+
+![Illustrated example of the client fields](tools/assets/personal-api-form.png)
+
+![Example Client ID; use the ID from your own account](tools/assets/personal-api-id.png)
+
+These are explanatory diagrams with a fictional ID, not account screenshots.
+The previous connection stays available if setup fails or is cancelled.
+WCL assigns each client's allowance; Companion displays the actual points and
+reset time returned by WCL during login and log loading. It does not silently
+fall back to the shared client when your personal allowance runs out.
+The addon shows a countdown to the selected client's WCL reset in quota errors.
+If WCL has not provided a reset time, it says so instead of guessing.
+
 ## Build and test
 
 Requires Python 3.12 on Windows with tkinter and Inno Setup 6.

@@ -72,11 +72,18 @@ class TextVar(tk.StringVar):
     """Keep the source text so an open window can switch language immediately."""
     def __init__(self, master, value=""):
         self.source = value
+        self.format_values = None
         super().__init__(master=master, value=tr(value))
 
     def set(self, value):
         self.source = value
+        self.format_values = None
         super().set(tr(value))
 
+    def set_format(self, template, **values):
+        self.source, self.format_values = template, values
+        self.refresh()
+
     def refresh(self):
-        super().set(tr(self.source))
+        translated = tr(self.source)
+        super().set(translated.format(**self.format_values) if self.format_values is not None else translated)

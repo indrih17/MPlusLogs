@@ -131,6 +131,28 @@ class ReplyTests(unittest.TestCase):
                 self.assertIn(hint,window.status.text)
                 self.assertIn(also,window.status.text)
 
+    def test_quota_timer_uses_reply_reset_and_only_shared_recommends_switching(self):
+        for mode,label in (("Shared","общего"),("Personal","личного")):
+            with self.subTest(mode=mode):
+                self.lua.execute("function GetServerTime() return 12345 end")
+                self.mpl.ShowDownload("Киндрих","Гордунни",None)
+                window=self.mpl.downloadWindow
+                request_id=window.request.split("\n")[1]
+                message=mode+" API; API reset at 12650; WCL API budget is low"
+                window.edit.SetText(window.edit,"MPLE1\n"+request_id+"\n"+quote(message,safe=""))
+                window.edit.scripts.OnTextChanged(window.edit,True)
+                self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
+                self.assertIn("Сброс "+label+" API через 5 мин. 5 сек.",window.status.text)
+                self.assertEqual("Перейти на личный API" in window.status.text,mode=="Shared")
+                self.assertNotIn("API reset at",window.status.text)
+                self.assertNotIn(mode+" API;",window.status.text)
+                self.lua.execute("function GetServerTime() return 12406 end")
+                window.scripts.OnUpdate(window,1)
+                self.assertIn("4 мин. 4 сек.",window.status.text)
+                self.lua.execute("function GetServerTime() return 13000 end")
+                window.scripts.OnUpdate(window,1)
+                self.assertIn("0 мин. 0 сек.",window.status.text)
+
     def test_diagnostic_paste_displays_readable_text_even_with_false_flag(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         edit=self.mpl.downloadWindow.edit

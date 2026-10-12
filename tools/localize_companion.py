@@ -9,7 +9,7 @@ import localize_addon
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = Path(__file__).with_name("companion_locales")
-SOURCES = ("companion_gui.pyw", "wcl_oauth.py", "windows_integration.py", "clipboard_protocol.py")
+SOURCES = ("companion_gui.pyw", "wcl_oauth.py", "windows_integration.py", "clipboard_protocol.py", "personal_api.py")
 EXTRA = ["Language", "Follow Windows", "Could not connect to Warcraft Logs",
          "WCL GraphQL error; inspect API schema/query. No export written",
          "Local hourly query limit reached; use cache or wait", "WCL API budget is low; wait for reset",
@@ -24,12 +24,15 @@ def write(locale, data):
 
 def extract():
     values = set(EXTRA)
+    if (DIRECTORY / "catalog.json").exists():
+        values.update(json.loads((DIRECTORY / "catalog.json").read_text(encoding="utf-8")))
     for name in SOURCES:
         tree = ast.parse((ROOT / "tools" / name).read_text(encoding="utf-8"))
         values.update(node.value for node in ast.walk(tree) if isinstance(node,ast.Constant) and isinstance(node.value,str)
                       and re.search(r"[А-Яа-яЁё]",node.value))
     write("catalog", sorted(values))
-    write("ruRU", {key:key for key in sorted(values)})
+    previous = json.loads((DIRECTORY / "ruRU.json").read_text(encoding="utf-8")) if (DIRECTORY / "ruRU.json").exists() else {}
+    write("ruRU", {key:previous.get(key,key) for key in sorted(values)})
     return sorted(values)
 
 

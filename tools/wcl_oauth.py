@@ -140,7 +140,8 @@ class Session:
 def validate_access(tokens):
     """Verify authentication and character API before persisting a new login."""
     data = wcl.request_json(wcl.ROOT + "/api/v2/user",
-                           b'{"query":"{ rateLimitData { limitPerHour } characterData { __typename } }"}',
+                           b'{"query":"{ rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn } characterData { __typename } }"}',
                            {"Authorization": "Bearer " + tokens["access_token"], "Content-Type": "application/json"})
     if data.get("errors") or not data.get("data", {}).get("characterData"):
         raise ValueError("Вход выполнен, но доступ к API персонажей WCL не подтверждён.")
+    return data.get("data", {}).get("rateLimitData")

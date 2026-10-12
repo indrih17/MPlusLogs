@@ -26,6 +26,11 @@ def run(report_path):
         root.iconbitmap(str(Path(__file__).with_name("assets") / "mpluslogs.ico"))
         logo = tk.PhotoImage(file=str(Path(__file__).with_name("assets") / "mpluslogs.png"))
         assert logo.width() == 256
+        import personal_api
+        assert personal_api.validate_client_id("smoke-personal-client")
+        for name in ("personal-api-form.png", "personal-api-id.png"):
+            guide = tk.PhotoImage(file=str(Path(__file__).with_name("assets") / name))
+            assert guide.width() == 680
         instance = windows.SingleInstance(namespace="PackagingSmoke", notify=False)
         try:
             assert instance.primary
@@ -35,4 +40,4 @@ def run(report_path):
     finally:
         root.destroy()
     Path(report_path).write_text(json.dumps({"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
-        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales"]}, indent=2), encoding="utf-8")
+        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide"]}, indent=2), encoding="utf-8")

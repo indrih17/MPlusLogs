@@ -1,3 +1,4 @@
-## Companion 1.0.4
+## MPlusLogs 0.5.12 / Companion 1.0.5
 
-- Fix installer startup with existing Windows or WoW Retail autostart settings by reading the selected directory before the app constant is initialized.
+- Add an illustrated three-step personal WCL API setup and migration prompt for shared-client users.
+- Show each selected WCL client's quota reset countdown and recommend personal API when the shared allowance is exhausted.

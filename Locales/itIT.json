@@ -233,5 +233,9 @@
   "Один раз установите Companion с проверкой обновлений. Дальше он сам предложит обновление; читать changelog аддона не нужно. Если Companion уже проверяет обновления, повторная установка не нужна.": "Installa Companion una volta e controlla gli aggiornamenti. Poi sarà lui stesso a proporre un aggiornamento; Non è necessario leggere il registro delle modifiche del componente aggiuntivo. Se Companion sta già verificando la disponibilità di aggiornamenti, non è necessario installarlo nuovamente.",
   "Понятно": "Vedo",
   "Скопируйте ссылку (Ctrl+C) и откройте её в браузере:": "Copia il collegamento (Ctrl+C) e aprilo nel tuo browser:",
-  "Для загрузки этих логов обновите MPlusLogs Companion.": "Per scaricare questi registri, aggiorna MPlusLogs Companion."
+  "Для загрузки этих логов обновите MPlusLogs Companion.": "Per scaricare questi registri, aggiorna MPlusLogs Companion.",
+  "\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs.": "\nApri MPlusLogs Companion e premi «Passa all’API personale» per usare il tuo client API Warcraft Logs.",
+  "\nСброс личного API через %d мин. %d сек.": "\nAPI personale: ripristino tra %d min. %d sec.",
+  "\nСброс общего API через %d мин. %d сек.": "\nAPI condivisa: ripristino tra %d min. %d sec.",
+  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs non ha indicato il tempo di ripristino della quota."
 }

@@ -7,6 +7,10 @@ local ruApiAccess=string.char(208,180,208,190,209,129,209,130,209,131,208,191,32
 local ruNoPublicLogs=string.char(208,159,209,131,208,177,208,187,208,184,209,135,208,189,209,139,208,181,32,208,187,208,190,208,179,208,184,32,77,43,32,208,189,208,181,32,208,189,208,176,208,185,208,180,208,181,208,189,209,139)
 local function companionError(errorText)
     if not errorText then return "" end
+    local personal=errorText:find("Personal API; ",1,true)
+    local reset=tonumber(errorText:match("API reset at (%d+); "))
+    errorText=errorText:gsub("Personal API; ",""):gsub("Shared API; ","")
+    errorText=errorText:gsub("API reset at %d+; ","")
     local lower=string.lower(errorText)
     if lower:find("http 401",1,true) or lower:find("unauthor",1,true)
         or lower:find("authentication",1,true) or lower:find("authorization",1,true)
@@ -18,7 +22,18 @@ local function companionError(errorText)
         return errorText..L["\nПроверьте вход в Warcraft Logs и доступ к API в Companion, затем повторите загрузку."]
     elseif lower:find("http 429",1,true) or lower:find("rate limit",1,true)
         or lower:find("hourly query limit",1,true) or lower:find("api budget is low",1,true) then
-        return errorText..L["\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова."]
+        local hint=L["\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова."]
+        if reset then
+            local remaining=math.max(0,math.ceil(reset-GetServerTime()))
+            local label=personal and L["\nСброс личного API через %d мин. %d сек."] or L["\nСброс общего API через %d мин. %d сек."]
+            hint=hint..string.format(label,math.floor(remaining/60),remaining%60)
+        else
+            hint=hint..L["\nWarcraft Logs не сообщил время сброса лимита."]
+        end
+        if not personal then
+            hint=hint..L["\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs."]
+        end
+        return errorText..hint
     elseif lower:find("no public logs",1,true) or lower:find("character not found",1,true)
         or lower:find("rankings hidden",1,true) or errorText:find(ruNoPublicLogs,1,true) then
         return errorText..L["\nПроверьте имя персонажа и игровой мир. Возможно, у него нет открытых логов M+; отсутствие данных не означает нулевой результат."]
@@ -367,18 +382,18 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     if not MPL.downloadWindow then
-        local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,346,true)
-        f.programmatic=false; f.revision=0; f.phase="idle"; f.request=""
+        local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,426,true)
+        f.programmatic=false; f.revision=0; f.phase="idle"; f.request=""; f.quotaElapsed=0
         f.character=label(f,24,-53,472,"","GameFontHighlightLarge")
         f.steps=label(f,24,-84,472,L["1. Отправка запроса    /    2. Получение логов"],"GameFontNormal")
         local divider=f:CreateTexture(nil,"ARTWORK")
         divider:SetColorTexture(0.55,0.48,0.28,0.35)
         divider:SetPoint("TOPLEFT",24,-108); divider:SetSize(472,1)
         f.status=label(f,24,-126,472,"","GameFontHighlight")
-        f.status:SetHeight(64); f.status:SetJustifyV("TOP")
-        label(f,24,-196,472,L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"],"GameFontDisableSmall")
+        f.status:SetHeight(144); f.status:SetJustifyV("TOP")
+        label(f,24,-276,472,L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"],"GameFontDisableSmall")
         local inputClip=CreateFrame("Frame",nil,f,"BackdropTemplate")
-        inputClip:SetPoint("TOPLEFT",24,-214); inputClip:SetSize(472,64)
+        inputClip:SetPoint("TOPLEFT",24,-294); inputClip:SetSize(472,64)
         inputClip:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Tooltips/UI-Tooltip-Border",edgeSize=8,insets={left=2,right=2,top=2,bottom=2}})
         inputClip:SetBackdropColor(0.08,0.08,0.09,1)
         inputClip:SetClipsChildren(true); inputClip:EnableMouse(true)
@@ -409,12 +424,14 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
         end
         local function checkStatus()
             if f.phase=="idle" then return end
+            f.quotaError=nil
             f.phase="waiting"
             f.steps:SetText(L["|cff8888881. Отправка запроса|r    /    |cffffd1002. Получение логов|r"])
             setText(f.request)
             f.status:SetText(L["Теперь нажмите |cffffd100Ctrl+V|r.\nБез вставки WoW не может получить ответ помощника."])
         end
         f.begin=function()
+            f.quotaError=nil
             local spec=f.profile and f.profile.spec~="All specs" and f.profile.spec or ""
             local id,request,skipped,total
             if f.batch then
@@ -445,7 +462,15 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
         f.refresh=button(f,L["Получить ответ (Ctrl+V)"],232,24,264,checkStatus)
         f.refresh:SetHeight(32)
         edit:SetScript("OnEscapePressed",function() f:Hide() end)
-        f:SetScript("OnHide",function() edit:ClearFocus(); f.revision=f.revision+1 end)
+        f:SetScript("OnHide",function() edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil end)
+        f:SetScript("OnUpdate",function(_,elapsed)
+            if not f.quotaError then return end
+            f.quotaElapsed=(f.quotaElapsed or 0)+elapsed
+            if f.quotaElapsed>=1 then
+                f.quotaElapsed=0
+                f.status:SetText(companionError(f.quotaError))
+            end
+        end)
         local function copied(key)
             if key=="C" and f.phase=="copy" then
                 f.phase="waiting"; f.refresh:Enable()
@@ -472,6 +497,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
                     f.programmatic=true; edit:SetText(""); f.programmatic=false
                     f:Hide()
                 else
+                    f.quotaError=err and err:find("API reset at ",1,true) and err or nil
                     f.status:SetText(companionError(err or L["Ответ ещё не получен. Нажмите Ctrl+V позже."]))
                     f.refresh:Enable()
                     setText(f.request)

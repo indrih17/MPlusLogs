@@ -127,6 +127,7 @@ class Client:
         self.budget_reset = 0
         self.remaining = None
         self.client_id,self.secret=client_id,secret
+        self.api_mode = 'personal' if client_id else 'shared'
         self.token_provider=token_provider
         self.invalidate_token=invalidate_token
         self.budget = Budget(state_path, max_hourly_queries)
@@ -181,6 +182,13 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
     profiles, report = builder.build(valid_entries,cache,ttl_hours=ttl_hours,max_fetch=len(entries) if batch else 20,
                                      offline=offline,fetcher=fetcher)
     report['errors'] += [{'character':e['name'],'realm':e['realm'],'error':e['queue_error']} for e in entries if e.get('queue_error')]
+    for item in report['errors']:
+        message = item['error'].lower()
+        if any(term in message for term in ('http 429', 'rate limit', 'hourly query limit', 'api budget is low')):
+            budget = getattr(fetcher, 'budget', None)
+            reset = budget.snapshot()['resetAt'] if budget else 0
+            timer = ('API reset at ' + str(int(reset)) + '; ') if reset else ''
+            item['error'] = ('Personal API; ' if getattr(fetcher, 'api_mode', 'shared') == 'personal' else 'Shared API; ') + timer + item['error']
     if not profiles and not batch:
         reasons = sorted({item["error"] for item in report["errors"]})
         raise ValueError("No usable profile: " + "; ".join(reasons))

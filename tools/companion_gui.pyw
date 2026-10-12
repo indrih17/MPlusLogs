@@ -20,6 +20,7 @@ import appearance
 import companion_i18n as i18n
 import companion_update as updates
 import profile_service
+import personal_api
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
@@ -40,6 +41,7 @@ class App:
         self.last_heartbeat = 0
         self.mode_diagnostic = "--diagnostic" in sys.argv
         self.settings_window = None
+        self.personal_setup = None
         self.update_worker = None
         self.available_update = self.update_installer = None
         self.installing_update = False
@@ -63,11 +65,15 @@ class App:
         for variable in self.textvars:
             variable.refresh()
         bundled = json.loads(Path(__file__).with_name("oauth_client.json").read_text(encoding="utf-8"))
-        self.client_id = bundled["client_id"]
+        self.shared_client_id = bundled["client_id"]
+        self.api_mode = self.config.get("api_mode", "shared")
+        self.client_id = self.config.get("personal_client_id", "") if self.api_mode == "personal" else self.shared_client_id
         configured_url = os.environ.get("MPLUSLOGS_SERVICE_URL", self.config.get("service_url", bundled.get("service_url", "")))
         if "--service-url" in sys.argv:
             configured_url = sys.argv[sys.argv.index("--service-url") + 1]
         self.service_url = profile_service.service_url(configured_url) if configured_url else ""
+        if self.service_url:
+            self.api_mode = "service"
         self.sound.set(self.config.get("sound", True))
         theme = self.config.get("theme", "system")
         self.theme = tk.StringVar(value=theme if theme in {"system","light","dark"} else "system")
@@ -95,12 +101,25 @@ class App:
         ttk.Label(frame, textvariable=self.status, wraplength=420, justify="left").pack(anchor="w", fill="x")
         buttons = ttk.Frame(frame)
         buttons.pack(anchor="w", pady=16)
-        self.login_button = ttk.Button(buttons, textvariable=self.textvar('Войти через Warcraft Logs'), command=self.sign_in)
+        self.login_text = self.textvar('Войти через Warcraft Logs')
+        self.login_button = ttk.Button(buttons, textvariable=self.login_text, command=self.sign_in)
         self.login_button.pack(side="left")
         self.settings_button = ttk.Button(buttons, textvariable=self.textvar('Настройки'), command=self.settings)
         self.settings_button.pack(side="left", padx=(8, 0))
         if self.session:
             self.login_button.pack_forget()
+        self.api_banner = ttk.Frame(frame)
+        self.api_banner.pack(fill="x", before=buttons, pady=(16, 0))
+        self.api_title = self.textvar("")
+        self.api_description = self.textvar("")
+        self.api_quota = self.textvar("")
+        ttk.Label(self.api_banner, textvariable=self.api_title, font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(self.api_banner, textvariable=self.api_description, wraplength=440).pack(anchor="w", fill="x", pady=(4, 8))
+        self.personal_button_text = self.textvar("")
+        self.personal_button = ttk.Button(self.api_banner, textvariable=self.personal_button_text, command=self.show_personal_setup)
+        self.personal_button.pack(anchor="w")
+        ttk.Label(self.api_banner, textvariable=self.api_quota, wraplength=440, style="Muted.TLabel").pack(anchor="w", pady=(8, 0))
+        self.refresh_api_display()
         self.copy_button = ttk.Button(frame, textvariable=self.textvar('Скопировать последний ответ'), command=self.copy)
         ttk.Label(frame, textvariable=self.textvar('В WoW: скопируйте запрос (Ctrl+C), дождитесь ответа\nи вставьте его (Ctrl+V).'), justify="left", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
         self.version_text = self.textvar("Companion version: " + updates.current_version())
@@ -204,11 +223,45 @@ class App:
         session = wcl_oauth.Session(self.client_id, tokens, persist)
         return session
 
-    def sign_in(self):
+    def show_personal_setup(self):
+        if self.installing_update or self.auth_worker and self.auth_worker.is_alive():
+            return
+        if self.personal_setup:
+            self.personal_setup.window.deiconify()
+            self.personal_setup.window.lift()
+            return
+        self.personal_setup = personal_api.Wizard(self)
+        appearance.apply(self.root, self.applied_theme or "light", self.personal_setup.window)
+
+    def refresh_api_display(self):
+        if self.api_mode == "personal":
+            self.api_title.set("Personal API connected" if self.session else "Personal API selected")
+            self.api_description.set("Requests use your configured WCL client. WCL determines its available quota.")
+            self.personal_button_text.set("Change personal Client ID")
+        elif self.session:
+            self.api_title.set("Shared API connected")
+            self.api_description.set("You use the shared MPlusLogs client. Connect your own WCL client to avoid relying on the shared allowance.")
+            self.personal_button_text.set("Switch to personal API")
+        else:
+            self.api_title.set("Connect personal API — recommended")
+            self.api_description.set("A short guide will help you create your own WCL client. You only need to do this once.")
+            self.personal_button_text.set("Set up personal API")
+        self.login_text.set("Войти через Warcraft Logs" if self.api_mode == "personal" or self.service_url else "Use shared API")
+        quota = (self.config.get("oauth") or {}).get("_api_budget")
+        if quota and quota.get("reset_at", 0) > time.time():
+            self.api_quota.set_format("WCL allowance: {remaining} / {limit} points. Reset in {minutes} min.",
+                remaining=round(quota["remaining"], 1), limit=quota["limit"], minutes=max(0, int((quota["reset_at"] - time.time() + 59) / 60)))
+        else:
+            self.api_quota.set("WCL allowance updates when loading logs." if self.session else "The available WCL allowance is shown after connection.")
+
+    def sign_in(self, candidate=None, mode=None):
         if self.installing_update:
-            return
+            return False
         if self.auth_worker and self.auth_worker.is_alive():
-            return
+            return False
+        selected_id = candidate or self.client_id
+        selected_mode = mode or self.api_mode
+        selected_service = self.service_url if selected_mode == "service" else ""
         self.want_running = False
         self.stop.set()
         self.auth_cancel = threading.Event()
@@ -217,16 +270,19 @@ class App:
         self.status.set("Завершите вход в браузере. Пароль вводится только на сайте Warcraft Logs.")
         def authenticate():
             try:
-                tokens = profile_service.login(self.service_url, cancel) if self.service_url else wcl_oauth.login(self.client_id, cancel)
+                tokens = profile_service.login(selected_service, cancel) if selected_service else wcl_oauth.login(selected_id, cancel)
                 if cancel.is_set():
                     return
-                if not self.service_url:
-                    wcl_oauth.validate_access(tokens)
-                self.messages.put(("auth", (tokens, cancel)))
+                if not selected_service:
+                    quota = personal_api.quota_record(wcl_oauth.validate_access(tokens), time.time())
+                    if quota:
+                        tokens["_api_budget"] = quota
+                self.messages.put(("configured_auth", (tokens, cancel, selected_id, selected_mode, selected_service)))
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 self.messages.put(("auth_error", (str(exc), cancel)))
         self.auth_worker = threading.Thread(target=authenticate, daemon=True)
         self.auth_worker.start()
+        return True
 
     def sign_out(self):
         self.auth_cancel.set()
@@ -244,6 +300,7 @@ class App:
         self.status.set("Вы вышли. Сохранённые токены удалены с этого компьютера.")
         self.login_button.configure(state="normal")
         self.login_button.pack(side="left", before=self.settings_button)
+        self.refresh_api_display()
 
     def settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
@@ -365,8 +422,14 @@ class App:
                 # Do not reuse user-endpoint data between accounts or with public server data.
                 principal = session.tokens.get("refresh_token") or session.tokens.get("access_token", "")
                 scope = "user:" + hashlib.sha256((self.client_id + principal).encode()).hexdigest()
-                client = bridge.Client(token_provider=session.access_token, invalidate_token=session.invalidate,
-                    state_path=DATA_ROOT / ".wcl-cache/api-state.sqlite3", cache_scope=scope)
+                state_path = personal_api.budget_path(DATA_ROOT, self.api_mode, self.client_id)
+                client = bridge.Client(3600 if self.api_mode == "personal" else 120,
+                    token_provider=session.access_token, invalidate_token=session.invalidate,
+                    state_path=state_path, cache_scope=scope)
+                client.api_mode = self.api_mode
+                quota = session.tokens.get("_api_budget")
+                if quota and quota.get("reset_at", 0) > time.time() and not client.budget.snapshot()["limitPerHour"]:
+                    client.budget.observe({"limitPerHour": quota["limit"], "pointsSpentThisHour": quota["limit"] - quota["remaining"], "pointsResetIn": quota["reset_at"] - time.time()})
             else:
                 client = None
             mapping = realm_resolver.load_mappings()
@@ -389,6 +452,10 @@ class App:
                         continue
                     post("status", "Загружаю данные Warcraft Logs…")
                     response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic)
+                    if isinstance(client, bridge.Client):
+                        snapshot = client.budget.snapshot()
+                        if snapshot["limitPerHour"]:
+                            post("quota", {"remaining": max(0, snapshot["limitPerHour"] - snapshot["pointsSpentThisHour"]), "limit": snapshot["limitPerHour"], "reset_at": snapshot["resetAt"]})
                     if stop.is_set() and not self.installing_update:
                         break
                     build_database.atomic_write(DATA_ROOT / "last-result.mpl", response)
@@ -416,7 +483,11 @@ class App:
                 stop, kind, value = value
                 if stop is not self.stop or stop.is_set():
                     continue
-            if kind == "show":
+            if kind == "quota":
+                # Display upstream observations without an extra API request or disk write.
+                self.config.setdefault("oauth", {})["_api_budget"] = value
+                self.refresh_api_display()
+            elif kind == "show":
                 self.show()
             elif kind == "update_downloading":
                 self.update_status.set("Downloading Companion update…")
@@ -436,22 +507,34 @@ class App:
             elif kind == "exit":
                 self.exit()
                 return
-            elif kind == "auth":
-                tokens, cancel = value
+            elif kind in {"auth", "configured_auth"}:
+                if kind == "auth":
+                    tokens, cancel = value
+                    selected_id, selected_mode, selected_service = self.client_id, self.api_mode, self.service_url
+                else:
+                    tokens, cancel, selected_id, selected_mode, selected_service = value
                 if cancel is not self.auth_cancel or cancel.is_set():
                     continue
                 try:
                     with self.config_lock:
-                        config = dict(self.config, oauth_client_id=self.client_id, oauth=tokens, service_url=self.service_url)
+                        config = dict(self.config, oauth_client_id=selected_id, oauth=tokens, service_url=selected_service, api_mode=selected_mode)
+                        if selected_mode == "personal": config["personal_client_id"] = selected_id
                         local_settings.save_config(config)
+                        self.client_id, self.api_mode, self.service_url = selected_id, selected_mode, selected_service
                         self.config = config
                         self.session = self.make_session(tokens)
                     self.account.set("Warcraft Logs подключён")
                     self.login_button.pack_forget()
                     self.mode_diagnostic, self.want_running = False, True
                     self.status.set("Вход выполнен. Помощник готов к работе.")
+                    self.refresh_api_display()
+                    if self.personal_setup:
+                        self.personal_setup.pending = False
+                        self.personal_setup.close()
                 except (ValueError, OSError) as exc:
                     self.status.set("Не удалось сохранить вход: " + str(exc))
+                    self.want_running = bool(self.session)
+                    if self.personal_setup: self.personal_setup.failed("Could not save the connection. Your previous connection is still available.")
                 self.login_button.configure(state="normal")
             elif kind == "auth_error":
                 error, cancel = value
@@ -459,6 +542,7 @@ class App:
                     self.status.set("Не удалось войти: " + error)
                     self.login_button.configure(state="normal")
                     self.want_running = bool(self.session)
+                    if self.personal_setup: self.personal_setup.failed("Could not connect. Check Client ID, Public Client and Redirect URIs on WCL.")
             elif kind == "result":
                 self.result = value
                 self.copy_button.pack(anchor="w", pady=(0, 6))
@@ -482,6 +566,7 @@ class App:
             self.root.geometry(f"500x{height}")
         if time.time() - self.last_heartbeat >= 1:
             self.last_heartbeat = time.time()
+            self.refresh_api_display()
             try:
                 build_database.atomic_write(DATA_ROOT / "companion-status.json", json.dumps({
                     "updated": self.last_heartbeat, "pid": os.getpid(), "status": self.status.get(),
@@ -515,6 +600,10 @@ class App:
             self.settings_window.title(i18n.tr("Настройки MPlusLogs"))
             self.language_label.set("Follow Windows" if self.language.get() == "system" else i18n.LANGUAGES[self.language.get()])
             self.fill_language_menu()
+        if self.personal_setup:
+            self.personal_setup.window.title(i18n.tr("Personal API setup"))
+            self.personal_setup.show(self.personal_setup.step)
+        self.refresh_api_display()
         self.save_preferences()
 
     def fill_language_menu(self):
@@ -545,6 +634,8 @@ class App:
             self.root.withdraw()
             if self.settings_window and self.settings_window.winfo_exists():
                 self.settings_window.withdraw()
+            if self.personal_setup:
+                self.personal_setup.window.withdraw()
         else:
             self.root.iconify()
 
@@ -552,6 +643,8 @@ class App:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
+        if self.personal_setup:
+            self.personal_setup.window.deiconify()
 
     def exit(self):
         self.exiting = True

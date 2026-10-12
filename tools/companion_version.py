@@ -10,7 +10,7 @@ RUNTIME = ("companion_gui.pyw", "companion_i18n.py", "companion_update.py", "com
            "clipboard_companion.py", "clipboard_protocol.py", "build_database.py", "realm_resolver.py",
            "wcl_sync.py", "wcl_oauth.py", "local_settings.py", "windows_integration.py", "retail_launcher.py",
            "appearance.py", "release_smoke.py", "requirements.txt", "oauth_client.json", "build_release.py",
-           "api_budget.py", "profile_service.py")
+           "api_budget.py", "profile_service.py", "personal_api.py")
 
 
 def metadata():

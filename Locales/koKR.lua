@@ -3,6 +3,7 @@ local _, MPL = ...
 if MPL.locale ~= "koKR" then return end
 local L = MPL.L
 L["\nCompanion не распознал формат ответа Warcraft Logs. Обновите MPlusLogs Companion; если ошибка повторится, сообщите об этой ошибке."] = "\nCompanion could not read the Warcraft Logs response format. Update MPlusLogs Companion; if this continues, report this error."
+L["\nWarcraft Logs не сообщил время сброса лимита."] = "\nWarcraft Logs에서 할당량 초기화 시간을 제공하지 않았습니다."
 L["\nВойдите в Warcraft Logs в MPlusLogs Companion, затем введите /reload и повторите загрузку."] = "\nSign in to Warcraft Logs in MPlusLogs Companion, then type /reload and try again."
 L["\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова."] = "\nA Warcraft Logs or Companion request limit was reached. Wait, then try again."
 L["\nОсвободите буфер обмена, снова скопируйте запрос через Ctrl+C, дождитесь Companion и нажмите Ctrl+V."] = "\nFree the clipboard, copy the request again with Ctrl+C, wait for Companion, then press Ctrl+V."
@@ -12,6 +13,9 @@ L["\nПроверьте вход в Warcraft Logs и доступ к API в Comp
 L["\nПроверьте имя персонажа и игровой мир. Возможно, у него нет открытых логов M+; отсутствие данных не означает нулевой результат."] = "\nCheck the character name and realm. The character may have no public Mythic+ logs; missing data is not a zero score."
 L["\nПроверьте подключение к интернету и попробуйте снова."] = "\nCheck your internet connection and try again."
 L["\nПроверьте регион и название игрового мира персонажа, затем повторите запрос."] = "\nCheck the character's region and realm, then retry."
+L["\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs."] = "\nMPlusLogs Companion에서 “개인 API로 전환”을 눌러 본인의 Warcraft Logs API 클라이언트를 사용하는 것을 권장합니다."
+L["\nСброс личного API через %d мин. %d сек."] = "\n개인 API 초기화까지 %d분 %d초."
+L["\nСброс общего API через %d мин. %d сек."] = "\n공유 API 초기화까지 %d분 %d초."
 L["\nСкопируйте текущий запрос заново (Ctrl+C), дождитесь Companion и вставьте ответ (Ctrl+V). Если ошибка повторится, сообщите о ней."] = "\nCopy the current request again (Ctrl+C), wait for Companion, then paste its reply (Ctrl+V). If it repeats, report this error."
 L["\nУменьшите число персонажей в запросе и повторите загрузку."] = "\nReduce the number of characters in the request and try again."
 L["    Логи: "] = "    로그: "
