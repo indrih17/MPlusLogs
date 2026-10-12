@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5
+
+- Keep local publishing Git metadata and source snapshots outside the WoW installation to avoid Battle.net permission-repair loops.
+- Reject hidden Git metadata and development folders in addon release archives and CurseForge uploads.
+
 ## 0.5.4
 
 - Add native WoW addon settings for healer HPS priority, Best avg or Median priority, log freshness, tooltips and stale-log alerts.

@@ -10,10 +10,12 @@ import subprocess
 import sys
 import time
 import export_release_source
+from development_paths import build_tools_dir
 
 ROOT = export_release_source.ROOT
-REPO = ROOT / ".build-tools/repository"
-STATE = ROOT / ".build-tools/published-source.json"
+BUILD_TOOLS = build_tools_dir(ROOT)
+REPO = BUILD_TOOLS / "repository"
+STATE = BUILD_TOOLS / "published-source.json"
 
 
 def git(*args, capture=False):

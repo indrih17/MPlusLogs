@@ -1,6 +1,6 @@
-## 0.5.4
+## 0.5.5
 
-- Add native WoW addon settings for healer HPS priority, Best avg or Median priority, log freshness, tooltips and stale-log alerts.
-- Apply saved display preferences immediately to applicant rows, profiles and tooltips without reloading log data.
+- Keep local publishing Git metadata and source snapshots outside the WoW installation to avoid Battle.net permission-repair loops.
+- Reject hidden Git metadata and development folders in addon release archives and CurseForge uploads.
 
 Use the Setup exe or portable ZIP for Windows 10/11 x64. Python is included. Companion supports all WoW client languages with a language selector; binaries are unsigned.

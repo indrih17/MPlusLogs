@@ -17,5 +17,11 @@ Never publish tokens, secrets, settings, cache, local results, backups or build
 environments. Use `tools/export_release_source.py`'s allowlist. The upload
 credential is only in GitHub Actions secret `CF_API_TOKEN`; never print it.
 
-The publishing checkout is `.build-tools/repository`. The live AddOns folder
-is separate: never check out remote files over another chat's live edits.
+The publishing checkout is `%LOCALAPPDATA%/MPlusLogsDevelopment/build-tools/repository`.
+The publisher state and source snapshots are alongside it. An override can be
+set with `MPLUSLOGS_DEVELOPMENT_HOME`, but it must be outside the WoW installation.
+Never put Git repositories under the game directory: Battle.net attempts to
+repair Git object's read-only attributes and can repeatedly initialize updates.
+The live AddOns folder is separate: never check out remote files over another
+chat's live edits. Old local `.build-tools` content was moved outside WoW;
+do not recreate a repository there.

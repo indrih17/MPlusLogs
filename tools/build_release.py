@@ -24,7 +24,8 @@ def addon(output, release_version):
         archive.write(ROOT / "MPlusLogs.toc", "MPlusLogs/MPlusLogs.toc")
         for name in files:
             path = (ROOT / name).resolve()
-            if not path.is_relative_to(ROOT) or not path.is_file():
+            if (not path.is_relative_to(ROOT) or not path.is_file() or path.suffix.lower() not in {".lua", ".xml"}
+                or any(part.startswith(".") for part in Path(name).parts)):
                 raise ValueError(f"Invalid TOC file: {name}")
             # Ship the demo explicitly via /mpl demo, without a real user's snapshot.
             if name == "Snapshot.lua":

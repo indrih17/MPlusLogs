@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import zipfile
+from development_paths import build_tools_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,7 +34,8 @@ def entries():
 if __name__ == "__main__":
     data = entries()
     if sys.argv[1:] == ["--snapshot"]:
-        output = ROOT / ".build-tools/source-snapshot.json"
+        output = build_tools_dir(ROOT) / "source-snapshot.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(data, ensure_ascii=True), encoding="utf-8")
         with zipfile.ZipFile(ROOT / "release-output/MPlusLogs-0.5.0-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
             for entry in data:
@@ -41,6 +43,6 @@ if __name__ == "__main__":
                 archive.writestr(entry["path"], content)
         print(len(data))
     else:
-        snapshot = json.loads((ROOT / ".build-tools/source-snapshot.json").read_text())
+        snapshot = json.loads((build_tools_dir(ROOT) / "source-snapshot.json").read_text())
         index = int(sys.argv[1])
         print(json.dumps(snapshot[index:index+1], ensure_ascii=False))

@@ -11,6 +11,14 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE = "https://wow.curseforge.com/api"
 PROJECT = 1740700
 
+def validate_archive(archive):
+    with zipfile.ZipFile(archive) as z:
+        for name in z.namelist():
+            parts=Path(name).parts
+            if (not name.startswith("MPlusLogs/") or any(part.startswith(".") or part in {"backups","build","dist","tests","tools","WTF"} for part in parts)
+                or name.lower().endswith((".exe", ".dll", ".py", ".json"))):
+                raise ValueError("Unexpected file in addon-only archive")
+
 
 def main():
     token = os.environ.get("CF_API_TOKEN")
@@ -18,9 +26,7 @@ def main():
     toc = (ROOT / "MPlusLogs.toc").read_text(encoding="utf-8")
     version = re.search(r"^## Version: (.+)$", toc, re.M)[1]
     archive = ROOT / f"release-output/MPlusLogs-{version}.zip"
-    with zipfile.ZipFile(archive) as z:
-        if any(not name.startswith("MPlusLogs/") or name.lower().endswith((".exe", ".dll", ".py", ".json")) for name in z.namelist()):
-            raise ValueError("Unexpected file in addon-only archive")
+    validate_archive(archive)
     headers = {"X-Api-Token": token}
     with urlopen(Request(BASE + "/game/versions", headers=headers), timeout=30) as response:
         available = json.load(response)
