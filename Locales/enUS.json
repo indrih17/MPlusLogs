@@ -227,5 +227,11 @@
   "доступ к api": "API access",
   "\nПроверьте регион и название игрового мира персонажа, затем повторите запрос.": "\nCheck the character's region and realm, then retry.",
   "\nУменьшите число персонажей в запросе и повторите загрузку.": "\nReduce the number of characters in the request and try again.",
-  "\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку.": "\nOpen MPlusLogs Companion and sign in to Warcraft Logs, then type /reload and try loading logs again."
+  "\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку.": "\nOpen MPlusLogs Companion and sign in to Warcraft Logs, then type /reload and try loading logs again.",
+  "Обновить Companion": "Update Companion",
+  "Обновления Companion": "Companion Updates",
+  "Один раз установите Companion с проверкой обновлений. Дальше он сам предложит обновление; читать changelog аддона не нужно. Если Companion уже проверяет обновления, повторная установка не нужна.": "Install Companion once and check for updates. Then he himself will offer an update; There is no need to read the addon's changelog. If Companion is already checking for updates, there is no need to install it again.",
+  "Понятно": "I see",
+  "Скопируйте ссылку (Ctrl+C) и откройте её в браузере:": "Copy the link (Ctrl+C) and open it in your browser:",
+  "Для загрузки этих логов обновите MPlusLogs Companion.": "To download these logs, update MPlusLogs Companion."
 }

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.5.10"
+  #define AppVersion "0.5.12"
 #endif
 
 [Setup]
@@ -133,7 +133,7 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then
+  if (CurStep = ssPostInstall) and (ExpandConstant('{param:UPDATECOMPANION|0}') <> '1') then
     ApplyStartupChoice;
 end;
 

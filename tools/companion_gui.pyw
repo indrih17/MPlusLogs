@@ -17,6 +17,7 @@ import wcl_oauth
 import windows_integration as windows
 import appearance
 import companion_i18n as i18n
+import companion_update as updates
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
@@ -37,6 +38,9 @@ class App:
         self.last_heartbeat = 0
         self.mode_diagnostic = "--diagnostic" in sys.argv
         self.settings_window = None
+        self.update_worker = None
+        self.available_update = self.update_installer = None
+        self.installing_update = False
         root.title("MPlusLogs Companion")
         root.geometry("500x360")
         root.resizable(False, False)
@@ -91,6 +95,10 @@ class App:
             self.login_button.pack_forget()
         self.copy_button = ttk.Button(frame, textvariable=self.textvar('Скопировать последний ответ'), command=self.copy)
         ttk.Label(frame, textvariable=self.textvar('В WoW: скопируйте запрос (Ctrl+C), дождитесь ответа\nи вставьте его (Ctrl+V).'), justify="left", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
+        ttk.Label(frame, text="Companion " + updates.current_version(), style="Muted.TLabel").pack(anchor="w", pady=(12, 0))
+        self.update_status = self.textvar("")
+        ttk.Label(frame, textvariable=self.update_status, wraplength=440).pack(anchor="w")
+        self.update_button = ttk.Button(frame, textvariable=self.textvar("Install update and restart"), command=self.install_update)
         self.refresh_theme()
         self.tray = None
         try:
@@ -105,6 +113,61 @@ class App:
             root.after(400, self.hide)
         if "--login" in sys.argv:
             root.after(500, self.sign_in)
+        if getattr(sys, "frozen", False):
+            root.after(1500, self.scheduled_update_check)
+
+    def scheduled_update_check(self):
+        self.check_updates()
+        self.root.after(24 * 60 * 60 * 1000, self.scheduled_update_check)
+
+    def check_updates(self, manual=False):
+        if self.installing_update or (self.update_worker and self.update_worker.is_alive()):
+            return
+        if self.available_update and self.update_installer:
+            self.update_status.set("Companion update is ready.")
+            return
+        if manual:
+            self.update_status.set("Checking Companion updates…")
+        def run():
+            try:
+                data = updates.check()
+                if data:
+                    self.messages.put(("update_downloading", None))
+                    target = updates.download(data)
+                    self.messages.put(("update_ready", (data, target)))
+                elif manual:
+                    self.messages.put(("update_current", None))
+            except (ValueError, OSError, KeyError, TypeError):
+                self.messages.put(("update_error", manual))
+        self.update_worker = threading.Thread(target=run, daemon=True)
+        self.update_worker.start()
+
+    def install_update(self):
+        if not self.update_installer or self.installing_update:
+            return
+        if self.auth_worker and self.auth_worker.is_alive():
+            self.update_status.set("Finish Warcraft Logs sign-in before updating.")
+            return
+        self.installing_update = True
+        self.update_button.configure(state="disabled")
+        self.want_running = False
+        self.stop.set()
+        self.update_status.set("Finishing the current request before updating…")
+        self.finish_update()
+
+    def finish_update(self):
+        if self.worker and self.worker.is_alive():
+            self.root.after(200, self.finish_update)
+            return
+        try:
+            updates.launch_installer(self.update_installer, self.available_update)
+        except (ValueError, OSError):
+            self.installing_update = False
+            self.want_running = bool(self.session) or self.mode_diagnostic
+            self.update_button.configure(state="normal")
+            self.update_status.set("Could not start the update. Try again.")
+            return
+        self.exit()
 
     def make_session(self, tokens):
         def persist(updated):
@@ -118,6 +181,8 @@ class App:
         return session
 
     def sign_in(self):
+        if self.installing_update:
+            return
         if self.auth_worker and self.auth_worker.is_alive():
             return
         self.want_running = False
@@ -193,6 +258,7 @@ class App:
         ttk.Checkbutton(frame, textvariable=self.textvar('Звук готовности ответа'), variable=self.sound, command=self.save_preferences).pack(anchor="w", pady=6)
         ttk.Label(frame, textvariable=self.textvar('Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.')).pack(anchor="w", pady=12)
         ttk.Button(frame, textvariable=self.textvar('Переподключить Warcraft Logs'), command=self.sign_in).pack(anchor="w", pady=4)
+        ttk.Button(frame, textvariable=self.textvar('Check Companion updates'), command=lambda: self.check_updates(manual=True)).pack(anchor="w", pady=4)
         ttk.Button(frame, textvariable=self.textvar('Выйти из Warcraft Logs'), command=self.sign_out).pack(anchor="w", pady=4)
         ttk.Label(frame, textvariable=self.textvar('Диагностика'), font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(20, 4))
         ttk.Button(frame, textvariable=self.textvar('Проверить связь с аддоном без WCL'), command=self.toggle_diagnostic).pack(anchor="w", pady=4)
@@ -240,6 +306,8 @@ class App:
         self.status.set("Проверка связи включена: WCL не запрашивается." if self.mode_diagnostic else "Проверка связи выключена.")
 
     def toggle(self):
+        if self.installing_update:
+            return
         if self.want_running:
             self.want_running = False
             self.stop.set()
@@ -252,7 +320,7 @@ class App:
             self.status.set("Сначала войдите в Warcraft Logs.")
 
     def start(self):
-        if not self.want_running or (self.worker and self.worker.is_alive()) or (not self.session and not self.mode_diagnostic):
+        if self.installing_update or not self.want_running or (self.worker and self.worker.is_alive()) or (not self.session and not self.mode_diagnostic):
             return
         self.stop = threading.Event()
         self.worker = threading.Thread(target=self.watch, args=(self.stop, self.session, self.mode_diagnostic, self.root.winfo_id()), daemon=True)
@@ -284,7 +352,7 @@ class App:
                         continue
                     post("status", "Загружаю данные Warcraft Logs…")
                     response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic)
-                    if stop.is_set():
+                    if stop.is_set() and not self.installing_update:
                         break
                     build_database.atomic_write(DATA_ROOT / "last-result.mpl", response)
                     post("result", response)
@@ -313,6 +381,19 @@ class App:
                     continue
             if kind == "show":
                 self.show()
+            elif kind == "update_downloading":
+                self.update_status.set("Downloading Companion update…")
+            elif kind == "update_ready":
+                self.available_update, self.update_installer = value
+                self.update_status.set("Companion update is ready.")
+                self.update_button.pack(anchor="w", pady=(6, 0))
+                if self.tray:
+                    self.tray.notify("MPlusLogs Companion " + value[0]["version"], i18n.tr("Companion update is ready."))
+            elif kind == "update_current":
+                self.update_status.set("Companion is up to date.")
+            elif kind == "update_error":
+                if value:
+                    self.update_status.set("Could not check updates. Try again later.")
             elif kind == "toggle":
                 self.toggle()
             elif kind == "exit":
@@ -356,7 +437,8 @@ class App:
                 self.status.set(value)
                 if kind == "ready" and self.sound.get():
                     self.root.bell()
-        self.start()
+        if not self.installing_update:
+            self.start()
         self.root.update_idletasks()
         height = max(330, self.body.winfo_reqheight())
         if self.root.winfo_height() != height:

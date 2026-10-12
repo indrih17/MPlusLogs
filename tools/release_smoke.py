@@ -8,6 +8,8 @@ import windows_integration as windows
 
 
 def run(report_path):
+    import companion_update
+    companion_update.version_tuple(companion_update.current_version())
     import companion_i18n
     for language in companion_i18n.LANGUAGES:
         assert companion_i18n.catalog(language)["Настройки"]

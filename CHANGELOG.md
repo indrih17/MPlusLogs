@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.11
+
+- Release Companion independently with background update checks, verified downloads and one-click install and restart while preserving login and startup preferences.
+- Show a one-time Companion updater installation notice in the addon and support capability checks without disrupting compatible older Companions.
+
 ## 0.5.10
 
 - Show an explicit three-way Companion startup choice in setup and settings

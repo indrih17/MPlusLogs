@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+import companion_version
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,12 +51,16 @@ def main():
     release_version = version()
     addon(output, release_version)
     if not args.addon_only:
+        companion_release = companion_version.version()
+        build_metadata = ROOT / "tools/companion-build.json"
+        build_metadata.write_text(json.dumps({"version": companion_release}), encoding="utf-8")
         subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--windowed",
             "--name", "MPlusLogs-Companion", "--paths", str(ROOT / "tools"), "--hidden-import", "retail_launcher",
             "--hidden-import", "release_smoke", "--icon", str(ROOT / "tools/assets/mpluslogs.ico"),
             "--add-data", f"{ROOT / 'tools/assets'};assets",
             "--add-data", f"{ROOT / 'tools/companion_locales'};companion_locales",
             "--add-data", f"{ROOT / 'tools/oauth_client.json'};.",
+            "--add-data", f"{build_metadata};.",
             "--add-data", f"{ROOT / 'realm-slugs.json'};.",
             str(ROOT / "tools/companion_gui.pyw")], cwd=ROOT, check=True)
         # In a frozen build modules live in _internal; realm_resolver expects its parent.
@@ -73,14 +78,19 @@ def main():
         subprocess.run([str(internal.parent / "MPlusLogs-Companion.exe"), "--self-test-report", str(smoke)], check=True, timeout=30)
         if not json.loads(smoke.read_text())["ok"]:
             raise RuntimeError("Frozen smoke test failed")
-        with zipfile.ZipFile(output / f"MPlusLogs-Companion-{release_version}-Windows-x64.zip", "w", zipfile.ZIP_DEFLATED) as archive:
+        with zipfile.ZipFile(output / f"MPlusLogs-Companion-{companion_release}-Windows-x64.zip", "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(internal.parent.rglob("*")):
                 if path.is_file():
                     archive.write(path, "MPlusLogs-Companion/" + path.relative_to(internal.parent).as_posix())
             archive.write(ROOT / "packaging/COMPANION-README.txt", "MPlusLogs-Companion/README.txt")
         if args.iscc:
-            subprocess.run([str(args.iscc.resolve()), f"/DAppVersion={release_version}", str(ROOT / "packaging/companion.iss")], check=True)
-    artifacts = sorted(list(output.glob(f"*{release_version}*.zip")) + list(output.glob(f"*{release_version}*.exe")))
+            subprocess.run([str(args.iscc.resolve()), f"/DAppVersion={companion_release}", str(ROOT / "packaging/companion.iss")], check=True)
+            installer = output / f"MPlusLogs-Companion-{companion_release}-Setup.exe"
+            manifest = {"schema": 1, "version": companion_release, "size": installer.stat().st_size,
+                "sha256": hashlib.sha256(installer.read_bytes()).hexdigest(),
+                "url": f"https://github.com/indrih17/MPlusLogs/releases/download/companion-v{companion_release}/{installer.name}"}
+            (output / "companion-update.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    artifacts = sorted(list(output.glob("*.zip")) + list(output.glob("*.exe")))
     (output / "SHA256SUMS.txt").write_text("".join(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in artifacts), encoding="utf-8")
 
 

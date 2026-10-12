@@ -2,12 +2,26 @@ local _, MPL = ...
 local L = MPL.L
 local sequence = 0
 
+-- Request metadata only when a feature requires it. Existing queries keep the
+-- original envelope, so working older Companions remain compatible.
+local function envelope(id, body)
+    if MPL.requiredCompanionCapabilities and #MPL.requiredCompanionCapabilities>0 then
+        return "MPLS2\n"..id.."\nMPLC1 "..table.concat(MPL.requiredCompanionCapabilities,",").."\n"..body
+    end
+    return "MPLS1\n"..id.."\n"..body
+end
+
+function MPL.CompanionSupports(capability)
+    if not MPL.companionInfo then return nil end
+    return MPL.companionInfo.capabilities[capability] or false
+end
+
 function MPL.SendRequest(name,realm,metric,spec,context)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     local role=MPL.roles and MPL.roles[MPL.Key(name,realm)]
-    local request="MPLS1\n"..id.."\n"..MPL.ExportCharacterRequest(name,realm,metric,spec,role)
+    local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role))
     MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context}
     return id,request
 end
@@ -27,11 +41,16 @@ function MPL.SendBatchRequest(players)
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     MPL.pendingReply={id=id,batch=true,expected=expected,players=players}
-    return id,"MPLS1\n"..id.."\nMPLQ2\n"..table.concat(rows)
+    return id,envelope(id,"MPLQ2\n"..table.concat(rows))
 end
 
 function MPL.ReceiveReply(text, strict)
     local pendingReply=MPL.pendingReply
+    if text:match("^MPLS2[\r\n]") then
+        local id=text:match("^MPLS2\r?\n([^\r\n]+)")
+        if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос"] end
+        return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."]
+    end
     if text:match("^MPLE1[\r\n]") then
         local id,message=text:match("^MPLE1\r?\n([^\r\n]+)\r?\n(.*)")
         if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос"] end
@@ -41,6 +60,19 @@ function MPL.ReceiveReply(text, strict)
     if text:match("^MPLS1[\r\n]") then
         local id,body=text:match("^MPLS1\r?\n([^\r\n]+)\r?\n(.*)")
         if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос; повторите загрузку нужного игрока"] end
+        if body:match("^MPLV1 ") then
+            local version,capabilities,payload=body:match("^MPLV1 (%d+%.%d+%.%d+) ([a-z,]+)\r?\n(.*)")
+            if not version then return nil,L["Неверный формат ответа логов"] end
+            local available={}
+            for capability in capabilities:gmatch("[a-z]+") do available[capability]=true end
+            MPL.companionInfo={version=version,capabilities=available}
+            for _,capability in ipairs(MPL.requiredCompanionCapabilities or {}) do
+                if not available[capability] then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
+            end
+            body=payload
+        elseif MPL.requiredCompanionCapabilities and #MPL.requiredCompanionCapabilities>0 then
+            return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."]
+        end
         if body:match("^MPLQ[12]") then return nil,L["Ответ ещё не получен. Попробуйте Ctrl+V чуть позже; проверьте, что помощник запущен."] end
         if body:match("^MPLB1\r?\n") then
             body=body:gsub("^MPLB1\r?\n", "",1)

@@ -1,4 +1,4 @@
-MPlusLogs Companion 0.5.10 for Windows 10/11 x64
+MPlusLogs Companion 0.5.12 for Windows 10/11 x64
 
 Install using the Setup exe, or extract the entire portable ZIP to a permanent
 folder and run MPlusLogs-Companion.exe. Python is included; no separate install
@@ -19,3 +19,8 @@ Uninstall keeps these data. Sign out in the Companion to remove saved tokens.
 
 This first release is not Authenticode-signed.
 Source and releases: https://github.com/indrih17/MPlusLogs
+
+Companion updates independently of the addon. Updates are checked on startup
+and daily. Use Install update and restart, or Settings > Check Companion updates.
+Login, settings and startup preferences are preserved. Portable updates install
+into the current folder and register the installation with Windows.

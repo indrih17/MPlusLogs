@@ -340,6 +340,29 @@ function MPL.ShowStaleNotice(name,realm,profile,lastDate)
     f:Show()
 end
 
+function MPL.ShowCompanionUpdates()
+    if not MPL.companionUpdateWindow then
+        local f=window("MPlusLogsCompanionUpdates",L["Обновления Companion"],600,290,true)
+        local message=label(f,24,-48,552,L["Один раз установите Companion с проверкой обновлений. Дальше он сам предложит обновление; читать changelog аддона не нужно. Если Companion уже проверяет обновления, повторная установка не нужна."])
+        message:SetHeight(76); message:SetJustifyV("TOP")
+        label(f,24,-130,552,L["Скопируйте ссылку (Ctrl+C) и откройте её в браузере:"])
+        f.edit=CreateFrame("EditBox",nil,f,"InputBoxTemplate")
+        f.edit:SetSize(548,28); f.edit:SetPoint("TOPLEFT",28,-158); f.edit:SetAutoFocus(false)
+        f.edit:SetScript("OnEscapePressed",function() f:Hide() end)
+        f:SetScript("OnHide",function() f.edit:ClearFocus() end)
+        button(f,L["Понятно"],390,24,186,function()
+            MPlusLogsDB=MPlusLogsDB or {}
+            MPlusLogsDB.companionUpdaterNoticeSeen=true
+            f:Hide()
+        end)
+        MPL.companionUpdateWindow=f
+    end
+    local f=MPL.companionUpdateWindow
+    f:Show()
+    f.edit:SetText("https://github.com/indrih17/MPlusLogs/releases/tag/companion-channel")
+    f.edit:SetFocus(); f.edit:HighlightText()
+end
+
 function MPL.ShowDownload(fullName, realm, profile,context,batch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
@@ -418,7 +441,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
                 ..(skipped and skipped>0 and ("\n"..L["Актуальные данные: "]..skipped..L[" из "]..total) or ""))
             setText(request)
         end
-        f.refresh=button(f,L["Получить ответ (Ctrl+V)"],144,24,232,checkStatus)
+        button(f,L["Обновить Companion"],24,24,196,MPL.ShowCompanionUpdates)
+        f.refresh=button(f,L["Получить ответ (Ctrl+V)"],232,24,264,checkStatus)
         f.refresh:SetHeight(32)
         edit:SetScript("OnEscapePressed",function() f:Hide() end)
         f:SetScript("OnHide",function() edit:ClearFocus(); f.revision=f.revision+1 end)
@@ -470,6 +494,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
     if MPL.importWindow then MPL.importWindow:Hide() end
     f:Show()
     f.begin()
+    if not (MPlusLogsDB and MPlusLogsDB.companionUpdaterNoticeSeen) then MPL.ShowCompanionUpdates() end
 end
 
 function MPL.ShowBatchDownload()

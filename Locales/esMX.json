@@ -56,7 +56,7 @@
   "Вставьте ответ помощника (Ctrl+V). Он будет обработан автоматически.": "Pegue la respuesta del ayudante (Ctrl+V). Se procesará automáticamente.",
   "Выбранный кандидат изменился": "El candidato seleccionado ha cambiado",
   "Выйдите из боя перед проверкой.": "Deja la batalla antes de comprobar.",
-  "Данж": "Calabozo",
+  "Данж": "Mazmorra",
   "Данные выбранной заявки недоступны": "Los datos de la aplicación seleccionada no están disponibles",
   "Данные заявки недоступны": "Datos de la aplicación no disponibles",
   "Данные участника недоступны": "Detalles del participante no disponibles",
@@ -210,8 +210,8 @@
   "Рейтинг": "Puntuación",
   "Лучший % в среднем:": "Mejor % medio:",
   "Медианный % в среднем:": "% mediano medio:",
-  "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030¡PRIMERO INSTALA E INICIA MPlusLogs Companion!|r\nSin él no funciona la carga de registros. Después, presiona Ctrl+C.",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Espera un momento y presiona |cffffd100Ctrl+V|r.\nSi no hay respuesta, comprueba que MPlusLogs Companion esté abierto.",
+  "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030¡PRIMERO INSTALA E INICIA MPlusLogs Companion!|r\nSin él no funciona la carga de registros. Después, pulsa Ctrl+C.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Espera un momento y pulsa |cffffd100Ctrl+V|r.\nSi no hay respuesta, comprueba que MPlusLogs Companion esté abierto.",
   "\nВойдите в Warcraft Logs в MPlusLogs Companion, затем введите /reload и повторите загрузку.": "\nSign in to Warcraft Logs in MPlusLogs Companion, then type /reload and try again.",
   "\nПроверьте вход в Warcraft Logs и доступ к API в Companion, затем повторите загрузку.": "\nCheck your Warcraft Logs sign-in and API access in Companion, then try again.",
   "\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова.": "\nA Warcraft Logs or Companion request limit was reached. Wait, then try again.",
@@ -227,5 +227,11 @@
   "доступ к api": "API access",
   "\nПроверьте регион и название игрового мира персонажа, затем повторите запрос.": "\nCheck the character's region and realm, then retry.",
   "\nУменьшите число персонажей в запросе и повторите загрузку.": "\nReduce the number of characters in the request and try again.",
-  "\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку.": "\nOpen MPlusLogs Companion and sign in to Warcraft Logs, then type /reload and try loading logs again."
+  "\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку.": "\nOpen MPlusLogs Companion and sign in to Warcraft Logs, then type /reload and try loading logs again.",
+  "Обновить Companion": "Compañero de actualización",
+  "Обновления Companion": "Actualizaciones complementarias",
+  "Один раз установите Companion с проверкой обновлений. Дальше он сам предложит обновление; читать changelog аддона не нужно. Если Companion уже проверяет обновления, повторная установка не нужна.": "Instale Companion una vez y busque actualizaciones. Luego él mismo ofrecerá una actualización; No es necesario leer el registro de cambios del complemento. Si Companion ya está buscando actualizaciones, no es necesario instalarlo nuevamente.",
+  "Понятно": "Está vacío",
+  "Скопируйте ссылку (Ctrl+C) и откройте её в браузере:": "Copie el enlace (Ctrl+C) y ábralo en su navegador:",
+  "Для загрузки этих логов обновите MPlusLogs Companion.": "Para descargar estos registros, actualice MPlusLogs Companion."
 }

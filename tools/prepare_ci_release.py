@@ -2,6 +2,7 @@
 from pathlib import Path
 import re
 import subprocess
+import companion_version
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -11,11 +12,17 @@ def git(*args, check=True):
 
 
 def main():
+    companion_changed = companion_version.prepare()
     toc = ROOT / "MPlusLogs.toc"
     version = re.search(r"^## Version: (.+)$", toc.read_text(encoding="utf-8"), re.M)[1]
     tag = "v" + version
     existing = git("rev-parse", "--verify", "refs/tags/" + tag, check=False)
     if existing.returncode or existing.stdout.strip() == git("rev-parse", "HEAD").stdout.strip():
+        if companion_changed:
+            git("config", "user.name", "github-actions[bot]")
+            git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+            git("add", "packaging")
+            git("commit", "-m", "Prepare independent Companion version [skip ci]")
         return
     versions = [tuple(map(int, match)) for match in re.findall(r"^v(\d+)\.(\d+)\.(\d+)$", git("tag", "--list").stdout, re.M)]
     major, minor, patch = max(versions + [tuple(map(int, version.split(".")))])
@@ -23,7 +30,7 @@ def main():
     messages = git("log", tag + "..HEAD", "--format=%s").stdout.splitlines()
     notes = f"## {release}\n\n" + "".join("- " + message + "\n" for message in messages if message.strip())
     toc.write_text(re.sub(r"^## Version: .*", "## Version: " + release, toc.read_text(encoding="utf-8"), flags=re.M), encoding="utf-8")
-    for name in ("packaging/COMPANION-README.txt", "packaging/ADDON-README.txt", "packaging/companion.iss"):
+    for name in ("packaging/ADDON-README.txt",):
         path = ROOT / name
         path.write_text(re.sub(r"\b\d+\.\d+\.\d+\b", release, path.read_text(encoding="utf-8")), encoding="utf-8")
     (ROOT / "packaging/RELEASE-NOTES.md").write_text(notes, encoding="utf-8")

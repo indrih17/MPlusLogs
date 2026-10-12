@@ -208,10 +208,19 @@ class Tray:
                 data.tip = tr("MPlusLogs — помощник Warcraft Logs")[:127]
                 shell.Shell_NotifyIconW(1, ctypes.byref(data))
                 return 0
+            if message == icon_message + 2:
+                title, text = self.notification
+                data.title, data.info, data.infoFlags = title[:63], text[:255], 1
+                data.flags = 16
+                shell.Shell_NotifyIconW(1, ctypes.byref(data))
+                data.flags = 1 | 2 | 4
+                return 0
             if message == restart_message:
                 shell.Shell_NotifyIconW(0, ctypes.byref(data))
                 return 0
             if message == icon_message:
+                if lparam == 0x405:  # NIN_BALLOONUSERCLICK
+                    self.messages.put(("show", None))
                 if lparam == 0x202:  # left button up
                     self.messages.put(("show", None))
                 elif lparam in (0x205, 0x7B):
@@ -280,6 +289,13 @@ class Tray:
             user = ctypes.WinDLL("user32", use_last_error=True)
             user.PostMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
             user.PostMessageW(self.hwnd, 0x8002, 0, 0)
+
+    def notify(self, title, text):
+        self.notification = (title, text)
+        if self.hwnd:
+            user = ctypes.WinDLL("user32", use_last_error=True)
+            user.PostMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
+            user.PostMessageW(self.hwnd, 0x8003, 0, 0)
 
     def close(self):
         if self.hwnd:

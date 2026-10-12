@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import export_release_source
+import companion_version
 from development_paths import build_tools_dir
 
 ROOT = export_release_source.ROOT
@@ -41,6 +42,8 @@ def main():
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--summary", action="append")
     args = parser.parse_args()
+    if not args.check_only:
+        companion_version.prepare()
     entries = export_release_source.entries()
     current = hashes(entries)
     previous = json.loads(STATE.read_text(encoding="utf-8"))["hashes"] if STATE.exists() else {}
@@ -68,7 +71,7 @@ def main():
     for entry in entries:
         name, content = entry["path"], entry["content"]
         if name == "MPlusLogs.toc": content = re.sub(r"^## Version: .*", "## Version: " + release, content, flags=re.M)
-        if name in {"packaging/COMPANION-README.txt", "packaging/ADDON-README.txt", "packaging/companion.iss"}:
+        if name == "packaging/ADDON-README.txt":
             content = re.sub(r"\b\d+\.\d+\.\d+\b", release, content)
         if name == "CHANGELOG.md": content = changelog
         if name == "packaging/RELEASE-NOTES.md":

@@ -23,8 +23,67 @@ jobs:
         run: python tools/prepare_ci_release.py
       - name: Test
         run: python -m unittest discover -s tests -q
+      - name: Push prepared release metadata
+        run: |
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Source changed remotely; next queued run will release it' }
       - name: Build addon, exe, installer and portable ZIP
-        run: python tools/build_release.py --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $companionVersion = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.version())"
+          $existing = gh release view "companion-v$companionVersion" --json assets 2>$null
+          $complete = $LASTEXITCODE -eq 0 -and 'companion-update.json' -in ($existing | ConvertFrom-Json).assets.name
+          if ($complete) { python tools/build_release.py --addon-only }
+          else { python tools/build_release.py --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
+      - name: Publish independent Companion and update channel
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $companionVersion = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.version())"
+          $companionTag = "companion-v$companionVersion"
+          if (Test-Path release-output/companion-update.json) {
+            gh release view $companionTag --json tagName 2>$null
+            if ($LASTEXITCODE -ne 0) {
+              gh release create $companionTag --target (git rev-parse HEAD) --title "MPlusLogs Companion $companionVersion" --notes-file packaging/RELEASE-NOTES.md --latest=false
+              if ($LASTEXITCODE -ne 0) { throw 'Companion release creation failed' }
+            }
+            $files = Get-ChildItem release-output -Filter 'MPlusLogs-Companion-*'
+            gh release upload $companionTag $files.FullName --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Companion upload failed' }
+            # Manifest is the completion marker; publish it after the binaries.
+            gh release upload $companionTag release-output/companion-update.json --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Companion manifest upload failed' }
+          } else {
+            gh release download $companionTag --pattern companion-update.json --dir release-output --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Companion manifest download failed' }
+          }
+          $channelInfo = gh release view companion-channel --json assets 2>$null
+          $refreshChannel = $true
+          if ($LASTEXITCODE -ne 0) {
+            gh release create companion-channel --target (git rev-parse HEAD) --title 'MPlusLogs Companion downloads' --notes 'Install Companion once. Future updates are offered inside the program. Use the Setup asset below; versioned portable ZIPs are in companion-v releases.' --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Update channel creation failed' }
+          } elseif ('companion-update.json' -in ($channelInfo | ConvertFrom-Json).assets.name -and 'MPlusLogs-Companion-Setup.exe' -in ($channelInfo | ConvertFrom-Json).assets.name) {
+            New-Item -ItemType Directory -Force release-output/channel-state | Out-Null
+            gh release download companion-channel --pattern companion-update.json --dir release-output/channel-state --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Update channel verification failed' }
+            $current = Get-Content release-output/channel-state/companion-update.json -Raw | ConvertFrom-Json
+            $next = Get-Content release-output/companion-update.json -Raw | ConvertFrom-Json
+            $refreshChannel = $current.version -ne $next.version -or $current.sha256 -ne $next.sha256
+          }
+          if ($refreshChannel) {
+            gh release download $companionTag --pattern "MPlusLogs-Companion-$companionVersion-Setup.exe" --dir release-output --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Companion installer download failed' }
+            Copy-Item "release-output/MPlusLogs-Companion-$companionVersion-Setup.exe" release-output/MPlusLogs-Companion-Setup.exe
+            gh release upload companion-channel release-output/MPlusLogs-Companion-Setup.exe --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Channel installer upload failed' }
+            gh release upload companion-channel release-output/companion-update.json --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Update channel upload failed' }
+          }
       - name: Publish GitHub release
         shell: pwsh
         env:
@@ -41,7 +100,7 @@ jobs:
             gh release create $releaseTag --target $releaseCommit --title "MPlusLogs $releaseVersion" --notes-file packaging/RELEASE-NOTES.md
             if ($LASTEXITCODE -ne 0) { throw 'GitHub release creation failed' }
           }
-          $releaseFiles = Get-ChildItem release-output -File | Where-Object { $_.Extension -in '.zip','.exe' -or $_.Name -eq 'SHA256SUMS.txt' }
+          $releaseFiles = Get-ChildItem release-output -File | Where-Object { $_.Name -eq "MPlusLogs-$releaseVersion.zip" -or $_.Name -eq 'SHA256SUMS.txt' }
           gh release upload $releaseTag $releaseFiles.FullName --clobber
           if ($LASTEXITCODE -ne 0) { throw 'GitHub asset upload failed' }
       - name: Publish addon to CurseForge
