@@ -81,15 +81,10 @@ def main():
         subprocess.run([str(internal.parent / "MPlusLogs-Companion.exe"), "--self-test-report", str(smoke)], check=True, timeout=30)
         if not json.loads(smoke.read_text())["ok"]:
             raise RuntimeError("Frozen smoke test failed")
-        with zipfile.ZipFile(output / f"MPlusLogs-Companion-{companion_release}-Windows-x64.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-            for path in sorted(internal.parent.rglob("*")):
-                if path.is_file():
-                    archive.write(path, "MPlusLogs-Companion/" + path.relative_to(internal.parent).as_posix())
-            archive.write(ROOT / "packaging/COMPANION-README.txt", "MPlusLogs-Companion/README.txt")
         if args.iscc:
             subprocess.run([str(args.iscc.resolve()), f"/DAppVersion={companion_release}", str(ROOT / "packaging/companion.iss")], check=True)
             installer = output / f"MPlusLogs-Companion-{companion_release}-Setup.exe"
-            manifest = {"schema": 1, "version": companion_release, "size": installer.stat().st_size,
+            manifest = {"schema": 1, "version": companion_release, "source_hash": companion_version.source_hash(), "size": installer.stat().st_size,
                 "sha256": hashlib.sha256(installer.read_bytes()).hexdigest(),
                 "url": f"https://github.com/indrih17/MPlusLogs/releases/download/companion-v{companion_release}/{installer.name}"}
             (output / "companion-update.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

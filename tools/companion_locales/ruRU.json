@@ -131,5 +131,6 @@
   "Use shared API": "Использовать общий API",
   "WCL allowance: {remaining} / {limit} points. Reset in {minutes} min.": "Осталось баллов WCL: {remaining} / {limit}. Сброс через {minutes} мин.",
   "The available WCL allowance is shown after connection.": "Доступный лимит WCL появится после подключения.",
-  "WCL allowance updates when loading logs.": "Лимит WCL обновляется при загрузке логов."
+  "WCL allowance updates when loading logs.": "Лимит WCL обновляется при загрузке логов.",
+  "Copied. Open this address in your browser.": "Скопировано. Откройте этот адрес в браузере."
 }

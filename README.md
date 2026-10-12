@@ -12,8 +12,8 @@ Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows
 
 Install the addon from [CurseForge](https://www.curseforge.com/wow/addons/mpluslogs).
 **REQUIRED: Install and run MPlusLogs Companion on Windows. Online log loading does not work without it.**
-Download the Companion from [Releases](https://github.com/indrih17/MPlusLogs/releases/tag/companion-channel):
-use the Setup exe or extract the complete portable ZIP. Windows 10/11 x64;
+Download the [Companion installer](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe)
+and run the Setup exe. Windows 10/11 x64;
 no separate Python installation is needed. The Companion supports all WoW client languages; select one in Settings > Language.
 
 Sign in through Warcraft Logs in the Companion. In WoW, right-click an applicant

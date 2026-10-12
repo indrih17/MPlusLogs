@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+from tkinter import ttk
 import unittest
 from unittest.mock import patch
 
@@ -96,6 +97,26 @@ class PersonalSetupTests(unittest.TestCase):
         self.app.last_heartbeat=time.time()
         p=patch.object(self.app,'start'); p.start(); self.addCleanup(p.stop)
         self.addCleanup(self.app.exit)
+
+    def test_guide_fields_remain_readable_and_canvas_matches_both_themes(self):
+        self.app.show_personal_setup()
+        wizard=self.app.personal_setup
+        def luminance(color):
+            values=[int(color[i:i+2],16)/255 for i in (1,3,5)]
+            values=[x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in values]
+            return sum(a*b for a,b in zip(values,(.2126,.7152,.0722)))
+        for mode in ('dark','light'):
+            self.app.theme.set(mode); self.app.refresh_theme()
+            self.assertEqual(wizard.canvas.cget('background'),self.root.cget('background'))
+            style=ttk.Style(self.root)
+            fg=style.lookup('TEntry','foreground',('readonly',))
+            bg=style.lookup('TEntry','fieldbackground',('readonly',))
+            a,b=sorted((luminance(fg),luminance(bg)))
+            self.assertGreaterEqual((b+.05)/(a+.05),4.5)
+        wizard.scroll_state('0','1')
+        self.assertEqual(wizard.scrollbar.winfo_manager(),'')
+        wizard.scroll_state('0','.5')
+        self.assertEqual(wizard.scrollbar.winfo_manager(),'pack')
 
     def test_existing_shared_login_can_open_all_steps_and_copy_exact_callback(self):
         self.assertEqual(self.app.api_title.get(),'Shared API connected')

@@ -232,6 +232,7 @@ class App:
             return
         self.personal_setup = personal_api.Wizard(self)
         appearance.apply(self.root, self.applied_theme or "light", self.personal_setup.window)
+        self.personal_setup.canvas.configure(background=appearance.PALETTES[self.applied_theme or "light"]["background"])
 
     def refresh_api_display(self):
         if self.api_mode == "personal":
@@ -581,6 +582,9 @@ class App:
         mode = appearance.system_theme() if self.theme.get() == "system" else self.theme.get()
         if force or mode != self.applied_theme:
             appearance.apply(self.root, mode, self.settings_window)
+            if self.personal_setup:
+                appearance.apply(self.root, mode, self.personal_setup.window)
+                self.personal_setup.canvas.configure(background=appearance.PALETTES[mode]["background"])
             self.applied_theme = mode
             self.root.after_idle(lambda: appearance.titlebar(self.root, mode == "dark"))
             self.style_language_menu()

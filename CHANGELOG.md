@@ -1,5 +1,10 @@
 # Changelog
 
+## Companion 1.0.5
+
+- Fix unreadable personal API setup fields and blank white scrolling areas in dark theme.
+- Publish only the Companion installer in user-facing releases and keep update metadata in the service channel.
+
 ## MPlusLogs 0.5.12 / Companion 1.0.5
 
 - Add an illustrated three-step personal WCL API setup and migration prompt for shared-client users.

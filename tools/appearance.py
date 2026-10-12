@@ -57,6 +57,10 @@ def apply(root, mode, settings=None):
     style.configure("TFrame", background=palette["background"])
     style.configure("TLabel", background=palette["background"], foreground=palette["text"])
     style.configure("Muted.TLabel", foreground=palette["muted"])
+    style.configure("TEntry", fieldbackground=palette["control"], foreground=palette["text"],
+                    insertcolor=palette["text"], bordercolor=palette["border"])
+    style.map("TEntry", fieldbackground=[("readonly",palette["control"]),("disabled",palette["control"])],
+              foreground=[("disabled",palette["muted"]),("readonly",palette["text"])])
     style.configure("TButton", background=palette["control"], foreground=palette["text"], borderwidth=1,
                     bordercolor=palette["border"], lightcolor=palette["border"], darkcolor=palette["border"], padding=(12,8))
     style.map("TButton", background=[("pressed",palette["accent"]),("active",palette["hover"])],

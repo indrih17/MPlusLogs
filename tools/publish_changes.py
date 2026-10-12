@@ -41,6 +41,7 @@ def hashes(entries):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-only", action="store_true")
+    parser.add_argument("--same-version", action="store_true", help="Rebuild the current Companion only when explicitly requested; reject addon changes")
     parser.add_argument("--summary", action="append")
     args = parser.parse_args()
     entries = export_release_source.entries()
@@ -60,8 +61,17 @@ def main():
         raise RuntimeError("Publishing checkout has unfinished changes; inspect them first")
     git("pull", "--ff-only", "origin", "main")
     baseline = addon_version.state(REPO)
-    addon_version.prepare(baseline)
-    companion_version.prepare()
+    if args.same_version:
+        if addon_version.source_hash() != baseline["source_hash"]:
+            raise RuntimeError("Same-version publication cannot include addon changes")
+        data = companion_version.metadata()
+        if data["version"] != json.loads((REPO / "packaging/companion-version.json").read_text(encoding="utf-8"))["version"]:
+            raise RuntimeError("Same-version publication requires the current published Companion version")
+        data["source_hash"] = companion_version.source_hash()
+        companion_version.METADATA.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    else:
+        addon_version.prepare(baseline)
+        companion_version.prepare()
     entries = export_release_source.entries()
     current = hashes(entries)
     subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-q"], cwd=ROOT, check=True)
@@ -70,7 +80,7 @@ def main():
     release = addon_version.version()
     addon_changed = release != baseline["version"] or addon_version.source_hash() != baseline["source_hash"]
     old_companion = json.loads((REPO / "packaging/companion-version.json").read_text(encoding="utf-8"))["version"]
-    companion_changed = companion_version.version() != old_companion
+    companion_changed = companion_version.version() != old_companion or args.same_version
     components = (["MPlusLogs " + release] if addon_changed else []) + (["Companion " + companion_version.version()] if companion_changed else [])
     label = " / ".join(components) or "Release tooling"
     notes = f"## {label}\n\n" + "".join(f"- {item.strip()}\n" for item in args.summary)

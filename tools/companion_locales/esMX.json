@@ -131,5 +131,6 @@
   "Use shared API": "Usar API compartida",
   "WCL allowance: {remaining} / {limit} points. Reset in {minutes} min.": "Cuota WCL: {remaining} / {limit} puntos. Se restablece en {minutes} min.",
   "The available WCL allowance is shown after connection.": "La cuota WCL se muestra después de conectar.",
-  "WCL allowance updates when loading logs.": "La cuota WCL se actualiza al cargar registros."
+  "WCL allowance updates when loading logs.": "La cuota WCL se actualiza al cargar registros.",
+  "Copied. Open this address in your browser.": "Copiado. Abre esta dirección en tu navegador."
 }

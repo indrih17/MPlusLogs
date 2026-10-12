@@ -131,5 +131,6 @@
   "Use shared API": "使用共用 API",
   "WCL allowance: {remaining} / {limit} points. Reset in {minutes} min.": "WCL 配額：{remaining} / {limit} 點。{minutes} 分鐘後重置。",
   "The available WCL allowance is shown after connection.": "連接後顯示 WCL 可用配額。",
-  "WCL allowance updates when loading logs.": "載入日誌時更新 WCL 配額。"
+  "WCL allowance updates when loading logs.": "載入日誌時更新 WCL 配額。",
+  "Copied. Open this address in your browser.": "已複製。請在瀏覽器中開啟此位址。"
 }

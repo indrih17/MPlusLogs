@@ -75,16 +75,22 @@ class Wizard:
         viewport = ttk.Frame(outer)
         viewport.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(viewport, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(viewport, orient="vertical", command=self.canvas.yview)
-        scrollbar.pack(side="right", fill="y")
+        self.scrollbar = ttk.Scrollbar(viewport, orient="vertical", command=self.canvas.yview)
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.configure(yscrollcommand=self.scroll_state)
         self.content = ttk.Frame(self.canvas)
         self.content_id = self.canvas.create_window(0, 0, anchor="nw", window=self.content)
         self.content.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind("<Configure>", lambda event: self.canvas.itemconfigure(self.content_id, width=event.width))
         self.canvas.bind("<MouseWheel>", lambda event: self.canvas.yview_scroll(-int(event.delta / 120), "units"))
         self.show(0)
+
+    def scroll_state(self, first, last):
+        self.scrollbar.set(first, last)
+        if float(first) <= 0 and float(last) >= 1:
+            self.scrollbar.pack_forget()
+        elif not self.scrollbar.winfo_manager():
+            self.scrollbar.pack(side="right", fill="y", before=self.canvas)
 
     def label(self, text, **options):
         label = ttk.Label(self.content, textvariable=self.owner.textvar(text), wraplength=680, **options)
@@ -94,7 +100,7 @@ class Wizard:
     def copy(self, value):
         self.window.clipboard_clear()
         self.window.clipboard_append(value)
-        self.status.set("Copied. Paste into the matching field on WCL.")
+        self.status.set("Copied. Open this address in your browser." if value == CLIENTS_URL else "Copied. Paste into the matching field on WCL.")
 
     def field(self, title, value):
         row = ttk.Frame(self.content)

@@ -27,7 +27,7 @@ jobs:
         run: |
           git push origin HEAD:main
           if ($LASTEXITCODE -ne 0) { throw 'Source changed remotely; next queued run will release it' }
-      - name: Build addon, exe, installer and portable ZIP
+      - name: Build changed addon and Companion installer
         id: build
         shell: pwsh
         env:
@@ -35,7 +35,14 @@ jobs:
         run: |
           $companionVersion = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.version())"
           $existing = gh release view "companion-v$companionVersion" --json assets 2>$null
-          $complete = $LASTEXITCODE -eq 0 -and 'companion-update.json' -in ($existing | ConvertFrom-Json).assets.name
+          $complete = $LASTEXITCODE -eq 0 -and "MPlusLogs-Companion-$companionVersion-Setup.exe" -in ($existing | ConvertFrom-Json).assets.name
+          New-Item -ItemType Directory -Force release-output/channel-state | Out-Null
+          gh release download companion-channel --pattern companion-update.json --dir release-output/channel-state --clobber 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            $published = Get-Content release-output/channel-state/companion-update.json -Raw | ConvertFrom-Json
+            $sourceHash = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.source_hash())"
+            $complete = $complete -and $published.version -eq $companionVersion -and $published.source_hash -eq $sourceHash
+          } else { $complete = $false }
           $addonVersion = python -c "import sys; sys.path.insert(0,'tools'); import addon_version; print(addon_version.version())"
           $existingAddon = gh release view "v$addonVersion" --json assets 2>$null
           $addonComplete = $LASTEXITCODE -eq 0 -and "MPlusLogs-$addonVersion.zip" -in ($existingAddon | ConvertFrom-Json).assets.name -and 'curseforge-upload.json' -in ($existingAddon | ConvertFrom-Json).assets.name
@@ -60,20 +67,21 @@ jobs:
               gh release create $companionTag --target (git rev-parse HEAD) --title "MPlusLogs Companion $companionVersion" --notes-file packaging/RELEASE-NOTES.md --latest=false
               if ($LASTEXITCODE -ne 0) { throw 'Companion release creation failed' }
             }
-            $files = Get-ChildItem release-output -Filter 'MPlusLogs-Companion-*'
+            $files = Get-Item "release-output/MPlusLogs-Companion-$companionVersion-Setup.exe"
             gh release upload $companionTag $files.FullName --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Companion upload failed' }
-            # Manifest is the completion marker; publish it after the binaries.
-            gh release upload $companionTag release-output/companion-update.json --clobber
-            if ($LASTEXITCODE -ne 0) { throw 'Companion manifest upload failed' }
+            gh release edit $companionTag --notes-file packaging/RELEASE-NOTES.md
+            if ($LASTEXITCODE -ne 0) { throw 'Companion release notes update failed' }
+            $releaseCommit = git rev-parse HEAD
+            gh api "repos/indrih17/MPlusLogs/git/refs/tags/$companionTag" --method PATCH -f "sha=$releaseCommit" -F force=true | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Companion source tag update failed' }
           } else {
-            gh release download $companionTag --pattern companion-update.json --dir release-output --clobber
-            if ($LASTEXITCODE -ne 0) { throw 'Companion manifest download failed' }
+            Copy-Item release-output/channel-state/companion-update.json release-output/companion-update.json
           }
           $channelInfo = gh release view companion-channel --json assets 2>$null
           $refreshChannel = $true
           if ($LASTEXITCODE -ne 0) {
-            gh release create companion-channel --target (git rev-parse HEAD) --title 'MPlusLogs Companion downloads' --notes 'Install Companion once. Future updates are offered inside the program. Use the Setup asset below; versioned portable ZIPs are in companion-v releases.' --latest=false
+            gh release create companion-channel --target (git rev-parse HEAD) --title 'MPlusLogs Companion update service' --notes 'Service channel for Companion updates. The JSON file is read automatically by Companion. For manual installation, download and run the Setup exe.' --latest=false
             if ($LASTEXITCODE -ne 0) { throw 'Update channel creation failed' }
           } elseif ('companion-update.json' -in ($channelInfo | ConvertFrom-Json).assets.name -and 'MPlusLogs-Companion-Setup.exe' -in ($channelInfo | ConvertFrom-Json).assets.name) {
             New-Item -ItemType Directory -Force release-output/channel-state | Out-Null
@@ -91,6 +99,17 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Channel installer upload failed' }
             gh release upload companion-channel release-output/companion-update.json --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Update channel upload failed' }
+          }
+          gh release edit companion-channel --title 'MPlusLogs Companion update service' --notes 'Service channel for Companion updates. The JSON file is read automatically by Companion. For manual installation, download and run the Setup exe.' --latest=false
+          if ($LASTEXITCODE -ne 0) { throw 'Update channel description failed' }
+          # Remove legacy extras only after the service manifest is safely published.
+          $publicAssets = (gh release view $companionTag --json assets | ConvertFrom-Json).assets.name
+          if ($LASTEXITCODE -ne 0) { throw 'Companion asset inspection failed' }
+          foreach ($extra in @('companion-update.json', "MPlusLogs-Companion-$companionVersion-Windows-x64.zip")) {
+            if ($extra -in $publicAssets) {
+              gh release delete-asset $companionTag $extra --yes
+              if ($LASTEXITCODE -ne 0) { throw 'Legacy Companion asset removal failed' }
+            }
           }
       - name: Publish GitHub release
         if: steps.build.outputs.addon == 'true'
