@@ -24,7 +24,7 @@ class ApplicantUITests(unittest.TestCase):
     def test_lookup_button_and_enter_open_the_entered_character(self):
         self.mpl.ShowProfile("Киндрих-Гордунни")
         f = self.mpl.panel
-        self.assertEqual(f.headings[2].text, "Прохождения")
+        self.assertEqual(f.headings[4].text, "Прохождения")
         f.lookup.SetText(f.lookup, "  Alice-Area 52  ")
         f.lookupButton.scripts.OnClick()
         self.assertEqual(f.name, "Alice")
@@ -174,8 +174,11 @@ class ApplicantUITests(unittest.TestCase):
         self.assertIn("62%",self.cell(1).text.text)
         self.assertNotIn("88%",self.cell(1).text.text)
         self.mpl.ShowProfile('Alice','Гордунни')
-        self.assertIn('DPS Best / Median',self.mpl.panel.summary.text)
-        self.assertIn('HPS Best / Median',self.mpl.panel.summary.text)
+        self.assertIn('DPS Лучший % в среднем:',self.mpl.panel.summary.text)
+        self.mpl.panel.metricTabs.hps.scripts.OnClick()
+        self.assertIn('HPS Лучший % в среднем:',self.mpl.panel.summary.text)
+        self.assertIn('88|r',self.mpl.panel.summary.text)
+        self.mpl.panel.metricTabs.dps.scripts.OnClick()
         self.mpl.AddTooltip(self.lua.globals().GameTooltip,'Alice','Гордунни')
         self.assertEqual(self.lua.globals().GameTooltip.lines[4][1],'DPS Best / Median')
         row = self.cell(2)

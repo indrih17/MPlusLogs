@@ -202,5 +202,14 @@
   "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Afficher la fenêtre de mise à jour lors de l'ouverture d'un profil obsolète. La couleur grise des données est conservée.",
   "Предупреждать об устаревших логах": "Avertir en cas de journaux obsolètes",
   "Серый процент: данные устарели.": "Pourcentage de gris : les données sont obsolètes.",
-  "Срок актуальности логов": "Période de validité des journaux"
+  "Срок актуальности логов": "Période de validité des journaux",
+  "Рейтинг Mythic+": "Score Mythique+",
+  "Подземелье": "Donjon",
+  "Уровень": "Niveau",
+  "Время": "Temps",
+  "Очки": "Points",
+  "Место": "Rang",
+  "Рейтинг": "Score",
+  "Лучший % в среднем:": "Meilleur % moyen :",
+  "Медианный % в среднем:": "% médian moyen :"
 }

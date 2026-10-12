@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.7
+
+- Redesign the full profile table to match Warcraft Logs with score summary, grouped columns, dungeon icons and DPS/HPS tabs.
+- Preserve applicant context when switching metrics and show dashes for unavailable metric-specific time and rank fields.
+
 ## 0.5.6
 
 - Keep publishing metadata outside WoW, reject development files in addon archives, and support Windows short-path aliases in release checks.

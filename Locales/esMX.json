@@ -202,5 +202,14 @@
   "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Muestra una ventana de actualización al abrir un perfil desactualizado. Se conserva el color gris de los datos.",
   "Предупреждать об устаревших логах": "Advertir sobre registros obsoletos",
   "Серый процент: данные устарели.": "Porcentaje gris: los datos están desactualizados.",
-  "Срок актуальности логов": "Período de validez de los registros"
+  "Срок актуальности логов": "Período de validez de los registros",
+  "Рейтинг Mythic+": "Puntuación Mítica+",
+  "Подземелье": "Mazmorra",
+  "Уровень": "Nivel",
+  "Время": "Tiempo",
+  "Очки": "Puntos",
+  "Место": "Posición",
+  "Рейтинг": "Puntuación",
+  "Лучший % в среднем:": "Mejor % medio:",
+  "Медианный % в среднем:": "% mediano medio:"
 }

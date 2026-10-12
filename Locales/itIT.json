@@ -202,5 +202,14 @@
   "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Mostra la finestra di aggiornamento quando si apre un profilo obsoleto. Il colore grigio dei dati viene mantenuto.",
   "Предупреждать об устаревших логах": "Avvisa sui registri obsoleti",
   "Серый процент: данные устарели.": "Percentuale grigia: i dati non sono aggiornati.",
-  "Срок актуальности логов": "Periodo di validità dei registri"
+  "Срок актуальности логов": "Periodo di validità dei registri",
+  "Рейтинг Mythic+": "Punteggio Mitica+",
+  "Подземелье": "Spedizione",
+  "Уровень": "Livello",
+  "Время": "Tempo",
+  "Очки": "Punti",
+  "Место": "Posizione",
+  "Рейтинг": "Punteggio",
+  "Лучший % в среднем:": "Miglior % medio:",
+  "Медианный % в среднем:": "% mediano medio:"
 }

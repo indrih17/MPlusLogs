@@ -15,7 +15,7 @@ Use `/mpl demo` for a fictional preview without an account.
 
 The addon supports eleven locales, player panels, recruitment tooltips,
 dual DPS/HPS profiles, batch candidate loading, stale-data indicators and manual import.
-DPS is shown first for every role, including healers; HPS remains available in full profiles and tooltips.
+DPS is shown first for every role, including healers; full profiles use Warcraft Logs-style tables with dungeon icons and DPS/HPS tabs. HPS also remains available in tooltips.
 Customize healer HPS priority, Best avg/Median priority, freshness (6/12/24/48 hours),
 tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl settings`.
 Changes apply immediately and are saved between sessions.
@@ -26,7 +26,7 @@ Percentiles describe available Warcraft Logs runs. They do not measure tank surv
 The Companion sends only MPlusLogs request envelopes to Warcraft Logs.
 Unrelated clipboard text is not transmitted. It does not read game memory or
 automate gameplay. Login uses browser OAuth with PKCE; local tokens are protected
-with Windows DPAPI. Startup with Windows or WoW Retail and response sounds are opt-in.
+with Windows DPAPI. Startup with Windows or WoW Retail is optional. Response sounds are enabled by default and can be disabled in Settings.
 Settings, tokens, cache and recent results are stored in `%LOCALAPPDATA%\MPlusLogs`.
 Sign out to remove saved tokens; uninstall preserves local data.
 
@@ -41,7 +41,7 @@ python tools/build_release.py --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.e
 ```
 
 Output: `release-output/`, including SHA-256 checksums. The script packages only
-TOC-referenced addon files, excludes local logs/tokens/cache, and removes the
+TOC-referenced addon files and bundled dungeon icons, excludes local logs/tokens/cache, and removes the
 development character snapshot from the shipped addon. The source snapshot is
 a development test fixture. Frozen resources are checked without account access.
 Release binaries are currently unsigned.

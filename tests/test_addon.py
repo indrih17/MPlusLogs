@@ -162,7 +162,7 @@ class AddonTests(unittest.TestCase):
         self.mpl.ShowProfile("Киндрих-Гордунни")
         self.assertFalse(self.mpl.staleWindow.shown)
         self.assertNotIn("ff888888",self.mpl.panel.summary.text)
-        self.assertEqual(self.mpl.panel.rows[1].cells[1].textColor[1],1)
+        self.assertEqual(self.mpl.panel.rows[1].cells[1].textColor[1],0.72)
         self.assertEqual(self.mpl.Normalize("Гор Дунни"), "гордунни")
         self.assertEqual(self.mpl.Identity("Someone-Area 52"), ("Someone", "Area 52"))
 
@@ -199,8 +199,8 @@ class AddonTests(unittest.TestCase):
         self.mpl.ShowProfile("Киндрих-Гордунни")
         self.assertEqual(len(self.mpl.panel.rows), 8)
         self.assertIn("Снимок", self.mpl.panel.source.text)
-        self.assertIn("11%", self.mpl.panel.rows[6].cells[5].text)
-        self.assertTrue(self.mpl.panel.rows[6].cells[5].text.endswith("*"))
+        self.assertIn("11|r", self.mpl.panel.rows[6].cells[8].text)
+        self.assertTrue(self.mpl.panel.rows[6].cells[8].text.endswith("*"))
         self.mpl.ShowProfile("Nobody-Гордунни")
         self.assertTrue(self.mpl.panel.emptyMessage.shown)
         self.assertEqual(self.mpl.panel.loadButton.text,"Загрузить M+ логи")
@@ -209,8 +209,8 @@ class AddonTests(unittest.TestCase):
         self.mpl.Import(self.export().replace("\tdps\t", "\thps\t"))
         self.mpl.ShowProfile("Киндрих-Гордунни")
         self.assertEqual(self.mpl.panel.metricHeading.text, "Лучший DPS")
-        self.assertEqual(self.mpl.panel.headings[8].text,"Лучший HPS")
-        self.assertEqual(self.mpl.panel.rows[1].cells[4].text,"—")
+        self.assertEqual(self.mpl.panel.headings[8].text,"Best %")
+        self.assertEqual(self.mpl.panel.rows[1].cells[7].text,"—")
 
     def test_tooltip_duplicate_secret_and_combat(self):
         tooltip = self.lua.globals().GameTooltip
@@ -319,12 +319,15 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(mpl.Import(sync.export(profile)),1)
         mpl.ShowProfile("Киндрих-Гордунни")
         self.assertEqual(mpl.panel.metricHeading.text,"Лучший DPS")
-        self.assertEqual(mpl.panel.headings[8].text,"Лучший HPS")
+        self.assertEqual(mpl.panel.headings[8].text,"Best %")
         row=mpl.panel.rows[1]
-        self.assertEqual(row.cells[3].text,"+19")
-        self.assertEqual(row.cells[4].text,"168.11K")
-        self.assertEqual(row.cells[7].text,"+14")
-        self.assertEqual(row.cells[8].text,"250.00K")
+        self.assertEqual(row.cells[2].text,19)
+        self.assertEqual(row.cells[7].text,"168.11K")
+        mpl.panel.metricTabs.hps.scripts.OnClick()
+        self.assertEqual(mpl.panel.metricHeading.text,"Лучший HPS")
+        self.assertEqual(row.cells[2].text,14)
+        self.assertEqual(row.cells[7].text,"250.00K")
+        self.assertEqual(row.cells[3].text,"—")
 
     def test_lfg_role_overrides_historical_spec_for_order(self):
         import copy

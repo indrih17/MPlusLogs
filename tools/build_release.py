@@ -34,6 +34,9 @@ def addon(output, release_version):
                 archive.write(path, "MPlusLogs/" + name.replace("\\", "/"))
         archive.write(ROOT / "packaging/ADDON-README.txt", "MPlusLogs/README.txt")
         archive.write(ROOT / "LICENSE", "MPlusLogs/LICENSE")
+        for path in sorted((ROOT / "assets/dungeons").glob("*.tga")):
+            archive.write(path, "MPlusLogs/assets/dungeons/" + path.name)
+        archive.write(ROOT / "assets/dungeons/README.md", "MPlusLogs/assets/dungeons/README.md")
 
 
 def main():

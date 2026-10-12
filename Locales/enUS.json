@@ -202,5 +202,14 @@
   "Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется.": "Show update window when opening an outdated profile. The gray color of the data is retained.",
   "Предупреждать об устаревших логах": "Warn about outdated logs",
   "Серый процент: данные устарели.": "Gray percentage: data is out of date.",
-  "Срок актуальности логов": "Log freshness period"
+  "Срок актуальности логов": "Log freshness period",
+  "Рейтинг Mythic+": "Mythic+ Score",
+  "Подземелье": "Dungeon",
+  "Уровень": "Level",
+  "Время": "Time",
+  "Очки": "Points",
+  "Место": "Rank",
+  "Рейтинг": "Score",
+  "Лучший % в среднем:": "Best % Avg:",
+  "Медианный % в среднем:": "Median % Avg:"
 }

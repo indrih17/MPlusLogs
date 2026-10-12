@@ -18,7 +18,7 @@ local function window(name, title, width, height, opaque)
     if opaque then f:SetFrameLevel(100) end
     f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
     f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    label(f, 20, -16, width-60, title, "GameFontNormalLarge")
+    f.title=label(f, 20, -16, width-60, title, "GameFontNormalLarge")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -2, -2)
     UISpecialFrames[#UISpecialFrames+1] = name
@@ -33,35 +33,82 @@ function MPL.UpdatePanelScroll(f)
     if not overflow then f.scroll:SetVerticalScroll(0) end
 end
 
+local function panelFill(parent,x,y,width,height,r,g,b)
+    local texture=parent:CreateTexture(nil,"BACKGROUND")
+    texture:SetPoint("TOPLEFT",x,y); texture:SetSize(width,height); texture:SetColorTexture(r,g,b,1)
+    return texture
+end
+local function tablePercent(value,stale)
+    local text=MPL.Percent(value,stale):gsub("%%|r$","|r")
+    return text
+end
+local function gridLine(parent,x,y,width,height)
+    return panelFill(parent,x,y,width,height,0.20,0.20,0.20)
+end
+local function metricTab(f,metric,x)
+    local b=CreateFrame("Button",nil,f,"BackdropTemplate")
+    b:SetSize(86,28); b:SetPoint("TOPLEFT",x,-112)
+    b:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    b:SetBackdropBorderColor(0.27,0.27,0.27,1)
+    b.caption=label(b,8,-7,70,metric:upper()); b.caption:SetJustifyH("CENTER")
+    b:SetScript("OnClick",function()
+        f.viewMetric=metric; MPL.RenderProfileStats(f)
+    end)
+    return b
+end
 local function buildPanel()
-    local f = window("MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 540)
+    local f = window("MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
+    f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1,insets={left=1,right=1,top=1,bottom=1}})
+    f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
+    panelFill(f,1,-1,938,36,0.105,0.06,0.12)
+    f.title:SetTextColor(0.9,0.94,0.96)
     f.character = label(f,20,-48,900,"","GameFontHighlightLarge")
-    f.context = label(f,20,-77,900)
-    f.summary = label(f,20,-104,900,"","GameFontNormal")
-    f.source = label(f,20,-130,900)
-    f.note = label(f,20,-155,900)
-    local headings = {L["Данж"], L["Прохождения"], L["Ключ"], L["Лучший DPS"], L["Best %"], L["Median %"], L["Ключ"], L["Лучший HPS"], L["Best %"], L["Median %"]}
-    f.columns = {0,164,254,300,402,470,554,600,702,770}
-    f.widths = {160,86,42,98,64,70,42,98,64,100}
+    panelFill(f,20,-80,880,26,0.105,0.06,0.12)
+    f.context = label(f,30,-87,860)
+    f.metricTabs={dps=metricTab(f,"dps",20),hps=metricTab(f,"hps",112)}
+    f.filter = label(f,218,-120,680)
+    f.scoreLabel=label(f,64,-163,310,L["Рейтинг Mythic+"],"GameFontHighlight")
+    f.scoreLabel:SetJustifyH("CENTER")
+    f.scoreValue=label(f,64,-189,310,"","GameFontHighlightLarge")
+    f.scoreValue:SetJustifyH("CENTER"); f.scoreValue:SetHeight(36)
+    local font=f.scoreValue:GetFont()
+    if font then f.scoreValue:SetFont(font,30,"") end
+    f.summary=label(f,520,-159,370)
+    f.medianSummary=label(f,520,-181,370)
+    f.runSummary=label(f,520,-203,370)
+    f.source = label(f,20,-566,900)
+    f.note = label(f,20,-586,900)
+    local headings = {L["Подземелье"],L["Уровень"],L["Время"],L["Прохождения"],L["Очки"],L["Место"],L["Лучший DPS"],L["Best %"],L["Median %"]}
+    f.columns={0,242,292,358,414,484,554,684,768}
+    f.widths={242,50,66,56,70,70,130,84,112}
     f.headings={}
+    f.tableDecor={panelFill(f,20,-254,880,52,34/255,34/255,34/255)}
+    f.primaryGroup=label(f,434,-261,140,L["Рейтинг"]); f.primaryGroup:SetJustifyH("CENTER")
+    f.secondaryGroup=label(f,574,-261,326,"DPS"..L[" / по уровню ключа"]); f.secondaryGroup:SetJustifyH("CENTER")
+    for _,y in ipairs({-254,-280,-306}) do f.tableDecor[#f.tableDecor+1]=gridLine(f,20,y,880,1) end
     for i, text in ipairs(headings) do
-        f.headings[i]=label(f,20+f.columns[i],-208,f.widths[i],text,"GameFontNormalSmall")
+        local heading=label(f,24+f.columns[i],-282,f.widths[i]-8,text)
+        heading:SetHeight(22); heading:SetJustifyV("MIDDLE"); heading:SetWordWrap(true); heading:SetNonSpaceWrap(true)
+        heading:SetJustifyH("CENTER"); heading:SetTextColor(0.93,0.93,0.93)
+        f.headings[i]=heading
+        f.tableDecor[#f.tableDecor+1]=gridLine(f,20+f.columns[i],-280,1,26)
     end
+    f.tableDecor[#f.tableDecor+1]=gridLine(f,434,-254,1,26)
+    f.tableDecor[#f.tableDecor+1]=gridLine(f,574,-254,1,26)
+    f.tableDecor[#f.tableDecor+1]=gridLine(f,900,-254,1,52)
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT",20,-234); scroll:SetPoint("BOTTOMRIGHT",-40,85)
+    scroll:SetPoint("TOPLEFT",20,-306); scroll:SetPoint("BOTTOMRIGHT",-40,145)
+    scroll:SetSize(880,249)
     local content = CreateFrame("Frame", nil, scroll); content:SetSize(880,1); scroll:SetScrollChild(content)
     f.content, f.scroll, f.rows = content, scroll, {}
     scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
     scroll:HookScript("OnSizeChanged",function() MPL.UpdatePanelScroll(f) end)
-    -- Keep a reference to the metric heading for healer profiles.
-    f.metricHeading=f.headings[4]
-    f.primaryGroup=label(f,274,-184,285,L["DPS / по уровню ключа"],"GameFontNormal")
-    f.secondaryGroup=label(f,574,-184,300,L["HPS / по уровню ключа"],"GameFontNormal")
-    f.headings[#f.headings+1]=f.primaryGroup; f.headings[#f.headings+1]=f.secondaryGroup
-    f.footer = label(f,20,-464,900)
+    f.metricHeading=f.headings[7]
+    f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary,f.filter}
+    f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function() MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant) end)
-    f.emptyMessage=label(f,80,-218,660,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
+    f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
     f.lookup = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
     f.lookup:SetSize(530,24); f.lookup:SetPoint("BOTTOMLEFT",150,20); f.lookup:SetAutoFocus(false)
@@ -77,7 +124,7 @@ local function buildPanel()
     end)
     f.lookupButton:SetScript("OnLeave",function() GameTooltip:Hide() end)
     f.applicant=false; f.inviteSent=false
-    f.inviteInfo=label(f,150,-500,530)
+    f.inviteInfo=label(f,150,-660,530)
     f.inviteButton=button(f,L["Пригласить"],710,20,190,function()
         local ok,err=MPL.InviteFromProfile(f.applicant)
         if ok then f.inviteSent=true; MPL.UpdateProfileInvite()
@@ -100,6 +147,80 @@ function MPL.UpdateProfileInvite()
     f.inviteInfo:SetText(f.inviteSent and L["Запрос приглашения отправлен"] or (err or (size>1 and L["Пригласится вся заявка: "]..size..L[" чел."] or L["Приглашение выбранного кандидата"])))
 end
 
+local dungeonIcons={
+    ["Altar of Fangs"]="12993",["Den of Nalorakk"]="12825",["Kings' Rest"]="11762",["Murder Row"]="12813",
+    ["Ruby Life Pools"]="12521",["Temple of Sethraliss"]="11877",["The Blinding Vale"]="12859",["Voidscar Arena"]="12923",
+}
+function MPL.RenderProfileStats(f)
+    local profile,stale=type(f.profile)=="table" and f.profile or nil,f.stale
+    local metric=f.viewMetric or "dps"
+    for _,heading in ipairs(f.headings) do heading:SetShown(profile~=nil) end
+    for _,element in ipairs(f.tableElements) do element:SetShown(profile~=nil) end
+    for _,texture in ipairs(f.tableDecor) do texture:SetShown(profile~=nil) end
+    for key,tab in pairs(f.metricTabs) do
+        tab:SetShown(profile~=nil)
+        tab:SetBackdropColor(key==metric and 0.16 or 0.04,key==metric and 0.10 or 0.04,key==metric and 0.18 or 0.04,1)
+        tab.caption:SetTextColor(key==metric and 0.85 or 0.65,key==metric and 0.95 or 0.65,key==metric and 0.75 or 0.65)
+    end
+    for _,row in ipairs(f.rows) do row:Hide() end
+    f.metricHeading:SetText(L["Лучший "]..metric:upper())
+    local firstHeading,secondHeading=MPL.OrderPercentiles(L["Best %"],L["Median %"])
+    f.headings[8]:SetText(firstHeading); f.headings[9]:SetText(secondHeading)
+    f.secondaryGroup:SetText(metric:upper()..L[" / по уровню ключа"])
+    if not profile then return end
+    f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.T(profile.spec))
+    f.scoreValue:SetText(profile.score and string.format("%.0f",profile.score) or "—")
+    f.scoreValue:SetTextColor(stale and 0.53 or 226/255,stale and 0.53 or 104/255,stale and 0.53 or 168/255)
+    local _,_,best,median=MPL.MetricValues(profile,nil,metric)
+    local first,second=MPL.OrderPercentiles(best,median)
+    local firstLabel,secondLabel=MPL.OrderPercentiles(L["Лучший % в среднем:"],L["Медианный % в среднем:"])
+    f.summary:SetText(metric:upper().." "..firstLabel.."  "..tablePercent(first,stale))
+    f.medianSummary:SetText(metric:upper().." "..secondLabel.."  "..tablePercent(second,stale))
+    f.runSummary:SetText(L["Прохождения"]..":  "..(profile.runs or "—"))
+    for index,dungeon in ipairs(profile.dungeons) do
+        local row=f.rows[index]
+        if not row then
+            row=CreateFrame("Frame",nil,f.content); row:SetSize(880,30); row:SetPoint("TOPLEFT",0,-(index-1)*30)
+            row.background=panelFill(row,0,0,880,30,index%2==0 and 0.018 or 0,index%2==0 and 0.018 or 0,index%2==0 and 0.018 or 0)
+            row.shade=index%2==0 and 0.018 or 0
+            row:EnableMouse(true)
+            row:SetScript("OnEnter",function(self) self.background:SetColorTexture(0.055,0.055,0.055,1) end)
+            row:SetScript("OnLeave",function(self) self.background:SetColorTexture(self.shade,self.shade,self.shade,1) end)
+            row.cells={}
+            for i=1,9 do
+                row.cells[i]=label(row,f.columns[i]+6,-8,f.widths[i]-12)
+                row.cells[i]:SetJustifyH(i==1 and "LEFT" or "RIGHT")
+                gridLine(row,f.columns[i],0,1,30)
+            end
+            gridLine(row,880,0,1,30); gridLine(row,0,-29,880,1)
+            row.icon=row:CreateTexture(nil,"ARTWORK"); row.icon:SetPoint("TOPLEFT",6,-4); row.icon:SetSize(22,22)
+            row.cells[1]:ClearAllPoints(); row.cells[1]:SetPoint("TOPLEFT",34,-8); row.cells[1]:SetWidth(f.widths[1]-40)
+            f.rows[index]=row
+        end
+        local icon=dungeonIcons[dungeon.name]
+        row.icon:SetTexture(icon and ("Interface\\AddOns\\MPlusLogs\\assets\\dungeons\\"..icon..".tga") or "Interface\\Icons\\INV_Misc_Map_01")
+        local level,amount,best,median=MPL.MetricValues(profile,dungeon,metric)
+        local first,second=MPL.OrderPercentiles(tablePercent(best,stale)..(dungeon.flagged and profile.metric==metric and "*" or ""),tablePercent(median,stale))
+        local metadata=profile.metric==metric
+        local time=metadata and dungeon.time or nil
+        local values={dungeon.name,level or "—",time and time~="" and time or "—",dungeon.runs or "—",
+            metadata and dungeon.points and string.format("%.0f",dungeon.points) or "—",
+            metadata and dungeon.rank or "—",amount and string.format("%.2fK",amount/1000) or "—",first,second}
+        for i,value in ipairs(values) do
+            row.cells[i]:SetText(value)
+            local r,g,b=225/255,242/255,245/255
+            if i==1 then r,g,b=0.72,0.78,1 end
+            if i==5 or i==6 then r,g,b=226/255,104/255,168/255 end
+            if i==7 then r,g,b=0.82,0.96,0.65 end
+            row.cells[i]:SetTextColor(stale and 0.53 or r,stale and 0.53 or g,stale and 0.53 or b)
+        end
+        row:Show()
+    end
+    f.content:SetHeight(math.max(1,#profile.dungeons*30))
+    f.scroll:SetVerticalScroll(0)
+    MPL.UpdatePanelScroll(f)
+end
+
 function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     if not MPL.SafeString(fullName) then fullName, realm = UnitFullName("player") end
     local profile, name, server = MPL.GetProfile(fullName, realm)
@@ -119,68 +240,27 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     f.lookup:SetText(name .. "-" .. server)
     f.scroll:SetVerticalScroll(0)
     for _, row in ipairs(f.rows) do row:Hide() end
-    f.metricHeading:SetText(L["Лучший "]..primary:upper())
-    f.headings[8]:SetText(L["Лучший "]..secondary:upper())
-    f.primaryGroup:SetText(primary:upper()..L[" / по уровню ключа"])
-    f.secondaryGroup:SetText(secondary:upper()..L[" / по уровню ключа"])
-    local firstPercent,secondPercent=MPL.OrderPercentiles(L["Best %"],L["Median %"])
-    f.headings[5]:SetText(firstPercent); f.headings[6]:SetText(secondPercent)
-    f.headings[9]:SetText(firstPercent); f.headings[10]:SetText(secondPercent)
+    f.viewMetric=primary; f.stale=stale
+    f.context:SetText(profile and (profile.season.."  /  "..MPL.T(profile.spec)) or "Midnight M+ Season 2")
     f.loadButton:ClearAllPoints()
-    for _,heading in ipairs(f.headings) do if profile then heading:Show() else heading:Hide() end end
     if profile then
-        f.scroll:Show(); f.metricHeading:Show(); f.emptyMessage:Hide()
+        f.scroll:Show(); f.emptyMessage:Hide()
         f.loadButton:SetPoint("BOTTOMLEFT",730,53); f.loadButton:SetSize(170,24)
         f.loadButton:SetText(L["Обновить M+ логи"])
-    else
-        f.scroll:Hide(); f.metricHeading:Hide(); f.emptyMessage:Show()
-        f.loadButton:SetPoint("CENTER",0,-15); f.loadButton:SetSize(260,36)
-        f.loadButton:SetText(L["Загрузить M+ логи"])
-    end
-    if profile then
-        f.context:SetText(profile.season .. "  /  " .. MPL.T(profile.spec) .. "  /  " .. primary:upper() .. L[" и "]..secondary:upper()..L[" по уровню ключа"])
-        local _,_,best,median=MPL.MetricValues(profile,nil,primary)
-        local _,_,otherBest,otherMedian=MPL.MetricValues(profile,nil,secondary)
-        best,median=MPL.OrderPercentiles(best,median)
-        otherBest,otherMedian=MPL.OrderPercentiles(otherBest,otherMedian)
-        local caption=MPL.GetOption("percentile")=="median" and L[" Median / Best: "] or L[" Best / Median: "]
-        f.summary:SetText(L["WCL score: "] .. (profile.score and string.format("%.0f",profile.score) or "—") .. "    "..primary:upper()..caption .. MPL.Percent(best,stale) .. " / " .. MPL.Percent(median,stale) .. "    "..secondary:upper()..caption .. MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale)..L["    Логи: "] .. (profile.runs or "—"))
-        f.source:SetText(MPL.T(profile.source) .. L["  /  Последняя загрузка: "] .. lastDate .. (stale and L[" / Обновите логи"] or ""))
+        f.source:SetText(MPL.T(profile.source)..L["  /  Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or ""))
         f.note:SetText(L["Процентиль урона/исцеления не оценивает выживание, прерывания и механику."])
-        for index, dungeon in ipairs(profile.dungeons) do
-            local row = f.rows[index]
-            if not row then
-                row = CreateFrame("Frame", nil, f.content); row:SetSize(880,24); row:SetPoint("TOPLEFT",0,-(index-1)*26)
-                row.cells = {}
-                for i = 1,10 do row.cells[i] = label(row,f.columns[i],-4,f.widths[i]) end
-                f.rows[index] = row
-            end
-            local level,amount,best,median=MPL.MetricValues(profile,dungeon,primary)
-            local otherLevel,otherAmount,otherBest,otherMedian=MPL.MetricValues(profile,dungeon,secondary)
-            local first,second=MPL.OrderPercentiles(MPL.Percent(best,stale)..(dungeon.flagged and profile.metric==primary and "*" or ""),MPL.Percent(median,stale))
-            local otherFirst,otherSecond=MPL.OrderPercentiles(MPL.Percent(otherBest,stale),MPL.Percent(otherMedian,stale))
-            local values = {dungeon.name,dungeon.runs or "—",level and "+"..level or "—",amount and string.format("%.2fK",amount/1000) or "—",first,second,otherLevel and "+"..otherLevel or "—",otherAmount and string.format("%.2fK",otherAmount/1000) or "—",otherFirst,otherSecond}
-            for i, value in ipairs(values) do
-                row.cells[i]:SetText(value)
-                row.cells[i]:SetTextColor(stale and 0.53 or 1,stale and 0.53 or 1,stale and 0.53 or 1)
-            end
-            row:Show()
-        end
-        f.content:SetHeight(math.max(1,#profile.dungeons*26))
         f.footer:SetText(profile.characterID == 81818678 and profile.source == "Снимок со скриншота пользователя" and L["* Пометка WCL сохранена со скриншота. Общие 162 лога и строки показаны как в источнике."] or L["Логи: только прохождения, доступные WCL; отсутствие данных не означает плохую игру."])
     else
-        f.context:SetText("Midnight M+ Season 2")
-        f.summary:SetText("")
-        f.source:SetText("")
-        f.note:SetText("")
+        f.scroll:Hide(); f.emptyMessage:Show()
+        f.loadButton:SetPoint("CENTER",0,-15); f.loadButton:SetSize(260,36)
+        f.loadButton:SetText(L["Загрузить M+ логи"])
+        f.source:SetText(""); f.note:SetText("")
         f.footer:SetText(L["Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен."])
         f.content:SetHeight(1)
     end
+    MPL.RenderProfileStats(f)
     for _,text in ipairs({f.character,f.context,f.source,f.note,f.footer}) do
-        text:SetTextColor(stale and 0.53 or 1,stale and 0.53 or 1,stale and 0.53 or 1)
-    end
-    for _,text in ipairs({f.summary,f.metricHeading,unpack(f.headings)}) do
-        text:SetTextColor(stale and 0.53 or 1,stale and 0.53 or 0.82,stale and 0.53 or 0)
+        text:SetTextColor(stale and 0.53 or 0.88,stale and 0.53 or 0.95,stale and 0.53 or 0.96)
     end
     f:Show()
     MPL.UpdateProfileInvite()
