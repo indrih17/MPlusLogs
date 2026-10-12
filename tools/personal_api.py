@@ -66,7 +66,6 @@ class Wizard:
         nav = ttk.Frame(outer)
         nav.pack(side="bottom", fill="x", pady=(12, 0))
         self.back = ttk.Button(nav, textvariable=owner.textvar("Back"), command=lambda: self.show(self.step - 1))
-        self.back.pack(side="left")
         self.next_text = owner.textvar("Next")
         self.next = ttk.Button(nav, textvariable=self.next_text, command=self.advance)
         self.next.pack(side="right")
@@ -124,7 +123,11 @@ class Wizard:
         for widget in self.content.winfo_children(): widget.destroy()
         self.status.set("")
         self.progress.set_format("Step {step} of 3", step=self.step + 1)
-        self.back.configure(state="normal" if self.step else "disabled")
+        if self.step:
+            self.back.pack(side="left")
+            self.back.configure(state="normal")
+        else:
+            self.back.pack_forget()
         self.next_text.set("Connect and check" if self.step == 2 else "Next")
         titles = ("1. Open Warcraft Logs", "2. Create a public client", "3. Paste your Client ID")
         descriptions = (
