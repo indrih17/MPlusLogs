@@ -1,5 +1,9 @@
 # Changelog
 
+## Companion 1.0.1
+
+- Show the installed Companion version explicitly in the main window and settings, translated into the selected interface language.
+
 ## Companion 1.0.0
 
 - Start the independent Companion 1.x version series and publish only components whose shipped files changed; Companion-only releases no longer update the addon or CurseForge.

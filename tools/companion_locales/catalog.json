@@ -3,6 +3,7 @@
   "Checking Companion updates…",
   "Companion is up to date.",
   "Companion update is ready.",
+  "Companion version: ",
   "Could not check updates. Try again later.",
   "Could not connect to Warcraft Logs",
   "Could not start the update. Try again.",

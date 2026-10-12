@@ -3,6 +3,7 @@
   "Checking Companion updates…": "Companion-Updates werden geprüft…",
   "Companion is up to date.": "Companion ist aktuell.",
   "Companion update is ready.": "Companion-Update ist bereit.",
+  "Companion version: ": "Companion-Version: ",
   "Could not check updates. Try again later.": "Updates konnten nicht geprüft werden. Später erneut versuchen.",
   "Could not connect to Warcraft Logs": "Es konnte keine Verbindung zu Warcraft Logs hergestellt werden",
   "Could not start the update. Try again.": "Update konnte nicht gestartet werden. Erneut versuchen.",
