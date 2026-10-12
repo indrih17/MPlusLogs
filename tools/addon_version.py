@@ -15,13 +15,15 @@ def version(root=None):
     return re.search(r"^## Version: (\d+\.\d+\.\d+)$", (root / "MPlusLogs.toc").read_text(encoding="utf-8"), re.M)[1]
 
 
-def source_hash(root=None):
+def source_hash(root=None, exclude_license=False):
     root = ROOT if root is None else Path(root)
     digest = hashlib.sha256()
     with tempfile.TemporaryDirectory(prefix=".addon-version-", dir=ROOT) as folder:
         build_release.addon(Path(folder), "fingerprint", root)
         with zipfile.ZipFile(Path(folder) / "MPlusLogs-fingerprint.zip") as archive:
             for name in sorted(archive.namelist()):
+                if exclude_license and name == "MPlusLogs/LICENSE":
+                    continue
                 content = archive.read(name)
                 if not name.endswith(".tga"):
                     content = content.replace(b"\r\n", b"\n")

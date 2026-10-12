@@ -41,7 +41,7 @@ def hashes(entries):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-only", action="store_true")
-    parser.add_argument("--same-version", action="store_true", help="Rebuild the current Companion only when explicitly requested; reject addon changes")
+    parser.add_argument("--same-version", action="store_true", help="Keep current versions when explicitly requested; permit addon license updates, reject addon behavior changes")
     parser.add_argument("--summary", action="append")
     args = parser.parse_args()
     entries = export_release_source.entries()
@@ -63,7 +63,10 @@ def main():
     baseline = addon_version.state(REPO)
     if args.same_version:
         if addon_version.source_hash() != baseline["source_hash"]:
-            raise RuntimeError("Same-version publication cannot include addon changes")
+            if addon_version.source_hash(exclude_license=True) != addon_version.source_hash(REPO, exclude_license=True):
+                raise RuntimeError("Same-version publication cannot include addon behavior changes")
+            (ROOT / "packaging/addon-version.json").write_text(json.dumps({"version": addon_version.version(),
+                "source_hash": addon_version.source_hash()}, indent=2) + "\n", encoding="utf-8")
         data = companion_version.metadata()
         if data["version"] != json.loads((REPO / "packaging/companion-version.json").read_text(encoding="utf-8"))["version"]:
             raise RuntimeError("Same-version publication requires the current published Companion version")

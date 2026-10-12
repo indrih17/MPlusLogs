@@ -26,7 +26,13 @@ tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl set
 Changes apply immediately and are saved between sessions.
 Percentiles describe available Warcraft Logs runs. They do not measure tank survival.
 
-## Privacy
+## Code signing policy
+
+See our [Code signing policy](CODE-SIGNING.md) for the current signing status,
+responsible maintainer and approval process. Official downloads are currently
+unsigned; a SignPath application is being prepared and has not been approved.
+
+## Privacy policy
 
 The Companion sends only MPlusLogs request envelopes to Warcraft Logs.
 Unrelated clipboard text is not transmitted. It does not read game memory or
@@ -34,6 +40,25 @@ automate gameplay. Login uses browser OAuth with PKCE; local tokens are protecte
 with Windows DPAPI. Startup with Windows or WoW Retail is optional. Response sounds are enabled by default and can be disabled in Settings.
 Settings, tokens, cache and recent results are stored in `%LOCALAPPDATA%\MPlusLogs`.
 Sign out to remove saved tokens; uninstall preserves local data.
+
+Companion contacts Warcraft Logs for browser authorization, token refresh and
+the character/profile requests explicitly initiated through MPlusLogs. It sends
+the requested character name, realm, region and filters, with the WCL access
+token. The local browser callback is bound to 127.0.0.1; a WCL password is never
+entered into Companion. See [Warcraft Logs Privacy Policy](https://www.warcraftlogs.com/help/privacy).
+
+Installed Companion also checks GitHub for update metadata at startup and daily,
+and downloads an available installer to a temporary folder. Installation needs
+the user's action. Update requests do not include WCL tokens, clipboard text,
+character profiles or user settings. Standard network requests expose the client
+IP address and request headers to the contacted service. See
+[GitHub General Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+
+MPlusLogs has no analytics or telemetry uploader. Clipboard entries unrelated to
+an MPlusLogs request are not uploaded. Local cache and diagnostic files remain on
+the computer unless the user chooses to share them. WCL sign-in/profile loading
+and Companion's update checks require network access; `/mpl demo` is available
+without a WCL account.
 
 ## Personal API — recommended
 

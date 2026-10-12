@@ -1,3 +1,3 @@
-## Companion 1.0.5
+## MPlusLogs 0.5.12 / Companion 1.0.5
 
-- Remove the optional hosted profile server, Docker deployment files and service login; Companion connects directly to WCL with personal or shared API clients.
+- License MPlusLogs and Companion under MIT and document the planned code signing policy and network privacy behavior.
