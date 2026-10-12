@@ -82,6 +82,20 @@ def rankings(value):
     return value
 
 
+def throughput_rankings(value, label):
+    """Normalize the JSON-encoded map some WCL responses return as a string."""
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"Unknown {label} throughputRankings shape; expected a JSON object") from None
+    if not isinstance(value, dict):
+        raise ValueError(f"Unknown {label} throughputRankings shape; expected an object")
+    return value
+
+
 HEALERS={"Holy","Discipline","Restoration","Mistweaver","Preservation"}
 TANKS={"Blood","Protection","Guardian","Brewmaster","Vengeance"}
 
@@ -105,10 +119,9 @@ def normalize(raw, args):
     metric="hps" if role=="HEALER" else "dps"
     performance=(healing if metric=="hps" else damage) if dual else rankings(character.get("performance"))
     secondary=(damage if metric=="hps" else healing) if dual else None
-    other=secondary.get("throughputRankings",{}) if secondary else {}
-    if not isinstance(other,dict): raise ValueError("Unknown secondary throughputRankings shape")
-    throughput = performance.get("throughputRankings")
-    if not isinstance(throughput, dict):
+    other=throughput_rankings(secondary.get("throughputRankings") if secondary else None,"secondary")
+    throughput = throughput_rankings(performance.get("throughputRankings"),"primary")
+    if not throughput:
         raise ValueError("M+ throughputRankings missing; refresh using points_and_damage/points_and_healing")
     server = character.get("server") or {}
     region = (server.get("region") or {}).get("slug", args.region).lower()

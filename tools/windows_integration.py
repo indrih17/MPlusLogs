@@ -126,10 +126,17 @@ class Tray:
         self.hwnd = None
         self.error = None
         self.ready = threading.Event()
+        self.cancel_start = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
-        if not self.ready.wait(5) or self.error:
-            raise OSError("Не удалось создать значок в трее.")
+        started = self.ready.wait(5)
+        if not started or self.error:
+            self.cancel_start.set()
+            self.thread.join(timeout=2)
+            detail = f" ({self.error})" if self.error else ""
+            if not started and not detail:
+                detail = " (startup timed out)"
+            raise OSError("Не удалось создать значок в трее." + detail)
 
     def run(self):
         try:
@@ -246,6 +253,8 @@ class Tray:
         data.icon = custom_icon or user.LoadIconW(None, ctypes.c_void_p(32512))
         data.tip = tr("MPlusLogs — помощник Warcraft Logs")[:127]
         try:
+            if self.cancel_start.is_set():
+                return
             if not shell.Shell_NotifyIconW(0, ctypes.byref(data)):
                 raise ctypes.WinError(ctypes.get_last_error())
             self.ready.set()

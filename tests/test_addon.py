@@ -351,6 +351,24 @@ class AdapterTests(unittest.TestCase):
         self.assertIsNone(profile["dungeons"][0]["otherAmount"])
         self.assertIsNone(profile["dungeons"][0]["otherBest"])
 
+    def test_secondary_throughput_rankings_accepts_json_encoded_object(self):
+        import copy,json
+        raw=api_fixture(); char=raw["data"]["characterData"]["character"]
+        char["damage"]=char.pop("performance")
+        char["healing"]=copy.deepcopy(char["damage"])
+        char["healing"]["throughputRankings"]=json.dumps(char["healing"]["throughputRankings"])
+        profile=sync.normalize(raw,self.args())
+        self.assertEqual(profile["dungeons"][0]["otherAmount"],168110)
+
+    def test_malformed_secondary_throughput_rankings_reports_shape(self):
+        import copy
+        raw=api_fixture(); char=raw["data"]["characterData"]["character"]
+        char["damage"]=char.pop("performance")
+        char["healing"]=copy.deepcopy(char["damage"])
+        char["healing"]["throughputRankings"]=["not", "an", "object"]
+        with self.assertRaisesRegex(ValueError,"Unknown secondary throughputRankings shape"):
+            sync.normalize(raw,self.args())
+
 
 if __name__ == "__main__":
     unittest.main()

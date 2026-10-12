@@ -110,6 +110,27 @@ class ReplyTests(unittest.TestCase):
         self.assertEqual(error,"No public logs")
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
 
+    def test_companion_errors_show_actionable_guidance(self):
+        cases=(
+            ("No usable profile: WCL HTTP 401; check credentials", "/reload", "Warcraft Logs"),
+            ("WCL HTTP 403; API permissions", "доступ к API", "Companion"),
+            ("WCL HTTP 429; rate limit", "лимит запросов", "Подождите"),
+            ("No usable profile: Публичные логи M+ не найдены", "имя персонажа", "нулевой результат"),
+            ("No usable profile: Unknown secondary throughputRankings shape", "формат ответа", "Обновите MPlusLogs Companion"),
+            ("Could not connect to Warcraft Logs", "интернет", "попробуйте снова"),
+            ("Clipboard is busy; retry copying the request", "буфер обмена", "Ctrl+C"),
+        )
+        for message, hint, also in cases:
+            with self.subTest(message=message):
+                self.mpl.ShowDownload("Киндрих","Гордунни",None)
+                window=self.mpl.downloadWindow
+                request_id=window.request.split("\n")[1]
+                window.edit.SetText(window.edit,"MPLE1\n"+request_id+"\n"+quote(message,safe=""))
+                window.edit.scripts.OnTextChanged(window.edit,True)
+                self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
+                self.assertIn(hint,window.status.text)
+                self.assertIn(also,window.status.text)
+
     def test_diagnostic_paste_displays_readable_text_even_with_false_flag(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         edit=self.mpl.downloadWindow.edit

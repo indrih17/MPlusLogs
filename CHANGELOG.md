@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.10
+
+- Show an explicit three-way Companion startup choice in setup and settings
+- Handle WCL throughput response variants and show actionable log-loading error guidance
+
 ## 0.5.9
 
 - Clearly require MPlusLogs Companion for online log loading

@@ -2,7 +2,7 @@
 ## Title: MPlusLogs
 ## Notes: Mythic+ Warcraft Logs profiles for group recruitment.
 ## Author: indri
-## Version: 0.5.9
+## Version: 0.5.10
 ## SavedVariables: MPlusLogsDB
 ## Category: Dungeons & Raids
 ## IconTexture: Interface\AddOns\MPlusLogs\assets\mpluslogs-icon.tga

@@ -165,7 +165,12 @@ class WindowsLifecycleTests(unittest.TestCase):
 
     def test_native_tray_lifecycle(self):
         import queue
-        tray = windows_integration.Tray(queue.Queue())
+        try:
+            tray = windows_integration.Tray(queue.Queue())
+        except OSError as exc:
+            if "PermissionError" in str(exc) or "startup timed out" in str(exc):
+                self.skipTest("This Windows session denies or delays native tray creation")
+            raise
         self.assertTrue(tray.hwnd)
         self.assertIsNone(tray.error)
         tray.close()

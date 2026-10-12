@@ -211,5 +211,21 @@
   "Лучший % в среднем:": "Mejor % medio:",
   "Медианный % в среднем:": "% mediano medio:",
   "|cffff3030СНАЧАЛА УСТАНОВИТЕ И ЗАПУСТИТЕ MPlusLogs Companion!|r\nБез него загрузка логов не работает. Затем нажмите Ctrl+C.": "|cffff3030¡PRIMERO INSTALA E INICIA MPlusLogs Companion!|r\nSin él no funciona la carga de registros. Después, pulsa Ctrl+C.",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Espera un momento y pulsa |cffffd100Ctrl+V|r.\nSi no hay respuesta, comprueba que MPlusLogs Companion esté abierto."
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Espera un momento y pulsa |cffffd100Ctrl+V|r.\nSi no hay respuesta, comprueba que MPlusLogs Companion esté abierto.",
+  "\nВойдите в Warcraft Logs в MPlusLogs Companion, затем введите /reload и повторите загрузку.": "\nSign in to Warcraft Logs in MPlusLogs Companion, then type /reload and try again.",
+  "\nПроверьте вход в Warcraft Logs и доступ к API в Companion, затем повторите загрузку.": "\nCheck your Warcraft Logs sign-in and API access in Companion, then try again.",
+  "\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова.": "\nA Warcraft Logs or Companion request limit was reached. Wait, then try again.",
+  "\nПроверьте имя персонажа и игровой мир. Возможно, у него нет открытых логов M+; отсутствие данных не означает нулевой результат.": "\nCheck the character name and realm. The character may have no public Mythic+ logs; missing data is not a zero score.",
+  "\nCompanion не распознал формат ответа Warcraft Logs. Обновите MPlusLogs Companion; если ошибка повторится, сообщите об этой ошибке.": "\nCompanion could not read the Warcraft Logs response format. Update MPlusLogs Companion; if this continues, report this error.",
+  "\nПроверьте подключение к интернету и попробуйте снова.": "\nCheck your internet connection and try again.",
+  "\nОсвободите буфер обмена, снова скопируйте запрос через Ctrl+C, дождитесь Companion и нажмите Ctrl+V.": "\nFree the clipboard, copy the request again with Ctrl+C, wait for Companion, then press Ctrl+V.",
+  "\nСкопируйте текущий запрос заново (Ctrl+C), дождитесь Companion и вставьте ответ (Ctrl+V). Если ошибка повторится, сообщите о ней.": "\nCopy the current request again (Ctrl+C), wait for Companion, then paste its reply (Ctrl+V). If it repeats, report this error.",
+  "|cffff3030Требуется MPlusLogs Companion.|r\nУстановите и запустите его, войдите в Warcraft Logs.\nПосле установки или входа введите /reload, затем нажмите Ctrl+C.": "|cffff3030MPlusLogs Companion is required.|r\nInstall it, start it, and sign in to Warcraft Logs.\nAfter installing or signing in, type /reload, then press Ctrl+C.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Wait a moment, then press |cffffd100Ctrl+V|r.\nKeep Companion open and signed in. After setup, type /reload first.",
+  "Войдите в Warcraft Logs": "Sign in to Warcraft Logs",
+  "Сессия Warcraft Logs истекла": "Warcraft Logs session expired",
+  "доступ к api": "API access",
+  "\nПроверьте регион и название игрового мира персонажа, затем повторите запрос.": "\nCheck the character's region and realm, then retry.",
+  "\nУменьшите число персонажей в запросе и повторите загрузку.": "\nReduce the number of characters in the request and try again.",
+  "\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку.": "\nOpen MPlusLogs Companion and sign in to Warcraft Logs, then type /reload and try loading logs again."
 }

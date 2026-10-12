@@ -67,7 +67,8 @@ class CompanionLocalizationTests(unittest.TestCase):
         loader.exec_module(gui)
         for saved,sound in (({},True),({"sound":False},False)):
             with patch.object(local_settings,"load",return_value=saved), patch.object(sys,"argv",["test"]), \
-                 patch.object(gui.windows,"retail_autostart_enabled",return_value=False):
+                 patch.object(gui.windows,"retail_autostart_enabled",return_value=False), \
+                 patch.object(gui.windows,"autostart_enabled",return_value=False):
                 root = tk.Tk()
                 root.withdraw()
                 app = gui.App(root)

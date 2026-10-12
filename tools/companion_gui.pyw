@@ -62,9 +62,8 @@ class App:
         self.theme = tk.StringVar(value=theme if theme in {"system","light","dark"} else "system")
         self.applied_theme = None
         self.last_theme_check = 0
-        self.autostart = tk.BooleanVar(value=windows.autostart_enabled())
-        self.retail_autostart = tk.BooleanVar(value=windows.retail_autostart_enabled())
-        if self.retail_autostart.get():
+        self.startup_mode = tk.StringVar(value=self.current_startup_mode())
+        if self.startup_mode.get() == "retail":
             try:
                 windows.ensure_retail_watcher()
             except OSError:
@@ -184,8 +183,12 @@ class App:
             ttk.Radiobutton(theme_buttons, textvariable=self.textvar(label), value=value, variable=self.theme,
                             command=select_theme, style="Theme.TRadiobutton").grid(row=0,column=index,sticky="ew",padx=(0,4))
             theme_buttons.columnconfigure(index, weight=1)
-        ttk.Checkbutton(frame, textvariable=self.textvar('Запускать при входе в Windows'), variable=self.autostart, command=self.save_preferences).pack(anchor="w", pady=6)
-        ttk.Checkbutton(frame, textvariable=self.textvar('Запускать вместе с WoW Retail'), variable=self.retail_autostart, command=self.save_preferences).pack(anchor="w", pady=6)
+        ttk.Label(frame, textvariable=self.textvar('Автозапуск')).pack(anchor="w", pady=(0, 4))
+        for value, label in (("windows", 'Запускать при входе в Windows'),
+                             ("retail", 'Запускать вместе с WoW Retail'),
+                             ("manual", 'Не запускать автоматически')):
+            ttk.Radiobutton(frame, textvariable=self.textvar(label), value=value,
+                            variable=self.startup_mode, command=self.save_preferences).pack(anchor="w", pady=3)
         ttk.Label(frame, textvariable=self.textvar('Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник.'), style="Muted.TLabel").pack(anchor="w", pady=(0,8))
         ttk.Checkbutton(frame, textvariable=self.textvar('Звук готовности ответа'), variable=self.sound, command=self.save_preferences).pack(anchor="w", pady=6)
         ttk.Label(frame, textvariable=self.textvar('Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.')).pack(anchor="w", pady=12)
@@ -201,11 +204,12 @@ class App:
         previous = windows.autostart_enabled()
         previous_retail = windows.retail_autostart_enabled()
         previous_config = dict(self.config)
+        mode = self.startup_mode.get()
         try:
-            windows.set_autostart(self.autostart.get())
-            windows.set_retail_autostart(self.retail_autostart.get())
+            windows.set_autostart(mode == "windows")
+            windows.set_retail_autostart(mode == "retail")
             with self.config_lock:
-                config = dict(self.config, sound=self.sound.get(), autostart=self.autostart.get(), retail_autostart=self.retail_autostart.get(), theme=self.theme.get(), language=self.language.get())
+                config = dict(self.config, sound=self.sound.get(), autostart=mode == "windows", retail_autostart=mode == "retail", theme=self.theme.get(), language=self.language.get())
                 local_settings.save_config(config)
                 self.config = config
             windows.ensure_retail_watcher()
@@ -218,9 +222,16 @@ class App:
                     self.config = previous_config
             except (ValueError, OSError):
                 pass
-            self.autostart.set(windows.autostart_enabled())
-            self.retail_autostart.set(windows.retail_autostart_enabled())
+            self.startup_mode.set(self.current_startup_mode())
             messagebox.showerror("MPlusLogs", i18n.tr("Не удалось сохранить настройки: " + str(exc)), parent=self.root)
+
+    @staticmethod
+    def current_startup_mode():
+        if windows.retail_autostart_enabled():
+            return "retail"
+        if windows.autostart_enabled():
+            return "windows"
+        return "manual"
 
     def toggle_diagnostic(self):
         self.mode_diagnostic = not self.mode_diagnostic
