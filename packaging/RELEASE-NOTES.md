@@ -1,4 +1,3 @@
-## Companion 1.0.8
+## Companion 1.0.9
 
-- Prevent Companion installation inside WoW AddOns, including linked folders.
-- Offer safe relocation of portable Companion copies from AddOns, preserving login, settings, startup entries and shortcuts while releasing old executable locks.
+- Preserve bundled realm lookup data and license notices when relocating Companion outside AddOns; verify relocation support in the frozen build.

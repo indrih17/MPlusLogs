@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import base64
 import json
+import shutil
 import os
 from pathlib import Path
 import subprocess
@@ -32,12 +33,20 @@ class LocationTests(unittest.TestCase):
             (source / '_internal').mkdir(parents=True)
             (source / '_internal/companion-build.json').write_text('{"version":"1.0.0"}')
             (source / location.EXECUTABLE).write_bytes(b'fixture')
+            shutil.copy2(ROOT / 'realm-slugs.json', source / 'realm-slugs.json')
+            (source / 'licenses').mkdir()
+            (source / 'licenses/LICENSE.txt').write_text('license fixture')
             (source / 'UI.lua').write_text('addon')
             (source / 'settings.json').write_text('private')
             destination = base / 'Programs/Companion'
             copied = location.copy_runtime(source / location.EXECUTABLE, destination)
             self.assertTrue(copied.is_file())
-            self.assertEqual({path.name for path in destination.iterdir()}, {location.EXECUTABLE, '_internal'})
+            self.assertEqual({path.name for path in destination.iterdir()},
+                             {location.EXECUTABLE, '_internal', 'realm-slugs.json', 'licenses'})
+            import realm_resolver
+            mappings = realm_resolver.load_mappings(destination / 'realm-slugs.json')
+            self.assertEqual(realm_resolver.resolve(mappings, 'eu', 'Гордунни'), 'gordunni')
+            self.assertEqual((destination / 'licenses/LICENSE.txt').read_text(), 'license fixture')
             with self.assertRaises(FileExistsError):
                 location.copy_runtime(source / location.EXECUTABLE, destination)
             self.assertEqual((source / 'UI.lua').read_text(), 'addon')
@@ -100,6 +109,7 @@ class LocationTests(unittest.TestCase):
             source = base / 'Interface/AddOns/MPlusLogs'
             (source / '_internal').mkdir(parents=True)
             (source / '_internal/companion-build.json').write_text('{"version":"1.0.0"}')
+            (source / 'realm-slugs.json').write_text('{}')
             code = base / 'Fixture.cs'
             code.write_text('class Fixture { static void Main(string[] args) { if(args[0]=="hold") '
                             'System.Threading.Thread.Sleep(60000); else System.IO.File.WriteAllText(args[0], "started"); } }')

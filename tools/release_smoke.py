@@ -16,6 +16,9 @@ def run(report_path):
         'damage':{'rankings':[{'spec':'Elemental'}],'allStars':[{'spec':'Restoration'}]}
     }}}})==['Elemental','Restoration']
     import companion_update
+    import companion_location
+    assert companion_location.inside_addons(r'C:\WoW\Interface\AddOns\MPlusLogs')
+    assert not companion_location.inside_addons(r'C:\Programs\MPlusLogs Companion')
     companion_update.version_tuple(companion_update.current_version())
     import companion_i18n
     for language in companion_i18n.LANGUAGES:

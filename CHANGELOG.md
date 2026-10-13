@@ -1,5 +1,9 @@
 # Changelog
 
+## Companion 1.0.9
+
+- Preserve bundled realm lookup data and license notices when relocating Companion outside AddOns; verify relocation support in the frozen build.
+
 ## Companion 1.0.8
 
 - Prevent Companion installation inside WoW AddOns, including linked folders.

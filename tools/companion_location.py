@@ -38,8 +38,13 @@ def copy_runtime(executable, destination):
     if executable.name.casefold() != EXECUTABLE.casefold() or not runtime.is_dir():
         raise ValueError("Incomplete Companion portable folder")
     json.loads((runtime / "companion-build.json").read_text(encoding="utf-8"))["version"]
+    realms = source / "realm-slugs.json"
+    if not realms.is_file() or realms.is_symlink():
+        raise ValueError("Missing bundled realm data")
+    licenses = source / "licenses"
     # A junction inside the payload must not pull unrelated data into the copy.
-    for path in chain((runtime,), runtime.rglob("*")):
+    trees = [runtime] + ([licenses] if licenses.is_dir() else [])
+    for path in chain.from_iterable(chain((tree,), tree.rglob("*")) for tree in trees):
         if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
             raise ValueError("Companion payload contains a filesystem link")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -47,6 +52,9 @@ def copy_runtime(executable, destination):
     try:
         shutil.copy2(executable, destination / EXECUTABLE)
         shutil.copytree(runtime, destination / "_internal")
+        shutil.copy2(realms, destination / realms.name)
+        if licenses.is_dir():
+            shutil.copytree(licenses, destination / licenses.name)
         readme = source / "COMPANION-README.txt"
         if readme.is_file() and not readme.is_symlink():
             shutil.copy2(readme, destination / readme.name)
