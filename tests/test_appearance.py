@@ -1,4 +1,5 @@
 import sys
+import gc
 import tkinter as tk
 from tkinter import ttk
 import unittest
@@ -9,6 +10,11 @@ import appearance
 
 
 class AppearanceTests(unittest.TestCase):
+    def tearDown(self):
+        # Release destroyed Tcl interpreters on their creating thread before a
+        # later GUI test starts the native tray worker and triggers Python GC.
+        gc.collect()
+
     def test_tables_and_readonly_region_follow_theme_switches(self):
         root = tk.Tk()
         root.withdraw()

@@ -1,5 +1,9 @@
 # Changelog
 
+## MPlusLogs 0.5.17
+
+- Add current-dungeon numeric DPS/HPS, Median and Best choices to the primary statistic setting for applicant rows, profile summaries and tooltips, honoring the healer HPS-first preference and keeping missing dungeon data unavailable.
+
 ## MPlusLogs 0.5.16 / Companion 1.0.7
 
 - Load separate Warcraft Logs specialization profiles and show only logged specializations in the selector; hide the dropdown when only one is available.

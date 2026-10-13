@@ -278,5 +278,11 @@
   "Логи временно недоступны": "Registri temporaneamente non disponibili",
   "Нет доступных логов": "Nessun registro disponibile",
   "Повторный запрос логов отложен. Его можно отправить позже.": "La prossima richiesta dei registri è stata rinviata. Puoi inviarla più tardi.",
-  "Повторный запрос отложен": "Prossima richiesta rinviata"
+  "Повторный запрос отложен": "Prossima richiesta rinviata",
+  "DPS (текущий данж)": "DPS (spedizione attuale)",
+  "Median (текущий данж)": "Median (spedizione attuale)",
+  "Best (текущий данж)": "Best (spedizione attuale)",
+  "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "La spedizione attuale è quella del tuo annuncio di gruppo. Se mancano i registri, viene mostrato «—».",
+  "HPS (текущий данж)": "HPS (spedizione attuale)",
+  "DPS / HPS (текущий данж)": "DPS / HPS (spedizione attuale)"
 }

@@ -278,5 +278,11 @@
   "Логи временно недоступны": "Registros temporalmente no disponibles",
   "Нет доступных логов": "No hay registros disponibles",
   "Повторный запрос логов отложен. Его можно отправить позже.": "La siguiente solicitud de registros se ha pospuesto. Puedes enviarla más tarde.",
-  "Повторный запрос отложен": "Siguiente solicitud pospuesta"
+  "Повторный запрос отложен": "Siguiente solicitud pospuesta",
+  "DPS (текущий данж)": "DPS (mazmorra actual)",
+  "Median (текущий данж)": "Median (mazmorra actual)",
+  "Best (текущий данж)": "Best (mazmorra actual)",
+  "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "La mazmorra actual es la de tu anuncio de grupo. Si faltan sus registros, se muestra «—».",
+  "HPS (текущий данж)": "HPS (mazmorra actual)",
+  "DPS / HPS (текущий данж)": "DPS / HPS (mazmorra actual)"
 }

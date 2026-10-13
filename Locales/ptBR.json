@@ -278,5 +278,11 @@
   "Логи временно недоступны": "Logs temporariamente indisponíveis",
   "Нет доступных логов": "Nenhum log disponível",
   "Повторный запрос логов отложен. Его можно отправить позже.": "A próxima solicitação de logs foi adiada. Você pode enviá-la mais tarde.",
-  "Повторный запрос отложен": "Próxima solicitação adiada"
+  "Повторный запрос отложен": "Próxima solicitação adiada",
+  "DPS (текущий данж)": "DPS (masmorra atual)",
+  "Median (текущий данж)": "Median (masmorra atual)",
+  "Best (текущий данж)": "Best (masmorra atual)",
+  "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "A masmorra atual é a do anúncio do seu grupo. Se não houver logs, será exibido «—».",
+  "HPS (текущий данж)": "HPS (masmorra atual)",
+  "DPS / HPS (текущий данж)": "DPS / HPS (masmorra atual)"
 }

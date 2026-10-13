@@ -15,7 +15,7 @@ end
 function MPL.SetOption(key,value)
     if defaults[key]==nil then return false end
     if key=="percentile" then
-        if value~="best" and value~="median" then return false end
+        if not ({best=true,median=true,dungeon_dps=true,dungeon_median=true,dungeon_best=true})[value] then return false end
     elseif key=="freshHours" then
         if not ({[6]=true,[12]=true,[24]=true,[48]=true})[value] then return false end
     elseif type(value)~="boolean" then return false end
@@ -27,16 +27,51 @@ function MPL.SetOption(key,value)
 end
 
 function MPL.OrderPercentiles(best,median)
-    if MPL.GetOption("percentile")=="median" then return median,best end
+    local option=MPL.GetOption("percentile")
+    if option=="median" or option=="dungeon_median" then return median,best end
     return best,median
 end
 
 function MPL.PercentileCaption()
-    return MPL.GetOption("percentile")=="median" and "Median / Best" or "Best / Median"
+    local option=MPL.GetOption("percentile")
+    return (option=="median" or option=="dungeon_median") and "Median / Best" or "Best / Median"
 end
 
-function MPL.PrimaryPercentileLabel()
+function MPL.PrimaryPercentileLabel(metric)
+    local option=MPL.GetOption("percentile")
+    if option=="dungeon_dps" then
+        if metric=="hps" then return L["HPS (текущий данж)"] end
+        if metric=="dps" then return L["DPS (текущий данж)"] end
+        return L["DPS / HPS (текущий данж)"]
+    end
+    if option=="dungeon_median" then return L["Median (текущий данж)"] end
+    if option=="dungeon_best" then return L["Best (текущий данж)"] end
     return MPL.GetOption("percentile")=="median" and L["Median %"] or L["Best %"]
+end
+
+function MPL.UsesDungeonMetric()
+    return MPL.GetOption("percentile"):match("^dungeon_")~=nil
+end
+
+function MPL.PrimaryStatistic(profile,metric,dungeon,stale)
+    local option=MPL.GetOption("percentile")
+    local row
+    if MPL.UsesDungeonMetric() then
+        dungeon=dungeon or (MPL.ListedDungeon and MPL.ListedDungeon())
+        for _,candidate in ipairs(profile.dungeons or {}) do
+            if candidate.name==dungeon then row=candidate; break end
+        end
+        if not row then return "—" end
+    end
+    local _,amount,best,median=MPL.MetricValues(profile,row,metric)
+    if option=="dungeon_dps" then
+        if not amount then return "—" end
+        local text=string.format("%.0f",amount)
+        return stale and ("|cff888888"..text.."|r") or text
+    end
+    local value=best
+    if option=="median" or option=="dungeon_median" then value=median end
+    return MPL.Percent(value,stale)
 end
 
 function MPL.ProfileDate(profile)

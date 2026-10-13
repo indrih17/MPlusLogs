@@ -278,5 +278,11 @@
   "Логи временно недоступны": "Logs vorübergehend nicht verfügbar",
   "Нет доступных логов": "Keine Logs verfügbar",
   "Повторный запрос логов отложен. Его можно отправить позже.": "Die nächste Loganfrage wurde aufgeschoben. Du kannst sie später senden.",
-  "Повторный запрос отложен": "Nächste Anfrage aufgeschoben"
+  "Повторный запрос отложен": "Nächste Anfrage aufgeschoben",
+  "DPS (текущий данж)": "DPS (aktueller Dungeon)",
+  "Median (текущий данж)": "Median (aktueller Dungeon)",
+  "Best (текущий данж)": "Best (aktueller Dungeon)",
+  "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "Der aktuelle Dungeon ist der Dungeon deines Gruppeneintrags. Fehlen seine Logs, wird „—“ angezeigt.",
+  "HPS (текущий данж)": "HPS (aktueller Dungeon)",
+  "DPS / HPS (текущий данж)": "DPS / HPS (aktueller Dungeon)"
 }

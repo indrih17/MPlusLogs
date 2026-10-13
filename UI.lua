@@ -293,6 +293,9 @@ function MPL.RenderProfileStats(f)
     local first,second=MPL.OrderPercentiles(best,median)
     local firstLabel,secondLabel=MPL.OrderPercentiles(L["Лучший % в среднем:"],L["Медианный % в среднем:"])
     f.summary:SetText(metric:upper().." "..firstLabel.."  "..tablePercent(first,stale))
+    if MPL.UsesDungeonMetric() then
+        f.summary:SetText(MPL.PrimaryPercentileLabel(metric)..": "..MPL.PrimaryStatistic(profile,metric,nil,stale))
+    end
     f.medianSummary:SetText(metric:upper().." "..secondLabel.."  "..tablePercent(second,stale))
     f.runSummary:SetText(L["Прохождения"]..":  "..(profile.runs or "—"))
     for index,dungeon in ipairs(profile.dungeons) do
@@ -874,7 +877,9 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
         end)
         cell:SetScript("OnEnter",function()
             GameTooltip:SetOwner(cell,"ANCHOR_RIGHT"); GameTooltip:ClearLines()
-            GameTooltip:AddLine(cell.metric:upper().." "..MPL.PrimaryPercentileLabel()..L[" по уровню ключа"])
+            local caption=MPL.PrimaryPercentileLabel(cell.metric)
+            if MPL.GetOption("percentile")~="dungeon_dps" then caption=cell.metric:upper().." "..caption end
+            GameTooltip:AddLine(caption..L[" по уровню ключа"])
             GameTooltip:AddLine(cell.detail,0.8,0.8,0.8,true)
             if cell.profile then MPL.AddDungeonTooltip(GameTooltip,cell.profile,cell.metric,cell.stale,MPL.ListedDungeon()) end
             GameTooltip:AddLine(L["Нажмите для полной сводки"],1,1,1); GameTooltip:Show()
@@ -904,9 +909,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
         local stale,lastDate=MPL.IsProfileStale(profile)
         cell.profile=profile; cell.stale=stale
         cell.metric=MPL.PrimaryMetric(profile,shortName,realm)
-        local _,_,best,median=MPL.MetricValues(profile,nil,cell.metric)
-        local first=MPL.OrderPercentiles(best,median)
-        cell.text:SetText(MPL.Percent(first,stale))
+        cell.text:SetText(MPL.PrimaryStatistic(profile,cell.metric,nil,stale))
         cell.detail=MPL.SpecLabel(profile.spec).." / "..L["Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or "")
     else cell.text:SetText("|cff888888—|r") end
     cell:Show()

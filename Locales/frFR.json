@@ -278,5 +278,11 @@
   "Логи временно недоступны": "Journaux temporairement indisponibles",
   "Нет доступных логов": "Aucun journal disponible",
   "Повторный запрос логов отложен. Его можно отправить позже.": "La prochaine demande de journaux est différée. Vous pourrez l’envoyer plus tard.",
-  "Повторный запрос отложен": "Prochaine demande différée"
+  "Повторный запрос отложен": "Prochaine demande différée",
+  "DPS (текущий данж)": "DPS (donjon actuel)",
+  "Median (текущий данж)": "Median (donjon actuel)",
+  "Best (текущий данж)": "Best (donjon actuel)",
+  "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "Le donjon actuel est celui de votre annonce de groupe. Si ses journaux manquent, « — » est affiché.",
+  "HPS (текущий данж)": "HPS (donjon actuel)",
+  "DPS / HPS (текущий данж)": "DPS / HPS (donjon actuel)"
 }

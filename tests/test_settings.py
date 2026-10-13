@@ -42,7 +42,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(self.lua.globals().registeredCategory,'MPlusLogs')
         values=settings['values']
         self.assertEqual(values.MPLUSLOGS_percentile['get'](),'best')
-        self.assertEqual(len(values.MPLUSLOGS_percentile['items']),2)
+        self.assertEqual(len(values.MPLUSLOGS_percentile['items']),5)
         self.assertEqual(len(values.MPLUSLOGS_freshHours['items']),4)
         values.MPLUSLOGS_healerHpsFirst['set'](True)
         self.assertTrue(self.lua.globals().MPlusLogsDB.options.healerHpsFirst)
@@ -112,5 +112,45 @@ class SettingsTests(unittest.TestCase):
         self.mpl.ShowProfile('Киндрих','Гордунни')
         self.assertIsNone(self.mpl.staleWindow)
         self.assertIn('ff888888',self.mpl.panel.rows[1].cells[8].text)
+
+    def test_current_dungeon_options_use_dungeon_values_without_average_fallback(self):
+        self.install(); self.mpl.InstallBatchButton()
+        _,request=self.mpl.SendBatchRequest(self.players())
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        self.mpl.ReceiveReply(response,True)
+        profile=self.mpl.GetProfile('Alice','Гордунни')[0]
+        profile.dungeons[1].amount=123456.7
+        profile.dungeons[1].best=91
+        profile.dungeons[1].median=73
+        profile.dungeons[1].otherAmount=123456.7
+        profile.dungeons[1].otherBest=91
+        profile.dungeons[1].otherMedian=73
+        self.mpl.ListedDungeon=lambda *args:'Den of Nalorakk'
+        self.mpl.SetOption('percentile','dungeon_dps')
+        self.assertEqual(self.cell(1).text.text,'123457')
+        self.mpl.ShowProfile('Alice','Гордунни')
+        self.assertIn('DPS (текущий данж): 123457',self.mpl.panel.summary.text)
+        self.mpl.SetOption('percentile','dungeon_best')
+        self.assertIn('91%',self.cell(1).text.text)
+        self.mpl.SetOption('percentile','dungeon_median')
+        self.assertIn('73%',self.cell(1).text.text)
+        profile.dungeons[1].median=None
+        profile.dungeons[1].otherMedian=None
+        self.assertEqual(self.mpl.PrimaryStatistic(profile,'dps',None,False),'—')
+        self.mpl.ListedDungeon=lambda *args:'Murder Row'
+        self.mpl.RefreshSettingsDisplays()
+        self.assertEqual(self.cell(1).text.text,'—')
+        self.assertIn('—',self.mpl.panel.summary.text)
+
+    def test_numeric_dungeon_stat_follows_healer_metric(self):
+        profile=self.lua.table_from({'metric':'hps','dual':True,'spec':'Restoration',
+            'dungeons':self.lua.table_from([self.lua.table_from({'name':'Den of Nalorakk','amount':999,'otherAmount':123456})])})
+        self.mpl.SetOption('healerHpsFirst',True)
+        self.mpl.SetOption('percentile','dungeon_dps')
+        metric=self.mpl.PrimaryMetric(profile,'Alice','Гордунни','HEALER')
+        self.assertEqual(metric,'hps')
+        self.assertEqual(self.mpl.PrimaryStatistic(profile,metric,'Den of Nalorakk',False),'999')
+        self.assertEqual(self.mpl.PrimaryPercentileLabel(metric),'HPS (текущий данж)')
+        self.assertEqual(self.mpl.PrimaryStatistic(profile,'dps','Den of Nalorakk',False),'123456')
 
 if __name__=='__main__': unittest.main()

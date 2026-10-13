@@ -40,6 +40,9 @@ function MPL.AddDungeonTooltip(tooltip,profile,metric,stale,dungeon)
     for _,row in ipairs(profile.dungeons or {}) do
         if row.name==dungeon then
             local level,_,best,median=MPL.MetricValues(profile,row,metric)
+            if MPL.GetOption("percentile")=="dungeon_dps" then
+                tooltip:AddDoubleLine(L["Лучший "]..metric:upper(),MPL.PrimaryStatistic(profile,metric,dungeon,stale))
+            end
             best,median=MPL.OrderPercentiles(best,median)
             tooltip:AddDoubleLine(metric:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
             tooltip:AddDoubleLine(L["Ключ лучшего результата"],level and ("+"..level) or "—")
@@ -52,6 +55,7 @@ end
 
 function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
     if InCombatLockdown() or not MPlusLogsDB or not MPL.GetOption("tooltips") then return end
+    if MPL.UsesDungeonMetric() then dungeon=dungeon or MPL.ListedDungeon() end
     local profile, name, server = MPL.GetProfile(fullName,realm)
     if not name then return end
     local key = MPL.Key(name,server)..":"..(profile and MPL.VariantKey(profile) or MPL.SelectedSpec(name,server) or "")..":"..(dungeon or "")
