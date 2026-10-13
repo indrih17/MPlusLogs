@@ -123,16 +123,27 @@ function MPL.VariantKey(profile)
     return profile.spec..":"..(profile.role or "")
 end
 
-function MPL.SpecLabel(spec)
+function MPL.SpecLabel(spec,class)
     if GetSpecializationInfoByID then
         for id,info in pairs(MPL.specInfo) do
-            if info[1]==spec then
+            if info[1]==spec and (not class or info[3]==class) then
                 local _,name=GetSpecializationInfoByID(id)
                 if MPL.SafeString(name) then return name end
             end
         end
     end
     return MPL.T(spec)
+end
+
+function MPL.SpecClass(spec)
+    local class
+    for _,info in pairs(MPL.specInfo) do
+        if info[1]==spec then
+            if class and class~=info[3] then return end
+            class=info[3]
+        end
+    end
+    return class
 end
 
 function MPL.ProfileRole(profile)
@@ -150,6 +161,8 @@ function MPL.SelectedSpec(name,realm,role)
     if selected then return selected end
     local info=MPL.specs and MPL.specs[key]
     if info and (role=="" or info[2]==role) then return info[1] end
+    local main=MPL.MainProfileSpec and MPL.MainProfileSpec(name,realm,role~="" and role or nil)
+    if main then return main end
     if role~="" then return "All specs" end
 end
 
@@ -160,6 +173,47 @@ function MPL.SelectSpec(name,realm,spec,role)
     MPlusLogsDB.selectedSpecs[MPL.Key(name,realm)..":"..role]=spec
 end
 
+-- Read visible unit identity without starting an inspect request. Applicant
+-- metadata remains the fallback for characters not currently available as units.
+function MPL.RefreshCharacterSpec(name,realm)
+    local key=MPL.Key(name,realm)
+    local units={"player","target","focus","mouseover"}
+    for i=1,4 do units[#units+1]="party"..i end
+    for i=1,40 do units[#units+1]="raid"..i end
+    for _,unit in ipairs(units) do
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            local unitName,unitRealm=UnitFullName(unit)
+            if MPL.SafeString(unitName) and (not unitRealm or MPL.SafeString(unitRealm))
+                and MPL.Key(unitName,unitRealm or GetNormalizedRealmName())==key then
+                MPL.classes=MPL.classes or {}; MPL.specs=MPL.specs or {}
+                if UnitClass then
+                    local _,class=UnitClass(unit)
+                    if MPL.SafeString(class) then MPL.classes[key]=class end
+                end
+                local api=C_SpecializationInfo or {}
+                local specID
+                if unit=="player" then
+                    local getSpec=api.GetSpecialization or GetSpecialization
+                    local getInfo=api.GetSpecializationInfo or GetSpecializationInfo
+                    local index=getSpec and getSpec()
+                    if index and not (issecretvalue and issecretvalue(index)) and getInfo then specID=getInfo(index) end
+                else
+                    local getInspect=api.GetInspectSpecialization or GetInspectSpecialization
+                    if getInspect then specID=getInspect(unit) end
+                end
+                local info=specID and not (issecretvalue and issecretvalue(specID)) and MPL.specInfo[specID]
+                if info then
+                    MPL.specs[key]=info; MPL.classes[key]=info[3]
+                end
+                -- A duplicate target token may have no inspect data; keep looking
+                -- for the player token or another token with a known spec.
+                if info then return info end
+            end
+        end
+    end
+    return MPL.specs and MPL.specs[key]
+end
+
 function MPL.RecordApplicant(fullName,role,specID,class)
     local name,realm=MPL.Identity(fullName)
     if not name then return end
@@ -168,17 +222,24 @@ function MPL.RecordApplicant(fullName,role,specID,class)
     MPL.roles[key]=MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] and role or nil
     local info=not (issecretvalue and issecretvalue(specID)) and MPL.specInfo[specID]
     MPL.specs[key]=info or nil
-    MPL.classes[key]=MPL.SafeString(class) and class or nil
+    MPL.classes[key]=MPL.SafeString(class) and class or (info and info[3]) or nil
     return MPL.SelectedSpec(name,realm,MPL.roles[key])
 end
 
 function MPL.GetProfile(fullName, realm, spec, role)
+    local explicitRole=role~=nil
+    local explicitSpec=spec~=nil
     local name, server = MPL.Identity(fullName, realm)
     if not name then return end
     local key = MPL.Key(name, server)
     role=role or (MPL.roles and MPL.roles[key])
     spec=spec or MPL.SelectedSpec(name,server,role)
     if spec=="" then spec="All specs" end
+    local choices=MPlusLogsDB and MPlusLogsDB.selectedSpecs
+    local manual=choices and choices[key..":"..(role or "")]
+    if not explicitRole and (explicitSpec or manual) and spec and spec~="All specs" then
+        role=MPL.ProfileRole({spec=spec})
+    end
     local selected
     local function consider(profile)
         if not profile then return end
@@ -197,23 +258,51 @@ function MPL.GetProfile(fullName, realm, spec, role)
     return selected, name, server
 end
 
-function MPL.ProfileSpecs(name,realm,role)
-    local result,seen={"All specs"},{["All specs"]=true}
+-- The default specialization is independent of a manual menu selection.
+-- Aggregate WCL profiles retain their filter; primarySpec is display metadata.
+function MPL.MainProfileSpec(name,realm,role)
     local key=MPL.Key(name,realm)
-    local class=MPL.classes and MPL.classes[key]
-    local function add(spec)
-        if spec and not seen[spec] then result[#result+1]=spec; seen[spec]=true end
+    local latest,concrete,available=nil,nil,{}
+    local function consider(p)
+        if not p or (role and MPL.ProfileRole(p) and MPL.ProfileRole(p)~=role) then return end
+        local spec=p.primarySpec or (p.spec~="All specs" and p.spec)
+        if not spec then return end
+        local stamp=MPL.ProfileDate(p) or 0
+        if p.spec~="All specs" then
+            available[p.spec]=true
+            local last=concrete and (MPL.ProfileDate(concrete) or 0) or -1
+            if not concrete or stamp>last or (stamp==last and p.spec<concrete.spec) then concrete=p end
+        end
+        local previous=latest and (MPL.ProfileDate(latest) or 0) or -1
+        if not latest or stamp>previous or (stamp==previous and spec<(latest.primarySpec or latest.spec)) then latest=p end
     end
-    for _,info in pairs(MPL.specInfo) do
-        if (not class or info[3]==class) and (not role or info[2]==role) then add(info[1]) end
+    consider(MPlusLogsDB and MPlusLogsDB.profiles and MPlusLogsDB.profiles[key])
+    for _,p in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do consider(p) end
+    consider(MPL.bundled and MPL.bundled[key])
+    for _,p in pairs(MPL.bundledSpecs and MPL.bundledSpecs[key] or {}) do consider(p) end
+    local current=MPL.specs and MPL.specs[key]
+    if current and available[current[1]] and (not role or current[2]==role) then return current[1] end
+    if latest then
+        local main=latest.primarySpec or latest.spec
+        if not concrete or available[main] then return main end
     end
-    local profile=MPL.GetProfile(name,realm)
-    if profile then add(profile.spec) end
-    for _,p in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do
-        local profileRole=MPL.ProfileRole(p)
-        if not role or not profileRole or profileRole==role then add(p.spec) end
+    if concrete then return concrete.spec end
+    if current and (not role or current[2]==role) then return current[1] end
+end
+
+function MPL.ProfileSpecs(name,realm,role)
+    local result,seen={},{}
+    local key=MPL.Key(name,realm)
+    local function add(p)
+        if not p or p.spec=="All specs" or seen[p.spec] then return end
+        if role and MPL.ProfileRole(p) and MPL.ProfileRole(p)~=role then return end
+        result[#result+1]=p.spec; seen[p.spec]=true
     end
-    table.sort(result,function(a,b) if a==b then return false elseif a=="All specs" then return true elseif b=="All specs" then return false end; return a<b end)
+    add(MPlusLogsDB and MPlusLogsDB.profiles and MPlusLogsDB.profiles[key])
+    for _,p in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do add(p) end
+    add(MPL.bundled and MPL.bundled[key])
+    for _,p in pairs(MPL.bundledSpecs and MPL.bundledSpecs[key] or {}) do add(p) end
+    table.sort(result)
     return result
 end
 
@@ -296,7 +385,7 @@ function MPL.Parse(text, batch)
                 else
                     local f = fields(line)
                     if f[1] == "P" then
-                        if current or (#f ~= 16 and #f ~= 19) then error(L["Некорректная запись профиля"]) end
+                        if current or (#f ~= 16 and #f ~= 17 and #f ~= 19 and #f ~= 20) then error(L["Некорректная запись профиля"]) end
                         if not ({eu=true,us=true,kr=true,tw=true,cn=true})[f[2]] then error(L["Неизвестный регион"]) end
                         if number(f[5], 10000, true) ~= MPL.zone then error(L["Этот импорт относится к другому сезону/zoneID"]) end
                         if f[8] ~= "dps" and f[8] ~= "hps" then error(L["Неизвестная метрика"]) end
@@ -307,11 +396,15 @@ function MPL.Parse(text, batch)
                             best=number(f[10],100), median=number(f[11],100), runs=number(f[12],10000000,true),
                             updated=required(f[13]), source=required(f[14]), characterID=number(f[15],1000000000,true),
                             realmSlug=f[16], dungeons={}}
-                        if #f==19 then
+                        if #f==19 or #f==20 then
                             if not ({HEALER=true,TANK=true,DAMAGER=true})[f[17]] then error(L["Неизвестная роль"]) end
                             current.dual=true; current.role=f[17]
                             if current.metric~=(current.role=="HEALER" and "hps" or "dps") then error(L["Метрика не соответствует роли"]) end
                             current.otherBest=number(f[18],100); current.otherMedian=number(f[19],100)
+                        end
+                        if #f==17 or #f==20 then
+                            current.primarySpec=required(f[#f])
+                            if #current.primarySpec>80 then error(L["Некорректная запись профиля"]) end
                         end
                     elseif f[1] == "D" then
                         if not current or (#f ~= 10 and #f ~= 14) or (#f==14 and not current.dual) then error(L["Некорректная запись данжа"]) end

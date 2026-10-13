@@ -1,10 +1,5 @@
 # MPlusLogs release workflow
 
-Temporary publication hold: the user requested local combat-log history development
-without publication while they choose a release name. While `.release-hold` exists,
-do not publish any snapshot containing this work. Remove the hold only after the
-user explicitly authorizes publication. This supersedes ongoing publication below.
-
 The user explicitly authorized ongoing publication of completed changes to
 `indrih17/MPlusLogs` and CurseForge project `1740700`, including the Companion.
 

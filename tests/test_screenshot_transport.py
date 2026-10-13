@@ -57,6 +57,7 @@ class ReplyTests(unittest.TestCase):
             self.lua.execute("return assert(loadstring(...))",(ROOT / file).read_text(encoding="utf-8"))("MPlusLogs",self.mpl)
         args=SimpleNamespace(realm="Гордунни",region="eu",zone=55,season="test",spec=None,metric="dps",server_slug=None)
         self.body=sync.export(sync.normalize(api_fixture(),args))
+        self.metadata="MPLV1 1.0.7 specprofiles\n"
 
     def test_send_never_captures_screen_or_changes_settings(self):
         id,request=self.mpl.SendRequest("Киндрих","Гордунни","dps","Guardian")
@@ -76,7 +77,7 @@ class ReplyTests(unittest.TestCase):
     def test_paste_automatically_imports_and_opens_profile(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         edit=self.mpl.downloadWindow.edit
-        edit.SetText(edit,"MPLS1\n12345-1\n"+self.body)
+        edit.SetText(edit,"MPLS1\n12345-1\n"+self.metadata+self.body)
         edit.scripts.OnTextChanged(edit,True)
         self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
         self.assertEqual(self.mpl.panel.profile.best,62)
@@ -88,7 +89,7 @@ class ReplyTests(unittest.TestCase):
         window=self.mpl.downloadWindow
         edit=window.edit
         request=edit.GetText(edit)
-        self.assertTrue(request.startswith("MPLS1\n12345-1\nMPLQ1\n"))
+        self.assertTrue(request.startswith("MPLS2\n12345-1\nMPLC1 specprofiles\nMPLQ1\n"))
         # Real client notifications can arrive after SetText's guard is reset.
         for flag in (False,True):
             edit.scripts.OnTextChanged(edit,flag)
@@ -105,9 +106,10 @@ class ReplyTests(unittest.TestCase):
 
     def test_error_reply_does_not_create_zero_profile(self):
         self.mpl.SendRequest("Киндрих","Гордунни","dps","")
-        result,error=self.mpl.ReceiveReply("MPLE1\n12345-1\nNo%20public%20logs")
-        self.assertIsNone(result)
-        self.assertEqual(error,"No public logs")
+        result=self.mpl.ReceiveReply("MPLE1\n12345-1\nNo%20public%20logs")
+        self.assertEqual(result,0)
+        self.assertTrue(self.mpl.panel.emptyMessage.shown)
+        self.assertFalse(self.mpl.panel.profile)
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
 
     def test_companion_errors_show_actionable_guidance(self):
@@ -115,7 +117,6 @@ class ReplyTests(unittest.TestCase):
             ("No usable profile: WCL HTTP 401; check credentials", "/reload", "Warcraft Logs"),
             ("WCL HTTP 403; API permissions", "доступ к API", "Companion"),
             ("WCL HTTP 429; rate limit", "лимит запросов", "Подождите"),
-            ("No usable profile: Публичные логи M+ не найдены", "имя персонажа", "нулевой результат"),
             ("No usable profile: Unknown secondary throughputRankings shape", "формат ответа", "Обновите MPlusLogs Companion"),
             ("Could not connect to Warcraft Logs", "интернет", "попробуйте снова"),
             ("Clipboard is busy; retry copying the request", "буфер обмена", "Ctrl+C"),
@@ -169,7 +170,7 @@ class ReplyTests(unittest.TestCase):
         edit.SetText(edit,partial)
         edit.scripts.OnTextChanged(edit,True)
         self.assertEqual(edit.GetText(edit),partial)
-        full="MPLS1\n12345-1\n"+self.body
+        full="MPLS1\n12345-1\n"+self.metadata+self.body
         edit.SetText(edit,full)
         edit.scripts.OnTextChanged(edit,True)
         self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
@@ -179,7 +180,7 @@ class ReplyTests(unittest.TestCase):
     def test_encoded_reply_survives_wow_tab_expansion(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         edit=self.mpl.downloadWindow.edit
-        reply="MPLS1\n12345-1\nMPLB1\n"+quote(self.body,safe="")
+        reply="MPLS1\n12345-1\n"+self.metadata+"MPLB1\n"+quote(self.body,safe="")
         # Reproduce the transformation observed in the user's real EditBox.
         pasted=reply.replace("\t","    ")
         edit.SetText(edit,pasted)
@@ -197,7 +198,7 @@ class ReplyTests(unittest.TestCase):
         self.assertTrue(f.edit.focused)
         self.assertEqual(f.phase,"copy")
         request=f.edit.GetText(f.edit)
-        self.assertTrue(request.startswith("MPLS1\n"))
+        self.assertTrue(request.startswith("MPLS2\n"))
         self.lua.execute("function IsControlKeyDown() return true end")
         f.edit.scripts.OnKeyDown(f.edit,"C")
         self.assertEqual(f.phase,"waiting")
@@ -222,7 +223,7 @@ class ReplyTests(unittest.TestCase):
         f=self.mpl.downloadWindow
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         self.assertEqual(self.mpl.pendingReply.id,"12345-2")
-        count,err=self.mpl.ReceiveReply("MPLS1\n12345-1\n"+self.body,True)
+        count,err=self.mpl.ReceiveReply("MPLS1\n12345-1\n"+self.metadata+self.body,True)
         self.assertIsNone(count)
         self.assertIn("другой",err)
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
@@ -231,7 +232,7 @@ class ReplyTests(unittest.TestCase):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         f=self.mpl.downloadWindow
         # A missed copy event must not prevent importing a matching reply.
-        reply="MPLS1\n"+self.mpl.pendingReply.id+"\nMPLB1\n"+quote(self.body,safe="")
+        reply="MPLS1\n"+self.mpl.pendingReply.id+"\n"+self.metadata+"MPLB1\n"+quote(self.body,safe="")
         f.edit.SetText(f.edit,reply)
         f.edit.scripts.OnTextChanged(f.edit,True)
         self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
@@ -250,7 +251,7 @@ class ReplyTests(unittest.TestCase):
         self.assertEqual(f.edit.GetText(f.edit),f.request)
         self.assertIn("Ctrl+C",f.status.text)
         self.assertNotEqual(self.mpl.pendingReply.id,request_id)
-        reply="MPLS1\n"+request_id+"\nMPLB1\n"+quote(self.body,safe="")
+        reply="MPLS1\n"+request_id+"\n"+self.metadata+"MPLB1\n"+quote(self.body,safe="")
         f.edit.SetText(f.edit,reply)
         f.edit.scripts.OnTextChanged(f.edit,True)
         self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")

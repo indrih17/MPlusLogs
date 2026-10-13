@@ -1,4 +1,4 @@
-MPlusLogs Companion 1.0.6 for Windows 10/11 x64
+MPlusLogs Companion 1.0.7 for Windows 10/11 x64
 
 Install using the Setup exe, or extract the entire portable ZIP to a permanent
 folder and run MPlusLogs-Companion.exe. Python is included; no separate install

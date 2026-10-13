@@ -61,6 +61,32 @@ def apply(root, mode, settings=None):
                     insertcolor=palette["text"], bordercolor=palette["border"])
     style.map("TEntry", fieldbackground=[("readonly",palette["control"]),("disabled",palette["control"])],
               foreground=[("disabled",palette["muted"]),("readonly",palette["text"])])
+    style.configure("Treeview", background=palette["background"], fieldbackground=palette["background"],
+                    foreground=palette["text"], bordercolor=palette["border"])
+    style.map("Treeview", background=[("selected",palette["accent"])],
+              foreground=[("selected","#ffffff"),("disabled",palette["muted"])])
+    style.configure("Treeview.Heading", background=palette["control"], foreground=palette["text"],
+                    bordercolor=palette["border"], lightcolor=palette["border"], darkcolor=palette["border"])
+    style.map("Treeview.Heading", background=[("active",palette["hover"])])
+    style.configure("TCombobox", background=palette["control"], fieldbackground=palette["control"],
+                    foreground=palette["text"], arrowcolor=palette["text"], bordercolor=palette["border"])
+    style.map("TCombobox", fieldbackground=[("readonly",palette["control"]),("disabled",palette["control"])],
+              foreground=[("disabled",palette["muted"]),("readonly",palette["text"])],
+              background=[("active",palette["hover"])], arrowcolor=[("disabled",palette["muted"])])
+    for option, color in (("background",palette["control"]),("foreground",palette["text"]),
+                          ("selectBackground",palette["accent"]),("selectForeground","#ffffff")):
+        root.option_add(f"*TCombobox*Listbox.{option}", color)
+    # Popdowns already created by Tk also need updating when the theme changes.
+    def refresh_popdowns(widget):
+        for child in widget.winfo_children():
+            if isinstance(child, ttk.Combobox):
+                popup = str(child) + ".popdown.f.l"
+                if root.tk.call("winfo", "exists", popup):
+                    root.tk.call(popup, "configure", "-background", palette["control"],
+                                 "-foreground", palette["text"], "-selectbackground", palette["accent"],
+                                 "-selectforeground", "#ffffff")
+            refresh_popdowns(child)
+    refresh_popdowns(root)
     style.configure("TButton", background=palette["control"], foreground=palette["text"], borderwidth=1,
                     bordercolor=palette["border"], lightcolor=palette["border"], darkcolor=palette["border"], padding=(12,8))
     style.map("TButton", background=[("pressed",palette["accent"]),("active",palette["hover"])],

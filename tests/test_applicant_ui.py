@@ -156,8 +156,16 @@ class ApplicantUITests(unittest.TestCase):
         player = self.players()[1]
         self.mpl.ShowDownload(player.name, player.realm, None, player)
         f = self.mpl.downloadWindow
-        response = clipboard_protocol.reply(f.request, realm_resolver.load_mappings(), self.cache, self.fetch)
-        self.assertEqual(self.mpl.ReceiveReply(response, True), (1, None))
+        def fetch_specs(args):
+            raw=self.fetch(args)
+            for metric in ('damage','healing'):
+                data=raw['data']['characterData']['character'][metric]
+                data['rankings'][0]['spec']=args.spec or 'Feral'
+                data['rankings'][0]['bestSpec']=args.spec or 'Feral'
+                data['allStars'][0]['spec']=args.spec or 'Feral'
+            return raw
+        response = clipboard_protocol.reply(f.request, realm_resolver.load_mappings(), self.cache, fetch_specs)
+        self.assertEqual(self.mpl.ReceiveReply(response, True), (2, None))
         self.assertEqual(self.mpl.panel.applicant.applicantID, 10)
         self.assertTrue(self.mpl.panel.inviteButton.enabled)
 

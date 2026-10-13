@@ -19,6 +19,7 @@ import appearance
 import companion_i18n as i18n
 import companion_update as updates
 import personal_api
+import history_ui
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
@@ -44,7 +45,8 @@ class App:
         self.available_update = self.update_installer = None
         self.installing_update = False
         self.failed_update_version = None
-        root.title("MPlusLogs Companion")
+        self.preview=updates.local_preview()
+        root.title("MPlusLogs Companion"+(" / Local preview" if self.preview else ""))
         root.geometry("500x360")
         root.resizable(False, False)
         root.iconbitmap(default=str(Path(__file__).with_name("assets") / "mpluslogs.ico"))
@@ -102,6 +104,9 @@ class App:
         self.login_button.pack(side="left")
         self.settings_button = ttk.Button(buttons, textvariable=self.textvar('Настройки'), command=self.settings)
         self.settings_button.pack(side="left", padx=(8, 0))
+        self.local_history=history_ui.LocalHistory(self)
+        self.history_button=ttk.Button(frame,textvariable=self.textvar("Local history"),command=self.local_history.open)
+        self.history_button.pack(anchor="w",pady=(0,8))
         if self.session:
             self.login_button.pack_forget()
         self.api_banner = ttk.Frame(frame)
@@ -118,7 +123,7 @@ class App:
         self.refresh_api_display()
         self.copy_button = ttk.Button(frame, textvariable=self.textvar('Скопировать последний ответ'), command=self.copy)
         ttk.Label(frame, textvariable=self.textvar('В WoW: скопируйте запрос (Ctrl+C), дождитесь ответа\nи вставьте его (Ctrl+V).'), justify="left", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
-        self.version_text = self.textvar("Companion version: " + updates.current_version())
+        self.version_text = self.textvar("Local preview / not published" if self.preview else "Companion version: " + updates.current_version())
         ttk.Label(frame, textvariable=self.version_text, style="Muted.TLabel").pack(anchor="w", pady=(12, 0))
         self.update_status = self.textvar("")
         ttk.Label(frame, textvariable=self.update_status, wraplength=440).pack(anchor="w")
@@ -134,14 +139,13 @@ class App:
         except OSError:
             self.status.set("Трей недоступен. Оставьте окно свёрнутым во время игры.")
         root.after(200, self.poll)
-        if self.session or self.mode_diagnostic:
-            self.want_running = True
-            root.after(300, self.start)
+        self.want_running = True
+        root.after(300, self.start)
         if "--background" in sys.argv and self.tray and self.session:
             root.after(400, self.hide)
         if "--login" in sys.argv:
             root.after(500, self.sign_in)
-        if getattr(sys, "frozen", False):
+        if getattr(sys, "frozen", False) and not self.preview:
             root.after(1500, self.scheduled_update_check)
 
     def scheduled_update_check(self):
@@ -149,6 +153,7 @@ class App:
         self.root.after(24 * 60 * 60 * 1000, self.scheduled_update_check)
 
     def check_updates(self, manual=False):
+        if getattr(self,"preview",False): return
         if self.installing_update or (self.update_worker and self.update_worker.is_alive()):
             return
         if self.available_update and self.update_installer:
@@ -287,7 +292,7 @@ class App:
                 messagebox.showerror("MPlusLogs", i18n.tr(str(exc)), parent=self.root)
                 return
             self.session, self.config = None, config
-        self.want_running = False
+        self.want_running = True
         self.stop.set()
         self.account.set("Warcraft Logs не подключён")
         self.status.set("Вы вышли. Сохранённые токены удалены с этого компьютера.")
@@ -380,7 +385,7 @@ class App:
     def toggle_diagnostic(self):
         self.mode_diagnostic = not self.mode_diagnostic
         self.stop.set()
-        self.want_running = self.mode_diagnostic or bool(self.session)
+        self.want_running = True
         self.status.set("Проверка связи включена: WCL не запрашивается." if self.mode_diagnostic else "Проверка связи выключена.")
 
     def toggle(self):
@@ -390,15 +395,12 @@ class App:
             self.want_running = False
             self.stop.set()
             self.status.set("Обработка приостановлена.")
-        elif self.session or self.mode_diagnostic:
+        else:
             self.want_running = True
             self.start()
-        else:
-            self.show()
-            self.status.set("Сначала войдите в Warcraft Logs.")
 
     def start(self):
-        if self.installing_update or not self.want_running or (self.worker and self.worker.is_alive()) or (not self.session and not self.mode_diagnostic):
+        if self.installing_update or not self.want_running or (self.worker and self.worker.is_alive()):
             return
         self.stop = threading.Event()
         self.worker = threading.Thread(target=self.watch, args=(self.stop, self.session, self.mode_diagnostic, self.root.winfo_id()), daemon=True)
@@ -440,8 +442,15 @@ class App:
                         if text.startswith(("MPLQ1", "MPLQ2")) or (text.startswith("MPLS1") and "MPLQ" in text):
                             post("status", "Запрос скопирован не полностью. Выделите поле в WoW (Ctrl+A), затем Ctrl+C.")
                         continue
-                    post("status", "Загружаю данные Warcraft Logs…")
-                    response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic)
+                    is_history=clipboard_protocol.unwrap_request(text)[1].startswith("MPLHQ1\n")
+                    post("status", "Reading local combat history…" if is_history else "Загружаю данные Warcraft Logs…")
+                    if not is_history and not session and not diagnostic:
+                        request_id=clipboard_protocol.unwrap_request(text)[0]
+                        from urllib.parse import quote
+                        response="MPLE1\n"+request_id+"\n"+quote("Сначала войдите в Warcraft Logs.",safe="")
+                    else:
+                        response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic,
+                                                            local_history=self.local_history.reply)
                     if isinstance(client, bridge.Client):
                         snapshot = client.budget.snapshot()
                         if snapshot["limitPerHour"]:
@@ -477,6 +486,10 @@ class App:
                 # Display upstream observations without an extra API request or disk write.
                 self.config.setdefault("oauth", {})["_api_budget"] = value
                 self.refresh_api_display()
+            elif kind == "history_refresh":
+                self.local_history.render(progress=value)
+            elif kind == "history_error":
+                self.local_history.render(error=value)
             elif kind == "show":
                 self.show()
             elif kind == "update_downloading":
@@ -523,7 +536,7 @@ class App:
                         self.personal_setup.close()
                 except (ValueError, OSError) as exc:
                     self.status.set("Не удалось сохранить вход: " + str(exc))
-                    self.want_running = bool(self.session)
+                    self.want_running = True
                     if self.personal_setup: self.personal_setup.failed("Could not save the connection. Your previous connection is still available.")
                 self.login_button.configure(state="normal")
             elif kind == "auth_error":
@@ -531,7 +544,7 @@ class App:
                 if cancel is self.auth_cancel and not cancel.is_set():
                     self.status.set("Не удалось войти: " + error)
                     self.login_button.configure(state="normal")
-                    self.want_running = bool(self.session)
+                    self.want_running = True
                     if self.personal_setup: self.personal_setup.failed("Could not connect. Check Client ID, Public Client and Redirect URIs on WCL.")
             elif kind == "result":
                 self.result = value
@@ -550,6 +563,7 @@ class App:
                     self.root.bell()
         if not self.installing_update:
             self.start()
+            if self.want_running: self.local_history.poll(time.monotonic())
         self.root.update_idletasks()
         height = max(330, self.body.winfo_reqheight())
         if self.root.winfo_height() != height:
@@ -574,6 +588,8 @@ class App:
             if self.personal_setup:
                 appearance.apply(self.root, mode, self.personal_setup.window)
                 self.personal_setup.canvas.configure(background=appearance.PALETTES[mode]["background"])
+            if self.local_history:
+                self.local_history.apply_theme(mode)
             self.applied_theme = mode
             self.root.after_idle(lambda: appearance.titlebar(self.root, mode == "dark"))
             self.style_language_menu()
@@ -596,6 +612,9 @@ class App:
         if self.personal_setup:
             self.personal_setup.window.title(i18n.tr("Personal API setup"))
             self.personal_setup.show(self.personal_setup.step)
+        if self.local_history.window and self.local_history.window.winfo_exists():
+            self.local_history.window.title(i18n.tr("Local combat history"))
+            self.local_history.render()
         self.refresh_api_display()
         self.save_preferences()
 
@@ -643,6 +662,7 @@ class App:
         self.exiting = True
         self.want_running = False
         self.stop.set()
+        if getattr(self,"local_history",None): self.local_history.close()
         self.auth_cancel.set()
         if self.tray:
             self.tray.close()

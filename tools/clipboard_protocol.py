@@ -4,7 +4,7 @@ from urllib.parse import quote
 import clipboard_companion as bridge
 import companion_update
 
-CAPABILITIES = {"dual", "batch", "updater"}
+CAPABILITIES = {"dual", "batch", "updater", "history", "specprofiles"}
 
 
 def describe_clipboard(text):
@@ -28,12 +28,12 @@ def unwrap_request(text):
         if not separator or not re.fullmatch(r"MPLC1 [a-z,]+", requirement):
             return None
         parts[2] = body
-    if not parts[2].startswith(("MPLQ1\n","MPLQ2\n")):
+    if not parts[2].startswith(("MPLQ1\n","MPLQ2\n","MPLHQ1\n")):
         return None
     return parts[1],parts[2]
 
 
-def reply(text,mapping,cache,client=None,diagnostic=False):
+def reply(text,mapping,cache,client=None,diagnostic=False,local_history=None):
     request=unwrap_request(text)
     if not request: return None
     request_id,body=request
@@ -42,15 +42,25 @@ def reply(text,mapping,cache,client=None,diagnostic=False):
         required = text.replace("\r\n", "\n").split("\n", 3)[2].split(" ", 1)[1].split(",")
         if not set(required) <= CAPABILITIES:
             return "MPLE1\n" + request_id + "\n" + quote("Для загрузки этих логов обновите MPlusLogs Companion.", safe="")
-    if diagnostic:
+    if diagnostic and not body.startswith("MPLHQ1\n"):
         # Validate identity and request format even in a no-network test.
         import realm_resolver
         realm_resolver.parse_queue(body,mapping)
         message="Связь работает: Ctrl+C > помощник > Ctrl+V. Проверка без WCL, логи не запрашивались."
         return "MPLE1\n"+request_id+"\n"+quote(message,safe="")
     try:
-        batch=body.startswith("MPLQ2\n")
-        result,_=bridge.process_request(body,mapping,cache,client,batch=batch)
+        if body.startswith("MPLHQ1\n"):
+            from urllib.parse import unquote
+            parts=body.splitlines()
+            values=[unquote(value) for value in parts[1].split("\t")] if len(parts)==2 else []
+            if len(values)!=4 or values[0]!="Q" or any(len(v)>200 or any(ord(c)<32 or c=="|" for c in v) for v in values):
+                raise ValueError("Invalid local-history request")
+            if local_history is None: raise ValueError("Configure a combat log in Companion's Local history window.")
+            result=local_history(*values[1:])
+        else:
+            batch=body.startswith("MPLQ2\n")
+            result,_=bridge.process_request(body,mapping,cache,client,batch=batch,
+                spec_profiles=metadata_requested and 'specprofiles' in required)
         # WoW EditBox expands clipboard tabs to spaces. Encode the entire
         # data block, including delimiters, before handing it to the game.
         metadata = "MPLV1 " + companion_update.current_version() + " " + ",".join(sorted(CAPABILITIES)) + "\n" if metadata_requested else ""

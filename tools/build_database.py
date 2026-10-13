@@ -98,9 +98,13 @@ def read_cache(path):
 def validate_raw(raw, args):
     # Presentation choice must never determine whether a raw reply is cacheable.
     character = raw.get("data", {}).get("characterData", {}).get("character")
+    # Hidden characters return zoneRankings error objects rather than ranking
+    # arrays. Classify access/absence before validating the metric schema.
+    if not character or character.get('hidden'):
+        wcl.normalize(raw,args)
     if character and "damage" in character and "healing" in character:
         damage, healing = wcl.rankings(character["damage"]), wcl.rankings(character["healing"])
-        if not damage["rankings"] and not healing["rankings"] or character.get("hidden"):
+        if not damage["rankings"] and not healing["rankings"]:
             wcl.normalize(raw, args)  # Produces the typed absence response.
         for role, metric in (("DAMAGER", damage), ("HEALER", healing)):
             # A DPS-only character may legitimately have no healing rankings.

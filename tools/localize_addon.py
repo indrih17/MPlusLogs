@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ['Data.lua', 'Transport.lua', 'UI.lua', 'Settings.lua', 'Integration.lua', 'Probe.lua']
+FILES = ['Data.lua', 'History.lua', 'Transport.lua', 'UI.lua', 'Settings.lua', 'Integration.lua', 'Probe.lua']
 TOKEN = re.compile(r'--\[\[.*?\]\]|--[^\n]*|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', re.S)
 CYRILLIC = re.compile('[\u0400-\u04ff]')
 SKIP = {'Киндрих', 'Гордунни', 'Снимок со скриншота пользователя'}
@@ -109,6 +109,8 @@ def apply():
     values=json.loads(CATALOG.read_text(encoding='utf-8'))
     for locale in ['enUS','ruRU',*list(LOCALES)[1:]]:
         translations={value:value for value in values} if locale=='ruRU' else json.loads((CATALOG.parent/(locale+'.json')).read_text(encoding='utf-8'))
+        if locale=='ruRU' and (CATALOG.parent/'ruRU.json').exists():
+            translations.update(json.loads((CATALOG.parent/'ruRU.json').read_text(encoding='utf-8')))
         if set(translations)!=set(values): raise ValueError(f'Incomplete locale {locale}')
         lines=['-- Generated from Locales/catalog.json; edit translations in the locale JSON.', 'local _, MPL = ...']
         if locale!='enUS': lines.append(f'if MPL.locale ~= {lua_string(locale)} then return end')

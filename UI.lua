@@ -34,6 +34,8 @@ local function companionError(errorText)
             hint=hint..L["\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs."]
         end
         return errorText..hint
+    elseif lower:find("rankings hidden",1,true) then
+        return L["Логи этого персонажа скрыты в Warcraft Logs. Доступ к ним не разрешён для текущего аккаунта."]
     elseif lower:find("no public logs",1,true) or lower:find("character not found",1,true)
         or lower:find("rankings hidden",1,true) or errorText:find(ruNoPublicLogs,1,true) then
         return errorText..L["\nПроверьте имя персонажа и игровой мир. Возможно, у него нет открытых логов M+; отсутствие данных не означает нулевой результат."]
@@ -120,6 +122,32 @@ local function metricTab(f,metric,x)
     end)
     return b
 end
+local function specSelector(parent,callback)
+    local b=CreateFrame("Button",nil,parent,"BackdropTemplate")
+    b:SetSize(310,44); b:SetPoint("TOPRIGHT",-40,-72)
+    b:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    b:SetBackdropColor(0.12,0.09,0.18,1); b:SetBackdropBorderColor(0.64,0.45,0.83,1)
+    b.icon=b:CreateTexture(nil,"ARTWORK"); b.icon:SetSize(28,28); b.icon:SetPoint("LEFT",10,0)
+    b.caption=label(b,48,-7,232,"","GameFontHighlight")
+    b:SetFontString(b.caption)
+    b.detail=label(b,48,-26,232); b.detail:SetTextColor(0.77,0.71,0.87)
+    b.arrow=b:CreateTexture(nil,"ARTWORK"); b.arrow:SetSize(16,16); b.arrow:SetPoint("RIGHT",-10,0)
+    b.arrow:SetTexture("Interface/ChatFrame/UI-ChatIcon-ScrollDown-Up")
+    b:SetScript("OnClick",callback)
+    b:SetScript("OnEnter",function(self)
+        if not self.canSelectSpecs then return end
+        self:SetBackdropColor(0.22,0.15,0.31,1); self:SetBackdropBorderColor(0.86,0.67,1,1)
+        GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
+        GameTooltip:AddLine(L["Выбрать специализацию логов"],1,1,1)
+        GameTooltip:AddLine(L["Основной спек отмечен в списке. Переключение использует сохранённые логи; отсутствующий профиль можно загрузить."],0.85,0.85,0.85,true)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave",function(self)
+        self:SetBackdropColor(0.12,0.09,0.18,1); self:SetBackdropBorderColor(0.64,0.45,0.83,1)
+        GameTooltip:Hide()
+    end)
+    return b
+end
 local function buildPanel()
     local f = window("MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
     f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1,insets={left=1,right=1,top=1,bottom=1}})
@@ -129,24 +157,20 @@ local function buildPanel()
     f.character = label(f,20,-48,900,"","GameFontHighlightLarge")
     panelFill(f,20,-80,880,26,0.105,0.06,0.12)
     f.context = label(f,30,-87,860)
-    f.specButton=button(f,L["Специализация"],630,0,270,function()
+    f.specButton=specSelector(f,function()
+        if not f.specButton.canSelectSpecs then return end
         if InCombatLockdown() or not MenuUtil or not MenuUtil.CreateContextMenu then return end
         local role=MPL.roles and MPL.roles[MPL.Key(f.name,f.realm)]
         MenuUtil.CreateContextMenu(f.specButton,function(_,root)
-            root:CreateTitle(L["Специализация"])
-            local choiceKey=MPL.Key(f.name,f.realm)..":"..(role or "")
-            root:CreateRadio(L["Автоматически"],function()
-                return not (MPlusLogsDB.selectedSpecs and MPlusLogsDB.selectedSpecs[choiceKey])
-            end,function()
-                MPL.SelectSpec(f.name,f.realm,nil,role)
-                local sent=f.inviteSent
-                MPL.ShowProfile(f.name,f.realm,f.applicant,true)
-                if sent then f.inviteSent=true; MPL.UpdateProfileInvite() end
-                if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
-            end)
-            for _,spec in ipairs(MPL.ProfileSpecs(f.name,f.realm,role)) do
-                root:CreateRadio(MPL.SpecLabel(spec),function()
-                    return MPlusLogsDB.selectedSpecs and MPlusLogsDB.selectedSpecs[choiceKey]==spec
+            root:CreateTitle(L["Выбрать специализацию логов"])
+            local main=MPL.MainProfileSpec(f.name,f.realm,role)
+            for _,spec in ipairs(MPL.ProfileSpecs(f.name,f.realm)) do
+                local caption=MPL.SpecLabel(spec,f.class)
+                if spec==main then caption=caption..L[" — основной"] end
+                local stored=MPL.GetProfile(f.name,f.realm,spec)
+                if stored then caption=caption..L[" — загружено"] end
+                root:CreateRadio(caption,function()
+                    return f.selectedSpec==spec
                 end,function()
                     MPL.SelectSpec(f.name,f.realm,spec,role)
                     local sent=f.inviteSent
@@ -157,8 +181,7 @@ local function buildPanel()
             end
         end)
     end)
-    f.specButton:ClearAllPoints(); f.specButton:SetPoint("TOPRIGHT",-40,-82)
-    f.context:SetWidth(580)
+    f.context:SetWidth(540)
     f.metricTabs={dps=metricTab(f,"dps",20),hps=metricTab(f,"hps",112)}
     f.filter = label(f,218,-120,680)
     f.scoreLabel=label(f,64,-163,310,L["Рейтинг Mythic+"],"GameFontHighlight")
@@ -202,6 +225,7 @@ local function buildPanel()
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function() MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant) end)
+    button(f,L["Local history"],490,53,220,function() MPL.ShowHistory(f.name,f.realm) end)
     f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
     f.lookup = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
@@ -262,7 +286,7 @@ function MPL.RenderProfileStats(f)
     f.headings[8]:SetText(firstHeading); f.headings[9]:SetText(secondHeading)
     f.secondaryGroup:SetText(metric:upper()..L[" / по уровню ключа"])
     if not profile then return end
-    f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.SpecLabel(profile.spec))
+    f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.SpecLabel(profile.spec,f.class))
     f.scoreValue:SetText(profile.score and string.format("%.0f",profile.score) or "—")
     f.scoreValue:SetTextColor(stale and 0.53 or 226/255,stale and 0.53 or 104/255,stale and 0.53 or 168/255)
     local _,_,best,median=MPL.MetricValues(profile,nil,metric)
@@ -317,8 +341,20 @@ end
 
 function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     if not MPL.SafeString(fullName) then fullName, realm = UnitFullName("player") end
+    local unitName,unitRealm=MPL.Identity(fullName,realm)
+    if unitName then MPL.RefreshCharacterSpec(unitName,unitRealm) end
     local profile, name, server = MPL.GetProfile(fullName, realm)
     if not name then return end
+    local stateKey=MPL.Key(name,server)
+    local state=MPL.profileStates and MPL.profileStates[stateKey]
+    if state and state.expires and state.expires<=GetServerTime() then state=nil end
+    if not state and MPlusLogsDB.profileStates then
+        local saved=MPlusLogsDB.profileStates[stateKey]
+        if saved and (saved.expires or 0)>GetServerTime() then state=saved end
+    end
+    local requestedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
+    if state and state.spec and state.spec~="" and state.spec~=requestedSpec then state=nil end
+    if state and (state.reason=="hidden" or state.reason=="empty") then profile=nil end
     MPL.Remember(name,server)
     MPL.panel = MPL.panel or buildPanel()
     local f = MPL.panel
@@ -331,13 +367,45 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     local secondary=primary=="hps" and "dps" or "hps"
     f.name, f.realm, f.profile = name, server, profile or false
     f.selectedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
-    f.specButton:SetText(L["Специализация"]..": "..MPL.SpecLabel(f.selectedSpec))
-    f.character:SetText(name .. " — " .. server)
+    local main=MPL.MainProfileSpec(name,server,MPL.roles and MPL.roles[MPL.Key(name,server)])
+    f.class=(MPL.classes and MPL.classes[MPL.Key(name,server)]) or MPL.SpecClass(main)
+    if not f.class then
+        for _,spec in ipairs(MPL.ProfileSpecs(name,server)) do
+            local class=MPL.SpecClass(spec)
+            if class then f.class=class; break end
+        end
+    end
+    local displayed=profile and profile.spec or f.selectedSpec
+    local stateText=state and (state.reason=="hidden" and L["Логи скрыты в Warcraft Logs."]
+        or state.reason=="retry" and L["Повторный запрос логов отложен. Его можно отправить позже."]
+        or L["Для этого персонажа нет доступных логов M+."])
+    f.specButton:SetText(MPL.SpecLabel(displayed,f.class))
+    f.specButton.detail:SetText(not profile and L["Профиль не загружен"] or L["Выбрать специализацию логов"])
+    local canSelectSpecs=#MPL.ProfileSpecs(name,server)>1
+    f.specButton.canSelectSpecs=canSelectSpecs
+    f.specButton:SetEnabled(canSelectSpecs); f.specButton:EnableMouse(canSelectSpecs)
+    f.specButton.arrow:SetShown(canSelectSpecs)
+    f.specButton.detail:SetShown(canSelectSpecs or not profile)
+    f.specButton.caption:ClearAllPoints()
+    f.specButton.caption:SetPoint("TOPLEFT",48,(canSelectSpecs or not profile) and -7 or -15)
+    local icon="Interface/AddOns/MPlusLogs/assets/mpluslogs-icon"
+    if GetSpecializationInfoByID then
+        for id,info in pairs(MPL.specInfo) do
+            if info[1]==displayed and (not f.class or info[3]==f.class) then
+                local _,_,_,texture=GetSpecializationInfoByID(id)
+                if texture and not (issecretvalue and issecretvalue(texture)) then icon=texture end
+                break
+            end
+        end
+    end
+    f.specButton.icon:SetTexture(icon)
+    local current=MPL.specs and MPL.specs[MPL.Key(name,server)]
+    f.character:SetText(name .. " — " .. server..(current and ("  /  "..L["Текущая специализация"]..": "..MPL.SpecLabel(current[1],current[3])) or ""))
     f.lookup:SetText(name .. "-" .. server)
     f.scroll:SetVerticalScroll(0)
     for _, row in ipairs(f.rows) do row:Hide() end
     f.viewMetric=primary; f.stale=stale
-    f.context:SetText(profile and (profile.season.."  /  "..MPL.SpecLabel(profile.spec)) or "Midnight M+ Season 2")
+    f.context:SetText(profile and (profile.season.."  /  "..MPL.SpecLabel(profile.spec,f.class)) or "Midnight M+ Season 2")
     f.loadButton:ClearAllPoints()
     if profile then
         f.scroll:Show(); f.emptyMessage:Hide()
@@ -348,14 +416,24 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
         f.footer:SetText(profile.characterID == 81818678 and profile.source == "Снимок со скриншота пользователя" and L["* Пометка WCL сохранена со скриншота. Общие 162 лога и строки показаны как в источнике."] or L["Логи: только прохождения, доступные WCL; отсутствие данных не означает плохую игру."])
     else
         f.scroll:Hide(); f.emptyMessage:Show()
-        f.emptyMessage:SetText(f.selectedSpec~="All specs" and (L["Профиль не загружен"]..": "..MPL.SpecLabel(f.selectedSpec))
+        f.emptyMessage:SetText(f.selectedSpec~="All specs" and (L["Профиль не загружен"]..": "..MPL.SpecLabel(f.selectedSpec,f.class))
             or L["Данные этого персонажа ещё не загружены."])
+        if stateText then f.emptyMessage:SetText(stateText) end
+        f.emptyMessage:SetHeight(72)
         f.loadButton:SetPoint("CENTER",0,-15); f.loadButton:SetSize(260,36)
         f.loadButton:SetText(L["Загрузить M+ логи"])
         f.source:SetText(""); f.note:SetText("")
         f.footer:SetText(L["Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен."])
+        if stateText then
+            f.loadButton:ClearAllPoints()
+            f.loadButton:SetPoint("BOTTOMLEFT",730,53); f.loadButton:SetSize(170,24)
+            f.loadButton:SetText(L["Обновить M+ логи"])
+            f.footer:SetText("")
+            f.specButton.detail:SetText(state.reason=="retry" and L["Повторный запрос отложен"] or L["Нет доступных логов"])
+        end
         f.content:SetHeight(1)
     end
+    if profile and stateText then f.footer:SetText(stateText) end
     MPL.RenderProfileStats(f)
     for _,text in ipairs({f.character,f.context,f.source,f.note,f.footer}) do
         text:SetTextColor(stale and 0.53 or 0.88,stale and 0.53 or 0.95,stale and 0.53 or 0.96)
@@ -412,7 +490,7 @@ function MPL.ShowCompanionUpdates()
     f.edit:SetFocus(); f.edit:HighlightText()
 end
 
-function MPL.ShowDownload(fullName, realm, profile,context,batch)
+function MPL.ShowDownload(fullName, realm, profile,context,batch,history)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     if not MPL.downloadWindow then
@@ -462,7 +540,9 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
             local spec=MPL.SelectedSpec(f.name,f.realm) or (f.profile and f.profile.spec) or "All specs"
             if spec=="All specs" then spec="" end
             local id,request,skipped,total
-            if f.batch then
+            if f.history then
+                id,request=MPL.SendHistoryRequest(f.name,f.realm)
+            elseif f.batch then
                 local players,err=MPL.CollectApplicants()
                 if err then f.status:SetText(err); return end
                 total=#players
@@ -475,7 +555,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
                 end
                 id,request=MPL.SendBatchRequest(players)
                 f.character:SetText(L["Нужно загрузить: "]..#players.." / "..total)
-            else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant) end
+            else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant,true) end
             if not id then f.status:SetText(request); return end
             f.phase="copy"; f.request=request
             f.steps:SetText(L["|cffffd1001. Отправка запроса|r    /    |cff8888882. Получение логов|r"])
@@ -536,6 +616,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
     f.batch=batch or false
+    f.history=history or false
+    f.title:SetText(history and L["Local combat history"] or L["M+ логи / Warcraft Logs"])
     f.applicant=context or false
     f.character:SetText(name.." — "..server)
     f.steps:SetText(L["|cff8888881. Отправка запроса    /    2. Получение логов|r"])
@@ -548,6 +630,84 @@ end
 
 function MPL.ShowBatchDownload()
     MPL.ShowDownload(L["Кандидаты"],GetNormalizedRealmName(),nil,nil,true)
+end
+
+function MPL.ShowHistory(fullName,realm)
+    if not MPL.SafeString(fullName) then fullName,realm=UnitFullName("player") end
+    local name,server=MPL.Identity(fullName,realm)
+    if not name then return end
+    if not MPL.historyWindow then
+        local f=window("MPlusLogsHistoryWindow",L["Local combat history"],960,660,true)
+        f.character=label(f,20,-48,900,"","GameFontHighlightLarge")
+        f.summary=label(f,20,-80,900); f.summary:SetHeight(42)
+        f.scroll=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
+        f.scroll:SetPoint("TOPLEFT",20,-140); f.scroll:SetPoint("BOTTOMLEFT",20,96); f.scroll:SetSize(408,420)
+        f.content=CreateFrame("Frame",nil,f.scroll); f.content:SetSize(388,1); f.scroll:SetScrollChild(f.content); f.rows={}
+        f.scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
+        f.empty=label(f,20,-154,400,L["No local observations for this character. Choose a combat log in Companion."])
+        f.empty:SetHeight(100)
+        label(f,470,-145,220,L["Player"])
+        label(f,690,-145,75,L["Interrupts"])
+        label(f,775,-145,65,L["Deaths"])
+        label(f,850,-145,70,L["Dispels"])
+        f.party={}
+        for i=1,5 do
+            local y=-175-(i-1)*52
+            f.party[i]={name=label(f,470,y,210),spec=label(f,470,y-18,210),
+                interrupts=label(f,690,y,70),deaths=label(f,775,y,65),dispels=label(f,850,y,70)}
+        end
+        f.source=label(f,470,-448,450); f.source:SetHeight(58)
+        f.coverage=label(f,470,-510,450); f.coverage:SetHeight(60)
+        label(f,20,-580,900,L["Raw event counts from local files, separate from WCL percentiles. Partial logs are not complete-run totals."]):SetHeight(32)
+        button(f,L["Refresh history"],20,20,230,function() MPL.ShowDownload(f.name,f.realm,nil,nil,false,true) end)
+        button(f,L["Закрыть"],790,20,140,function() f:Hide() end)
+        MPL.historyWindow=f
+    end
+    local f=MPL.historyWindow
+    f.name,f.realm=name,server
+    f.character:SetText(name.." — "..server)
+    local runs,observations,totals=MPL.HistoryRuns(name,server)
+    f.runs=runs
+    f.summary:SetText(string.format(L["Local runs: %d / Complete observations: %d"],#runs,observations).."\n"
+        ..L["Interrupts"]..": "..(observations>0 and totals.interrupts or "—").." / "
+        ..L["Deaths"]..": "..(observations>0 and totals.deaths or "—").." / "..L["Dispels"]..": "..(observations>0 and totals.dispels or "—"))
+    local function select(run)
+        f.selected=run
+        for i,row in ipairs(f.party) do
+            local p=run and run.players[i]
+            for _,cell in pairs(row) do cell:SetText("") end
+            if p then
+                row.name:SetText(p.name~="" and (p.name.."-"..p.realm) or p.guid)
+                local info=MPL.specInfo[p.specID]
+                row.spec:SetText(info and MPL.SpecLabel(info[1]) or "—")
+                row.interrupts:SetText(p.interrupts); row.deaths:SetText(p.deaths); row.dispels:SetText(p.dispels)
+            end
+        end
+        f.source:SetText(run and (L["Combat log"]..": "..run.source.."\n"..string.format(L["Source lines: %d-%d"],run.firstLine,run.lastLine)) or "")
+        f.coverage:SetText(run and (L[run.coverage=="complete" and "Complete" or "Partial"]
+            .." / "..L[run.status=="completed" and "Completed" or run.status=="in_progress" and "In progress" or "Incomplete"]
+            .."\n"..L["Includes owned pets/totems; dispels include spellsteals."]
+            ..(run.yearInferred and ("\n"..L["Year inferred from file date."]) or "")) or "")
+    end
+    for _,row in ipairs(f.rows) do row:Hide() end
+    for i,run in ipairs(runs) do
+        local row=f.rows[i]
+        if not row then
+            row=CreateFrame("Button",nil,f.content); row:SetSize(388,52)
+            row.caption=label(row,4,-5,380); row.caption:SetHeight(44)
+            row:SetScript("OnClick",function() select(row.run) end)
+            f.rows[i]=row
+        end
+        row.run=run
+        -- Rebind each time the window changes character; avoid a stale selection closure.
+        row:SetScript("OnClick",function() select(row.run) end)
+        row:SetPoint("TOPLEFT",0,-(i-1)*54)
+        row.caption:SetText("+"..run.level.." "..run.dungeon.."\n"..run.started:gsub("T"," "):sub(1,19).." / "..L[run.coverage=="complete" and "Complete" or "Partial"])
+        row:Show()
+    end
+    f.content:SetHeight(math.max(1,#runs*54)); f.scroll:SetVerticalScroll(0)
+    f.empty:SetShown(#runs==0)
+    select(runs[1]); f:Show(); MPL.UpdatePanelScroll(f)
 end
 
 function MPL.ShowBatchResults(players,profiles,failures,count,open)

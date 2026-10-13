@@ -99,7 +99,7 @@ class BatchTests(unittest.TestCase):
         result=self.mpl.batchResultsWindow
         self.assertTrue(result.shown)
         self.assertIn("1 из 2",result.summary.text)
-        self.assertIn("Rankings hidden",result.rows[2].status.text)
+        self.assertIn("скрыты",result.rows[2].status.text)
         profile,_,_=self.mpl.GetProfile("Alice-Гордунни")
         self.assertEqual(profile.metric,"hps")
         self.assertTrue(profile.dual)

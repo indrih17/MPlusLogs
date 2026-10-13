@@ -165,7 +165,7 @@ class Client:
         return result
 
 
-def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False):
+def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False, spec_profiles=False):
     if not text.startswith(("MPLQ1\n","MPLQ1\r\n","MPLQ2\n","MPLQ2\r\n")):
         raise ValueError("Copy a MPlusLogs request in WoW first")
     batch=batch or text.startswith(("MPLQ2\n","MPLQ2\r\n"))
@@ -180,6 +180,30 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
         entry['_cache_scope'] = getattr(fetcher, 'cache_scope', 'public')
     profiles, report = builder.build(valid_entries,cache,ttl_hours=ttl_hours,max_fetch=len(entries) if batch else 20,
                                      offline=offline,fetcher=fetcher)
+    if spec_profiles and not batch and len(valid_entries)==1 and profiles:
+        entry=valid_entries[0]
+        aggregate=dict(entry,spec=None)
+        if entry.get('spec'):
+            _, extra=builder.build([aggregate],cache,ttl_hours=ttl_hours,max_fetch=1,offline=offline,fetcher=fetcher)
+            report['fetched']+=extra['fetched']; report['cacheHits']+=extra['cacheHits']; report['errors']+=extra['errors']
+        record=builder.read_cache(builder.cache_path(cache,aggregate))
+        raw=record and record.get('raw')
+        if raw and not any('429' in e['error'] or 'budget' in e['error'].lower() for e in report['errors']):
+            known={p['spec'] for p in profiles}
+            entries_for_specs=[dict(entry,spec=spec,role=None) for spec in wcl.logged_specs(raw) if spec not in known]
+            # Never relabel combined numbers. Each spec gets a filtered WCL query;
+            # normal cache, pacing, quotas and backoff apply to these calls too.
+            additional, extra=builder.build(entries_for_specs[:8],cache,ttl_hours=ttl_hours,
+                max_fetch=max(0,20-report['fetched']),offline=offline,fetcher=fetcher)
+            main=next((p.get('primarySpec') for p in profiles if p.get('primarySpec')),None)
+            for profile in additional:
+                if main: profile['primarySpec']=main
+            profiles+=additional
+            report['fetched']+=extra['fetched']; report['cacheHits']+=extra['cacheHits']; report['errors']+=extra['errors']
+            report['profiles']=len(profiles)
+        if not any(profile['spec']!='All specs' for profile in profiles):
+            reasons='; '.join(sorted({item['error'] for item in report['errors']}))
+            raise ValueError('Could not load specialization profiles. '+(reasons or 'WCL did not provide specialization data.'))
     report['errors'] += [{'character':e['name'],'realm':e['realm'],'error':e['queue_error']} for e in entries if e.get('queue_error')]
     for item in report['errors']:
         message = item['error'].lower()

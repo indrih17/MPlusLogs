@@ -52,6 +52,25 @@ class EfficiencyTests(unittest.TestCase):
         builder.build([entry(18, "another-account")], self.cache, fetcher=fetch, now=100002)
         self.assertEqual(len(calls), 2)
 
+    def test_hidden_character_error_objects_are_absence_not_parse_failure(self):
+        raw=dual()
+        character=raw['data']['characterData']['character']
+        character['hidden']=True
+        character['damage']={'error':"You do not have permission to see this character's rankings."}
+        character['healing']=dict(character['damage'])
+        with self.assertRaises(wcl.NoProfile):
+            builder.validate_raw(raw,builder.arguments(self.entry))
+        calls=[]
+        def fetch(_): calls.append(1); return raw
+        profiles,report=builder.build([self.entry],self.cache,fetcher=fetch,now=100000)
+        self.assertEqual(profiles,[])
+        self.assertIn('Rankings hidden',report['errors'][0]['error'])
+        self.assertNotIn('JSON shape',report['errors'][0]['error'])
+        cached=builder.read_cache(builder.cache_path(self.cache,self.entry))
+        self.assertTrue(cached['negative'])
+        builder.build([self.entry],self.cache,fetcher=fetch,now=100001)
+        self.assertEqual(len(calls),1)
+
     def test_role_and_metric_switch_reuses_both_metrics_with_original_date(self):
         calls = []
         def fetch(args):

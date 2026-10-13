@@ -284,7 +284,16 @@ events:RegisterEvent("LFG_LIST_APPLICANT_LIST_UPDATED"); events:RegisterEvent("L
 events:RegisterEvent("PLAYER_REGEN_ENABLED"); events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:RegisterEvent("PARTY_LEADER_CHANGED"); events:RegisterEvent("GROUP_ROSTER_UPDATE")
 events:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+events:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED"); events:RegisterEvent("INSPECT_READY")
 events:SetScript("OnEvent",function(_,event,loaded)
+    if (event=="PLAYER_SPECIALIZATION_CHANGED" or event=="INSPECT_READY")
+        and MPL.panel and MPL.panel:IsShown() and not InCombatLockdown() then
+        local f=MPL.panel
+        local sent,metric=f.inviteSent,f.viewMetric
+        MPL.ShowProfile(f.name,f.realm,f.applicant,true)
+        f.viewMetric=metric; MPL.RenderProfileStats(f)
+        if sent then f.inviteSent=true; MPL.UpdateProfileInvite() end
+    end
     if event == "ADDON_LOADED" and loaded == addonName then
         MPlusLogsDB = MPlusLogsDB or {}
         MPlusLogsDB.profiles = MPlusLogsDB.profiles or {}
@@ -319,6 +328,8 @@ SLASH_MPLUSLOGS2 = "/mpluslogs"
 SlashCmdList.MPLUSLOGS = function(text)
     text = strtrim(text or "")
     if text == "settings" then MPL.OpenSettings()
+    elseif text=="history" then MPL.ShowHistory(UnitFullName("player"))
+    elseif text:match("^history%s+") then MPL.ShowHistory(text:match("^history%s+(.+)$"))
     elseif text == "import" then MPL.ShowImport()
     elseif text == "applicants" then MPL.ShowBatchDownload()
     elseif text == "results" then MPL.OpenBatchResults()

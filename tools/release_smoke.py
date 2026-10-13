@@ -3,11 +3,18 @@ import json
 from pathlib import Path
 import sys
 import tkinter as tk
+import tempfile
 import realm_resolver
 import windows_integration as windows
 
 
 def run(report_path):
+    import clipboard_protocol
+    import wcl_sync
+    assert 'specprofiles' in clipboard_protocol.CAPABILITIES
+    assert wcl_sync.logged_specs({'data':{'characterData':{'character':{
+        'damage':{'rankings':[{'spec':'Elemental'}],'allStars':[{'spec':'Restoration'}]}
+    }}}})==['Elemental','Restoration']
     import companion_update
     companion_update.version_tuple(companion_update.current_version())
     import companion_i18n
@@ -15,6 +22,14 @@ def run(report_path):
         assert companion_i18n.catalog(language)["Настройки"]
     import retail_launcher  # Also verify the dynamically imported watcher is bundled.
     import wcl_oauth
+    import combat_history
+    import history_ui
+    parser=combat_history.Parser("smoke.txt")
+    parser.feed('10/1/2026 12:00:00.0  CHALLENGE_MODE_START,"Smoke dungeon",2813,587,19,[]\n')
+    assert parser.snapshot()["coverage"]=="partial"
+    with tempfile.TemporaryDirectory(prefix="MPlusLogs-history-smoke-") as folder:
+        store=combat_history.History(Path(folder)/"history.sqlite3")
+        assert store.runs()[1]==0
     config = json.loads(Path(__file__).with_name("oauth_client.json").read_text(encoding="utf-8"))
     assert set(config) == {"client_id", "redirect_uri"}
     assert config["client_id"] and config["redirect_uri"] == wcl_oauth.REDIRECT_URI
@@ -40,4 +55,4 @@ def run(report_path):
     finally:
         root.destroy()
     Path(report_path).write_text(json.dumps({"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
-        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide"]}, indent=2), encoding="utf-8")
+        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide", "local-history-parser", "local-history-sqlite"]}, indent=2), encoding="utf-8")

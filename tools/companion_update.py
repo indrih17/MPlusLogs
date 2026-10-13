@@ -38,6 +38,12 @@ def current_version():
     return companion_version.version()
 
 
+def local_preview():
+    if getattr(sys,"frozen",False):
+        return bool(json.loads(BUILD.read_text(encoding="utf-8")).get("preview"))
+    return (Path(__file__).resolve().parents[1]/".release-hold").exists()
+
+
 def version_tuple(value):
     if not isinstance(value, str) or not re.fullmatch(r"\d+\.\d+\.\d+", value):
         raise ValueError("Invalid Companion version")

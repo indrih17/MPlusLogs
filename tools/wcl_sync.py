@@ -131,6 +131,19 @@ def throughput_rankings(value, label):
 HEALERS={"Holy","Discipline","Restoration","Mistweaver","Preservation"}
 TANKS={"Blood","Protection","Guardian","Brewmaster","Vengeance"}
 
+def logged_specs(raw):
+    """Include logged alternatives absent from the best dungeon ranking rows."""
+    character=raw['data']['characterData']['character']
+    found=set()
+    for key in ('damage','healing','performance'):
+        if character.get(key) is None: continue
+        data=rankings(character[key])
+        for row in data.get('allStars',[])+data['rankings']:
+            for field in ('spec','bestSpec'):
+                spec=row.get(field)
+                if isinstance(spec,str) and spec and spec!='All specs': found.add(spec)
+    return sorted(found)
+
 def normalize(raw, args):
     data = raw.get("data") if isinstance(raw, dict) else None
     characters = data.get("characterData") if isinstance(data, dict) else None
@@ -139,8 +152,10 @@ def normalize(raw, args):
     character = characters["character"]
     if character is not None and not isinstance(character, dict):
         raise ValueError("Invalid WCL character response; no profile cached")
-    if not character or character.get("hidden"):
-        raise NoProfile("Character not found or rankings hidden; absence is not a zero parse")
+    if not character:
+        raise NoProfile("Character not found; absence is not a zero parse")
+    if character.get("hidden"):
+        raise NoProfile("Rankings hidden: Warcraft Logs denied access to this character's logs")
     dual="damage" in character and "healing" in character
     damage=rankings(character["damage"]) if dual else None
     healing=rankings(character["healing"]) if dual else None
@@ -156,6 +171,12 @@ def normalize(raw, args):
         role="HEALER" if spec in HEALERS or args.metric=="hps" else "TANK" if spec in TANKS else "DAMAGER"
     metric="hps" if role=="HEALER" else "dps"
     performance=(healing if metric=="hps" else damage) if dual else rankings(character.get("performance"))
+    logged_specs={}
+    for row in performance["rankings"]:
+        logged_spec=row.get("bestSpec") or row.get("spec")
+        if isinstance(logged_spec,str) and logged_spec:
+            logged_specs[logged_spec]=logged_specs.get(logged_spec,0)+(numeric(row.get("totalKills")) or 0)
+    primary_spec=args.spec or (min(logged_specs,key=lambda spec:(-logged_specs[spec],spec)) if logged_specs else None)
     secondary=(damage if metric=="hps" else healing) if dual else None
     other=throughput_rankings(secondary.get("throughputRankings") if secondary else None,"secondary")
     throughput = throughput_rankings(performance.get("throughputRankings"),"primary")
@@ -189,7 +210,7 @@ def normalize(raw, args):
     points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 else None
     runs = sum(d["runs"] for d in dungeons) if dungeons and all(d["runs"] is not None for d in dungeons) else None
     return {"region": region, "realm": args.realm, "name": character["name"], "zone": args.zone,
-            "season": args.season, "spec": args.spec or "All specs", "metric": metric,"role":role,"dual":dual,
+            "season": args.season, "spec": args.spec or "All specs", "primarySpec":primary_spec, "metric": metric,"role":role,"dual":dual,
             "otherBest":numeric(secondary.get("bestPerformanceAverage"),100) if secondary else None,
             "otherMedian":numeric(secondary.get("medianPerformanceAverage"),100) if secondary else None,
             "score": points, "best": numeric(performance.get("bestPerformanceAverage"), 100),
@@ -209,6 +230,8 @@ def export(profile):
                                                   "score", "best", "median", "runs", "updated", "source", "characterID", "realmSlug")))]
     if p.get("dual"):
         rows[1]+= "\t"+"\t".join(quote("" if p.get(k) is None else str(p[k]),safe="-._~") for k in ("role","otherBest","otherMedian"))
+    if p.get("primarySpec"):
+        rows[1]+="\t"+quote(p["primarySpec"],safe="-._~")
     for d in p["dungeons"]:
         keys=("name", "level", "time", "runs", "amount", "best", "median", "points", "rank")
         if p.get("dual"): keys+=("otherLevel","otherAmount","otherBest","otherMedian")
