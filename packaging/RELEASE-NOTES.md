@@ -1,4 +1,3 @@
-## MPlusLogs 0.5.14
+## MPlusLogs 0.5.15
 
-- Remove the unconditional Companion update prompt and misleading receive-response button.
-- Select the full clipboard request for Ctrl+C and Ctrl+V, and require Ctrl+C before advancing the copy step.
+- Declare compatibility with WoW 12.1.5 while retaining support for 12.0.7 and 12.1.0.

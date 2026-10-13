@@ -44,6 +44,8 @@ def main():
     parser.add_argument("--same-version", action="store_true", help="Keep current versions when explicitly requested; permit addon license updates, reject addon behavior changes")
     parser.add_argument("--summary", action="append")
     args = parser.parse_args()
+    if not args.check_only and (ROOT / ".release-hold").exists():
+        raise RuntimeError("Publication is on hold at the user's request; do not remove .release-hold without authorization")
     entries = export_release_source.entries()
     current = hashes(entries)
     previous = json.loads(STATE.read_text(encoding="utf-8"))["hashes"] if STATE.exists() else {}
