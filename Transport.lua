@@ -164,6 +164,11 @@ function MPL.ReceiveReply(text, strict)
             local count=MPL.StoreProfiles(result.profiles)
             MPL.pendingReply=nil
             MPL.ShowBatchResults(pendingReply.players,result.profiles,result.failures,count)
+            local f=MPL.panel
+            if pendingReply.groupPlayers and f and f.groupPlayers==pendingReply.groupPlayers and f:IsShown() then
+                f.groupFailures=result.failures
+                MPL.ShowProfile(f.name,f.realm,f.applicant,true,true)
+            end
             return count
         end
         local profiles,err=MPL.Parse(body)
@@ -189,7 +194,7 @@ function MPL.ReceiveReply(text, strict)
                 local main=MPL.MainProfileSpec(pendingReply.name,pendingReply.realm,pendingReply.role)
                 if main then MPL.SelectSpec(pendingReply.name,pendingReply.realm,main,pendingReply.role) end
             end
-            MPL.pendingReply=nil; MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context)
+            MPL.pendingReply=nil; MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context,true)
             if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
         end
         return count,importError

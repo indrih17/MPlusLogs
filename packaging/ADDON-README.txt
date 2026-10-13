@@ -1,4 +1,4 @@
-MPlusLogs 0.5.18
+MPlusLogs 0.5.19
 
 Mythic+ Warcraft Logs DPS/HPS profiles in group finder tooltips and player panels.
 Install this folder in World of Warcraft/_retail_/Interface/AddOns.

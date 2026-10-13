@@ -165,6 +165,37 @@ local function hookLFG()
     end
 end
 
+function MPL.CollectParty()
+    if InCombatLockdown() then return {} end
+    local players,seen={},{}
+    for _,unit in ipairs({"player","party1","party2","party3","party4"}) do
+        if UnitExists(unit) and UnitIsPlayer(unit) then
+            local name,realm=MPL.Identity(UnitFullName(unit))
+            if name and realm then
+                local key=MPL.Key(name,realm)
+                if not seen[key] then
+                    local role=UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit)
+                    role=MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] and role or nil
+                    MPL.RefreshCharacterSpec(name,realm)
+                    if role then MPL.roles=MPL.roles or {}; MPL.roles[key]=role end
+                    players[#players+1]={name=name,realm=realm,role=role,spec=MPL.SelectedSpec(name,realm,role)}
+                    seen[key]=true
+                end
+            end
+        end
+    end
+    return players
+end
+
+function MPL.CollectApplicantGroup(context)
+    local players={}
+    for _,player in ipairs(MPL.CollectApplicants()) do
+        if player.applicantID==context.applicantID then players[#players+1]=player end
+    end
+    table.sort(players,function(a,b) return a.memberIndex<b.memberIndex end)
+    return players
+end
+
 function MPL.CollectApplicants()
     if InCombatLockdown() then return {},L["Список кандидатов доступен вне боя"] end
     if not C_LFGList.GetApplicants then return {},L["Окно сбора группы ещё не загружено"] end
@@ -345,6 +376,7 @@ SlashCmdList.MPLUSLOGS = function(text)
         MPL.SetOption("tooltips",not MPL.GetOption("tooltips"))
         print(L["MPlusLogs: тултипы "] .. (MPlusLogsDB.tooltips and L["включены"] or L["выключены"]))
     elseif text ~= "" then MPL.ShowProfile(text)
+    elseif UnitExists("party1") and not (IsInRaid and IsInRaid()) then MPL.ShowGroupProfiles(MPL.CollectParty())
     elseif UnitExists("target") and UnitIsPlayer("target") then
         local name,realm = UnitFullName("target"); MPL.ShowProfile(name,realm)
     else MPL.ShowProfile(UnitFullName("player")) end

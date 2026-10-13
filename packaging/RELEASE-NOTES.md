@@ -1,3 +1,3 @@
-## MPlusLogs 0.5.18 / Companion 1.0.10
+## MPlusLogs 0.5.19
 
-- Compare canonical Windows executable paths when relocating Companion so startup entries and shortcuts using short names or junctions are updated correctly.
+- Open party members' logs in tabs, including group applicants, with one batch refresh for missing or stale profiles.

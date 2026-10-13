@@ -342,7 +342,64 @@ function MPL.RenderProfileStats(f)
     MPL.UpdatePanelScroll(f)
 end
 
-function MPL.ShowProfile(fullName, realm,context,suppressNotice)
+function MPL.RenderPlayerTabs(f)
+    f.playerTabs=type(f.playerTabs)=="table" and f.playerTabs or {}
+    for _,tab in ipairs(f.playerTabs) do tab:Hide() end
+    local players=type(f.groupPlayers)=="table" and f.groupPlayers or {}
+    if #players<2 then return end
+    local width=880/#players
+    for i,player in ipairs(players) do
+        local tab=f.playerTabs[i]
+        if not tab then
+            tab=button(f,"",0,0,width-4,function() end)
+            tab:SetScript("OnClick",function()
+                local p=tab.player
+                MPL.ShowProfile(p.name,p.realm,p.applicantID and p or nil,true,true)
+            end)
+            tab:SetScript("OnEnter",function(self)
+                GameTooltip:SetOwner(self,"ANCHOR_TOP")
+                GameTooltip:AddLine(self.player.name.."-"..self.player.realm)
+                GameTooltip:Show()
+            end)
+            tab:SetScript("OnLeave",function() GameTooltip:Hide() end)
+            f.playerTabs[i]=tab
+        end
+        tab.player=player; tab:ClearAllPoints()
+        tab:SetPoint("BOTTOMLEFT",f,"TOPLEFT",20+(i-1)*width,-2)
+        tab:SetSize(width-4,26)
+        local selected=MPL.Key(player.name,player.realm)==MPL.Key(f.name,f.realm)
+        tab:SetText((selected and "|cffffd100" or "|cffffffff")..player.name.."|r")
+        tab:Show()
+    end
+end
+
+function MPL.ShowGroupProfiles(players,selected)
+    if #players==0 then return end
+    local first=players[1]
+    if selected then
+        for _,player in ipairs(players) do
+            if MPL.Key(player.name,player.realm)==MPL.Key(selected.name,selected.realm) then first=player; break end
+        end
+    end
+    MPL.panel=MPL.panel or buildPanel()
+    MPL.panel.groupPlayers=players
+    MPL.panel.groupFailures=nil
+    MPL.ShowProfile(first.name,first.realm,first.applicantID and first or nil,true,true)
+    local pending=MPL.FilterFreshProfiles(players)
+    if #pending>0 then
+        MPL.ShowDownload(first.name,first.realm,nil,nil,players)
+    end
+end
+
+function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
+    if not keepGroup and not suppressNotice and type(context)=="table" and (context.groupSize or 1)>1 then
+        local players=MPL.CollectApplicantGroup(context)
+        for _,player in ipairs(players) do
+            if #players>1 and MPL.Key(player.name,player.realm)==MPL.Key(context.name,context.realm) then
+                MPL.ShowGroupProfiles(players,context); return
+            end
+        end
+    end
     if not MPL.SafeString(fullName) then fullName, realm = UnitFullName("player") end
     local unitName,unitRealm=MPL.Identity(fullName,realm)
     if unitName then MPL.RefreshCharacterSpec(unitName,unitRealm) end
@@ -361,6 +418,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     MPL.Remember(name,server)
     MPL.panel = MPL.panel or buildPanel()
     local f = MPL.panel
+    if not keepGroup and not suppressNotice then f.groupPlayers=nil; f.groupFailures=nil end
     f.applicant=type(context)=="table" and MPL.Key(context.name,context.realm)==MPL.Key(name,server) and context or false
     f.inviteSent=false
     if MPL.staleWindow then MPL.staleWindow:Hide() end
@@ -437,6 +495,8 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
         f.content:SetHeight(1)
     end
     if profile and stateText then f.footer:SetText(stateText) end
+    local failure=type(f.groupFailures)=="table" and f.groupFailures[stateKey]
+    if failure then f.footer:SetText(companionError(MPL.T(failure.error))) end
     MPL.RenderProfileStats(f)
     for _,text in ipairs({f.character,f.context,f.source,f.note,f.footer}) do
         text:SetTextColor(stale and 0.53 or 0.88,stale and 0.53 or 0.95,stale and 0.53 or 0.96)
@@ -444,6 +504,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     f:Show()
     MPL.UpdateProfileInvite()
     MPL.UpdatePanelScroll(f)
+    MPL.RenderPlayerTabs(f)
     if stale and not suppressNotice then MPL.ShowStaleNotice(name,server,profile,lastDate) end
 end
 
@@ -546,7 +607,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,history)
             if f.history then
                 id,request=MPL.SendHistoryRequest(f.name,f.realm)
             elseif f.batch then
-                local players,err=MPL.CollectApplicants()
+                local players,err
+                if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.status:SetText(err); return end
                 total=#players
                 players,skipped=MPL.FilterFreshProfiles(players)
@@ -557,6 +619,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,history)
                     return
                 end
                 id,request=MPL.SendBatchRequest(players)
+                if id and type(f.batch)=="table" then MPL.pendingReply.groupPlayers=f.batch end
                 f.character:SetText(L["Нужно загрузить: "]..#players.." / "..total)
             else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant,true) end
             if not id then f.status:SetText(request); return end
