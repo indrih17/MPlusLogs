@@ -251,7 +251,7 @@ end
 
 function MPL.RecordApplicant(fullName,role,specID,class)
     local name,realm=MPL.Identity(fullName)
-    if not name then return end
+    if not MPL.SafeString(name) or not MPL.SafeString(realm) then return end
     local key=MPL.Key(name,realm)
     MPL.roles=MPL.roles or {}; MPL.specs=MPL.specs or {}; MPL.classes=MPL.classes or {}
     MPL.roles[key]=MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] and role or nil

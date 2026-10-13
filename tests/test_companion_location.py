@@ -124,8 +124,11 @@ class LocationTests(unittest.TestCase):
                     old.unlink()
                 new = location.copy_runtime(old, base / 'Programs/Companion')
                 marker = base / 'new process started.txt'
+                alias = base / 'old program junction'
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(alias), str(source)], check=True, capture_output=True)
+                alias_executable = alias / location.EXECUTABLE
                 with winreg.CreateKey(winreg.HKEY_CURRENT_USER, registry) as key:
-                    winreg.SetValueEx(key, 'MPlusLogs Companion', 0, winreg.REG_SZ, f'"{old}" --background')
+                    winreg.SetValueEx(key, 'MPlusLogs Companion', 0, winreg.REG_SZ, f'"{alias_executable}" --background')
                     winreg.SetValueEx(key, 'MPlusLogs Retail Launcher', 0, winreg.REG_SZ, f'{old} --watch-retail')
                     winreg.SetValueEx(key, 'Other program', 0, winreg.REG_SZ, 'other.exe --background')
                 shortcuts = base / 'shortcuts'
@@ -136,7 +139,7 @@ class LocationTests(unittest.TestCase):
                     return "'" + str(value).replace("'", "''") + "'"
                 setup_links = (
                     "$shell = New-Object -ComObject WScript.Shell; "
-                    f"$link = $shell.CreateShortcut({literal(link)}); $link.TargetPath = {literal(old)}; $link.Save(); "
+                    f"$link = $shell.CreateShortcut({literal(link)}); $link.TargetPath = {literal(alias_executable)}; $link.Save(); "
                     f"$other = $shell.CreateShortcut({literal(unrelated)}); $other.TargetPath = 'C:\\other.exe'; $other.Save(); "
                 )
                 script = location.relocation_script(old, new, parent.pid, [str(marker)], base, [shortcuts])
@@ -166,7 +169,9 @@ class LocationTests(unittest.TestCase):
                     self.assertEqual(winreg.QueryValueEx(key, 'MPlusLogs Companion')[0], f'"{new}" --background')
                     self.assertEqual(winreg.QueryValueEx(key, 'MPlusLogs Retail Launcher')[0], f'"{new}" --watch-retail')
                     self.assertEqual(winreg.QueryValueEx(key, 'Other program')[0], 'other.exe --background')
-                self.assertEqual(json.loads(report.read_text()), [str(new), r'C:\other.exe'])
+                targets = json.loads(report.read_text())
+                self.assertEqual(Path(targets[0]).resolve(), new.resolve())
+                self.assertEqual(targets[1], r'C:\other.exe')
             finally:
                 for process in (parent, watcher, helper):
                     if process is not None and process.poll() is None:

@@ -898,6 +898,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
     member.Rating:ClearAllPoints(); member.Rating:SetPoint("CENTER",member,"LEFT",active and 253 or 218,0)
     if not active or not MPL.SafeString(name) or not MPL.SafeString(status) or status~="applied" then cell:Hide(); return end
     local shortName,realm=MPL.Identity(name)
+    if not MPL.SafeString(shortName) or not MPL.SafeString(realm) then cell:Hide(); return end
     cell.key=MPL.Key(shortName,realm)
     local knownRole=MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] and role or nil
     if knownRole then

@@ -36,6 +36,18 @@ class ApplicantUITests(unittest.TestCase):
         self.assertTrue(f.scroll.shown)
         self.assertFalse(f.lookup.focused)
 
+    def test_invite_rejects_temporarily_unavailable_realm(self):
+        self.authorize()
+        context=self.players()[1]
+        self.lua.execute('''
+            GetNormalizedRealmName=function() return nil end
+            C_LFGList.GetApplicantMemberInfo=function() return "Alice" end
+        ''')
+        valid,error=self.mpl.ValidateApplicant(context)
+        self.assertIsNone(valid)
+        self.assertEqual(error,"Данные участника недоступны")
+        self.assertIsNone(self.lua.globals().inviteCalls)
+
     def test_url_copy_closes_after_native_copy_and_only_for_ctrl_c(self):
         self.lua.execute("IsControlKeyDown=function() return controlDown or false end")
         self.mpl.ShowProfile("Киндрих-Гордунни")

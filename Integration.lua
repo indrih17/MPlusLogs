@@ -177,8 +177,8 @@ function MPL.CollectApplicants()
             for member=1,info.numMembers do
                 local fullName,class,_,_,_,_,_,_,_,role,_,_,_,_,_,specID=C_LFGList.GetApplicantMemberInfo(id,member)
                 local spec=MPL.RecordApplicant(fullName,role,specID,class)
-                if MPL.SafeString(fullName) then
-                    local name,realm=MPL.Identity(fullName)
+                local name,realm=MPL.Identity(fullName)
+                if MPL.SafeString(name) and MPL.SafeString(realm) then
                     local key=MPL.Key(name,realm)
                     roster[key]=true
                     if not seen[key] then
@@ -214,6 +214,7 @@ function MPL.ValidateApplicant(context)
         local fullName=C_LFGList.GetApplicantMemberInfo(context.applicantID,member)
         if not MPL.SafeString(fullName) then return nil,L["Данные участника недоступны"] end
         local name,realm=MPL.Identity(fullName)
+        if not MPL.SafeString(name) or not MPL.SafeString(realm) then return nil,L["Данные участника недоступны"] end
         local key=MPL.Key(name,realm)
         if not context.roster or not context.roster[key] then return nil,L["Состав заявки изменился; откройте сводку заново"] end
         seen[key]=true

@@ -79,6 +79,29 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(players[1].role,"HEALER")
         self.assertEqual(players[2].name,"Bob")
 
+    def test_applicant_without_available_realm_is_skipped_and_recovers(self):
+        self.lua.execute('''
+            GetNormalizedRealmName=function() return nil end
+            C_LFGList.GetApplicantMemberInfo=function(id,member)
+                if id==10 and member==1 then return "Alice" end
+                return "Bob-Гордунни"
+            end
+        ''')
+        self.mpl.InstallBatchButton()
+        self.assertEqual(len(self.players()),1)
+        self.assertEqual(self.mpl.batchButton.text,"Загрузить логи всех (0/1)")
+        self.lua.execute('GetNormalizedRealmName=function() return "Гордунни" end')
+        self.mpl.UpdateBatchButton()
+        self.assertEqual(len(self.players()),2)
+        self.assertEqual(self.mpl.batchButton.text,"Загрузить логи всех (0/2)")
+
+    def test_unavailable_applicant_name_does_not_create_identity(self):
+        self.lua.execute('C_LFGList.GetApplicantMemberInfo=function() return nil end')
+        self.mpl.InstallBatchButton()
+        self.assertEqual(len(self.players()),0)
+        self.assertIsNone(self.mpl.roles)
+        self.assertIsNone(self.mpl.specs)
+
     def test_button_is_in_group_application_viewer(self):
         self.mpl.InstallBatchButton()
         self.assertEqual(self.mpl.batchButton.text,"Загрузить логи всех (0/2)")

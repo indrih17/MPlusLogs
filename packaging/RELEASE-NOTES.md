@@ -1,3 +1,3 @@
-## Companion 1.0.9
+## MPlusLogs 0.5.18 / Companion 1.0.10
 
-- Preserve bundled realm lookup data and license notices when relocating Companion outside AddOns; verify relocation support in the frozen build.
+- Compare canonical Windows executable paths when relocating Companion so startup entries and shortcuts using short names or junctions are updated correctly.
