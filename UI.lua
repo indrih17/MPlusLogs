@@ -416,7 +416,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     if not MPL.downloadWindow then
-        local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,426,true)
+        local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,382,true)
         f.programmatic=false; f.revision=0; f.phase="idle"; f.request=""; f.quotaElapsed=0
         f.character=label(f,24,-53,472,"","GameFontHighlightLarge")
         f.steps=label(f,24,-84,472,L["1. Отправка запроса    /    2. Получение логов"],"GameFontNormal")
@@ -452,17 +452,10 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
         end
         f.focusInput=focusInput
         inputClip:SetScript("OnMouseDown",focusInput)
+        edit:SetScript("OnMouseUp",focusInput)
         local function setText(text)
             f.programmatic=true; edit:SetText(text); f.programmatic=false
             focusInput()
-        end
-        local function checkStatus()
-            if f.phase=="idle" then return end
-            f.quotaError=nil
-            f.phase="waiting"
-            f.steps:SetText(L["|cff8888881. Отправка запроса|r    /    |cffffd1002. Получение логов|r"])
-            setText(f.request)
-            f.status:SetText(L["Теперь нажмите |cffffd100Ctrl+V|r.\nБез вставки WoW не может получить ответ помощника."])
         end
         f.begin=function()
             f.quotaError=nil
@@ -486,16 +479,10 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
             if not id then f.status:SetText(request); return end
             f.phase="copy"; f.request=request
             f.steps:SetText(L["|cffffd1001. Отправка запроса|r    /    |cff8888882. Получение логов|r"])
-            -- The paste step must remain accessible even if WoW does not
-            -- deliver a Ctrl+C key-up event (or Ctrl is released first).
-            f.refresh:Enable()
-            f.status:SetText(L["|cffff3030Требуется MPlusLogs Companion.|r\nУстановите и запустите его, войдите в Warcraft Logs.\nПосле установки или входа введите /reload, затем нажмите Ctrl+C."]
+            f.status:SetText(L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"]
                 ..(skipped and skipped>0 and ("\n"..L["Актуальные данные: "]..skipped..L[" из "]..total) or ""))
             setText(request)
         end
-        button(f,L["Обновить Companion"],24,24,196,MPL.ShowCompanionUpdates)
-        f.refresh=button(f,L["Получить ответ (Ctrl+V)"],232,24,264,checkStatus)
-        f.refresh:SetHeight(32)
         edit:SetScript("OnEscapePressed",function() f:Hide() end)
         f:SetScript("OnHide",function() edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil end)
         f:SetScript("OnUpdate",function(_,elapsed)
@@ -508,16 +495,20 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
         end)
         local function copied(key)
             if key=="C" and f.phase=="copy" then
-                f.phase="waiting"; f.refresh:Enable()
+                f.phase="waiting"
                 f.steps:SetText(L["|cff8888881. Отправка запроса|r    /    |cffffd1002. Получение логов|r"])
                 f.status:SetText(L["Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload."])
                 edit:HighlightText()
             end
         end
         edit:SetScript("OnKeyDown",function(_,key)
-            if IsControlKeyDown() then copied(key) end
+            if IsControlKeyDown() then
+                -- Native clipboard shortcuts act on the selection. Replace the
+                -- entire request on paste, even after a mouse click moved it.
+                if key=="C" or key=="V" then edit:HighlightText() end
+                copied(key)
+            end
         end)
-        edit:SetScript("OnKeyUp",function(_,key) copied(key) end)
         edit:SetScript("OnTextChanged",function()
             f.revision=f.revision+1
             local revision=f.revision
@@ -534,7 +525,6 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
                 else
                     f.quotaError=err and err:find("API reset at ",1,true) and err or nil
                     f.status:SetText(companionError(err or L["Ответ ещё не получен. Нажмите Ctrl+V позже."]))
-                    f.refresh:Enable()
                     setText(f.request)
                 end
             end)
@@ -550,12 +540,10 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
     f.character:SetText(name.." — "..server)
     f.steps:SetText(L["|cff8888881. Отправка запроса    /    2. Получение логов|r"])
     f.status:SetText(L["Подготовка запроса…"])
-    f.refresh:Disable()
     f.programmatic=true; f.edit:SetText(""); f.programmatic=false; f.edit:ClearFocus()
     if MPL.importWindow then MPL.importWindow:Hide() end
     f:Show()
     f.begin()
-    if not (MPlusLogsDB and MPlusLogsDB.companionUpdaterNoticeSeen) then MPL.ShowCompanionUpdates() end
 end
 
 function MPL.ShowBatchDownload()

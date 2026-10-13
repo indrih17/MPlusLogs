@@ -1,5 +1,10 @@
 # Changelog
 
+## MPlusLogs 0.5.14
+
+- Remove the unconditional Companion update prompt and misleading receive-response button.
+- Select the full clipboard request for Ctrl+C and Ctrl+V, and require Ctrl+C before advancing the copy step.
+
 ## MPlusLogs 0.5.13 / Companion 1.0.6
 
 - Reuse the same account-isolated profile cache after OAuth token refreshes and signing back into Warcraft Logs.

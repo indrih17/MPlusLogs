@@ -44,6 +44,7 @@ local function newFrame()
     function methods:SetFocus() self.focused=true end
     function methods:ClearFocus() self.focused=false end
     function methods:HasFocus() return self.focused==true end
+    function methods:HighlightText() self.highlighted=true end
     function methods:SetHeight(h) self.height = h end
     function methods:GetHeight() return rawget(self,"height") or 208 end
     function methods:SetShown(value) self.shown=value end

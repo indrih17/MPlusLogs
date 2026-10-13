@@ -189,7 +189,7 @@ class ReplyTests(unittest.TestCase):
         self.assertEqual(self.mpl.panel.profile.dungeons[1].name,"Den of Nalorakk")
         self.assertFalse(self.mpl.downloadWindow.shown)
 
-    def test_download_prepares_request_automatically_and_status_check_is_honest(self):
+    def test_download_prepares_request_and_copy_shortcut_advances_to_paste(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         f=self.mpl.downloadWindow
         self.assertEqual(f.phase,"copy")
@@ -199,9 +199,8 @@ class ReplyTests(unittest.TestCase):
         request=f.edit.GetText(f.edit)
         self.assertTrue(request.startswith("MPLS1\n"))
         self.lua.execute("function IsControlKeyDown() return true end")
-        f.edit.scripts.OnKeyUp(f.edit,"C")
+        f.edit.scripts.OnKeyDown(f.edit,"C")
         self.assertEqual(f.phase,"waiting")
-        f.refresh.scripts.OnClick()
         self.assertEqual(f.edit.GetText(f.edit),request)
         self.assertIn("Ctrl+V",f.status.text)
         self.assertIsNotNone(self.mpl.pendingReply)
@@ -228,14 +227,17 @@ class ReplyTests(unittest.TestCase):
         self.assertIn("другой",err)
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
 
-    def test_receive_button_does_not_depend_on_copy_key_events(self):
+    def test_paste_import_does_not_depend_on_copy_key_events(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)
         f=self.mpl.downloadWindow
-        # No key event arrives, but the receive action must still work.
-        f.refresh.scripts.OnClick()
-        self.assertEqual(f.phase,"waiting")
-        self.assertEqual(f.edit.GetText(f.edit),f.request)
-        self.assertIn("Ctrl+V",f.status.text)
+        # A missed copy event must not prevent importing a matching reply.
+        reply="MPLS1\n"+self.mpl.pendingReply.id+"\nMPLB1\n"+quote(self.body,safe="")
+        f.edit.SetText(f.edit,reply)
+        f.edit.scripts.OnTextChanged(f.edit,True)
+        self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
+        self.assertIsNone(self.mpl.pendingReply)
+        self.assertFalse(f.shown)
+        self.assertEqual(self.mpl.panel.profile.best,62)
 
     def test_reopen_resets_progress_and_rejects_previous_reply(self):
         self.mpl.ShowDownload("Киндрих","Гордунни",None)

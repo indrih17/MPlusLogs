@@ -116,6 +116,53 @@ class BatchTests(unittest.TestCase):
         self.mpl.OpenBatchResults()
         self.assertIn("0 из 2",self.mpl.batchResultsWindow.summary.text)
 
+    def test_download_shortcuts_select_request_and_require_ctrl_for_copy(self):
+        self.lua.execute('IsControlKeyDown=function() return controlDown or false end')
+        self.mpl.ShowBatchDownload()
+        f=self.mpl.downloadWindow
+        self.flush()
+        self.assertEqual(f.phase,'copy')
+        self.assertTrue(f.edit.focused)
+        self.assertTrue(f.edit.highlighted)
+        f.edit.scripts.OnKeyDown(f.edit,'C')
+        self.assertEqual(f.phase,'copy')
+        self.lua.globals().controlDown=True
+        f.edit.highlighted=False
+        f.edit.scripts.OnKeyDown(f.edit,'C')
+        self.assertEqual(f.phase,'waiting')
+        self.assertTrue(f.edit.highlighted)
+        f.edit.highlighted=False
+        f.edit.scripts.OnKeyDown(f.edit,'V')
+        self.assertTrue(f.edit.highlighted)
+        response=clipboard_protocol.reply(f.request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        f.edit.SetText(f.edit,response)
+        f.edit.scripts.OnTextChanged(f.edit,True)
+        self.flush()
+        self.assertFalse(f.shown)
+        self.assertEqual(self.mpl.lastBatchResult.count,1)
+
+    def test_download_click_restores_selection_and_invalid_paste_can_be_retried(self):
+        self.mpl.ShowBatchDownload()
+        f=self.mpl.downloadWindow
+        self.flush()
+        f.edit.highlighted=False
+        f.edit.scripts.OnMouseUp(f.edit)
+        self.flush()
+        self.assertTrue(f.edit.highlighted)
+        request=f.request
+        f.edit.SetText(f.edit,'unrelated clipboard contents')
+        f.edit.scripts.OnTextChanged(f.edit,True)
+        self.flush()
+        self.assertTrue(f.shown)
+        self.assertEqual(f.edit.text,request)
+        self.assertTrue(f.edit.highlighted)
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        f.edit.SetText(f.edit,response)
+        f.edit.scripts.OnTextChanged(f.edit,True)
+        self.flush()
+        self.assertFalse(f.shown)
+        self.assertEqual(self.mpl.lastBatchResult.count,1)
+
     def test_unrequested_player_and_incomplete_receipt_cannot_import(self):
         request_id,_=self.mpl.SendBatchRequest(self.players())
         for body in ("MPL2\nF\teu\tГордунни\tMallory\terror\n", "MPL2\nF\teu\tГордунни\tAlice\terror\n"):

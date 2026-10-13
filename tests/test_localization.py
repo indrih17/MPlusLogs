@@ -41,7 +41,8 @@ class LocalizationTests(unittest.TestCase):
                 original_spec=original.spec
                 original_source=original.source
                 mpl.ShowDownload('Киндрих','Гордунни',original)
-                self.assertEqual(mpl.downloadWindow.refresh.text,mpl.L['Получить ответ (Ctrl+V)'])
+                self.assertEqual(mpl.downloadWindow.phase,'copy')
+                self.assertIn(mpl.L['Запрос: Ctrl+A выделить, Ctrl+C скопировать'],mpl.downloadWindow.status.text)
                 self.assertEqual(original.spec,original_spec)
                 self.assertEqual(original.source,original_source)
                 self.assertEqual(mpl.pendingReply.spec,'')

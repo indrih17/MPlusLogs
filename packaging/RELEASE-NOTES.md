@@ -1,4 +1,4 @@
-## MPlusLogs 0.5.13 / Companion 1.0.6
+## MPlusLogs 0.5.14
 
-- Reuse the same account-isolated profile cache after OAuth token refreshes and signing back into Warcraft Logs.
-- Show logs for the selected group dungeon and preserve separate specialization profiles with automatic and manual selection.
+- Remove the unconditional Companion update prompt and misleading receive-response button.
+- Select the full clipboard request for Ctrl+C and Ctrl+V, and require Ctrl+C before advancing the copy step.
