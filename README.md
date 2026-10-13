@@ -12,6 +12,14 @@ Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows
 
 ## Install
 
+Keep Companion outside WoW `Interface\AddOns`; the installer uses
+`%LOCALAPPDATA%\Programs\MPlusLogs Companion` by default and rejects AddOns
+destinations. Portable copies launched from AddOns offer to relocate their
+program files and restart, preserving login, settings and their own startup
+entries and shortcuts. Declining closes Companion to release the files.
+For older versions already in AddOns, exit Companion from the tray and install
+the latest Setup outside AddOns once; their old built-in updater keeps the old path.
+
 Install the addon from [CurseForge](https://www.curseforge.com/wow/addons/mpluslogs).
 **REQUIRED: Install and run MPlusLogs Companion on Windows. Online log loading does not work without it.**
 Download the [Companion installer](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe)

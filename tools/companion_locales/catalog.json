@@ -169,5 +169,8 @@
   "Тема оформления",
   "Трей недоступен. Оставьте окно свёрнутым во время игры.",
   "Тёмная",
-  "Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник."
+  "Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник.",
+  "Companion is inside the WoW AddOns folder and can block addon updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.",
+  "Companion will restart from {path}. The old files are kept and will be unlocked after it closes.",
+  "Could not relocate Companion: {error}. Companion will close. Install it outside Interface/AddOns and try again."
 ]

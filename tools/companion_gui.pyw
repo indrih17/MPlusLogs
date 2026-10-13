@@ -674,6 +674,9 @@ def main():
         import release_smoke
         release_smoke.run(sys.argv[sys.argv.index("--self-test-report") + 1])
         return
+    import companion_location
+    if companion_location.guard():
+        return
     if "--watch-retail" in sys.argv:
         import retail_launcher
         retail_launcher.watch()

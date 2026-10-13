@@ -25,7 +25,7 @@ class InstallerTests(unittest.TestCase):
         code = (ROOT / "packaging/companion.iss").read_text(encoding="utf-8").split("[Code]", 1)[1]
         registry = "Software\\MPlusLogsInstallerTest-" + uuid.uuid4().hex
         code = code.replace("Software\\Microsoft\\Windows\\CurrentVersion\\Run", registry)
-        with tempfile.TemporaryDirectory(dir=ROOT, prefix=".test-work-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="MPlusLogs-installer-test-") as temporary:
             base = Path(temporary)
             payload = base / "fixture.txt"
             payload.write_text("isolated installer fixture")
@@ -55,6 +55,7 @@ StartupWindows=Windows
 StartupRetail=Retail
 StartupManual=Manual
 StartupRegistryWarning=Registry error
+UnsafeInstallDirectory=Companion cannot be installed inside Interface/AddOns
 [Files]
 Source: "{payload}"; DestDir: "{{app}}"
 [Code]
@@ -87,6 +88,18 @@ end;
                         self.assertEqual((destination / "selection.txt").read_text(), expected)
                         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, registry) as key:
                             self.assertEqual(winreg.QueryValueEx(key, value)[0], command)
+                addon_root = base / 'WoW/Interface/AddOns'
+                addon_root.mkdir(parents=True)
+                alias = base / 'junction'
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(alias), str(addon_root)],
+                               capture_output=True, check=True)
+                for unsafe in (addon_root / 'MPlusLogs/Companion', alias / 'Companion'):
+                    log = base / 'blocked.log'
+                    installed = subprocess.run([str(base / 'TestSetup.exe'), '/VERYSILENT', '/SUPPRESSMSGBOXES',
+                        '/NORESTART', '/DIR=' + str(unsafe), '/LOG=' + str(log)], capture_output=True, timeout=30)
+                    self.assertNotEqual(installed.returncode, 0)
+                    self.assertFalse((unsafe / 'fixture.txt').exists())
+                    self.assertIn('Companion cannot be installed', log.read_text(encoding='utf-8-sig', errors='replace'))
             finally:
                 winreg.DeleteKey(winreg.HKEY_CURRENT_USER, registry)
 

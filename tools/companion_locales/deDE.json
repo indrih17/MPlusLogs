@@ -169,5 +169,8 @@
   "Specialization ID": "Specialization ID",
   "Raw event counts from local files, separate from WCL percentiles. Partial logs are not complete-run totals.": "Raw event counts from local files, separate from WCL percentiles. Partial logs are not complete-run totals.",
   "Local preview / not published": "Local preview / not published",
-  "Local history": "Local history"
+  "Local history": "Local history",
+  "Companion is inside the WoW AddOns folder and can block addon updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion befindet sich im WoW-Ordner AddOns und kann Addon-Updates blockieren. Nach {path} verschieben? Anmeldung und Einstellungen bleiben erhalten. Bei Nein wird Companion geschlossen, um die Dateien freizugeben.",
+  "Companion will restart from {path}. The old files are kept and will be unlocked after it closes.": "Companion startet aus {path} neu. Die alten Dateien bleiben erhalten und werden nach dem Schließen freigegeben.",
+  "Could not relocate Companion: {error}. Companion will close. Install it outside Interface/AddOns and try again.": "Companion konnte nicht verschoben werden: {error}. Companion wird geschlossen. Installiere ihn außerhalb von Interface/AddOns und versuche es erneut."
 }

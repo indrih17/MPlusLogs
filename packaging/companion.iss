@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.7"
+  #define AppVersion "1.0.8"
 #endif
 
 [Setup]
@@ -36,6 +36,7 @@ english.StartupWindows=Start automatically when I sign in to Windows
 english.StartupRetail=Start automatically with WoW Retail
 english.StartupManual=Do not start automatically; I will open it myself
 english.StartupRegistryWarning=Windows could not save the automatic start setting. Open MPlusLogs Companion settings to choose it manually.
+english.UnsafeInstallDirectory=Choose a folder outside WoW Interface\AddOns. A running Companion in AddOns can prevent addon updates. The recommended location is %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 russian.StartupPageTitle=Когда запускать MPlusLogs Companion
 russian.StartupPageDescription=Выберите, когда помощник должен быть готов к загрузке логов.
 russian.StartupPageNote=Позже это можно изменить в настройках Companion. В конце установки также будет предложено открыть программу.
@@ -43,6 +44,7 @@ russian.StartupWindows=Запускать автоматически при вх
 russian.StartupRetail=Запускать автоматически вместе с WoW Retail
 russian.StartupManual=Не запускать автоматически — я буду открывать программу сам
 russian.StartupRegistryWarning=Windows не сохранила настройку автозапуска. Выберите её вручную в настройках MPlusLogs Companion.
+russian.UnsafeInstallDirectory=Выберите папку вне WoW Interface\AddOns. Запущенный Companion в AddOns мешает обновлению аддона. Рекомендуемая папка: %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -66,6 +68,67 @@ const
   StartupRunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
   StartupWindowsName = 'MPlusLogs Companion';
   StartupRetailName = 'MPlusLogs Retail Launcher';
+
+function WindowsCreateFile(Name: String; Access, Share: LongWord; Security: Integer;
+  Creation, Flags: LongWord; Template: THandle): THandle;
+  external 'CreateFileW@kernel32.dll stdcall';
+function WindowsFinalPath(Handle: THandle; Buffer: String; Size, Flags: LongWord): LongWord;
+  external 'GetFinalPathNameByHandleW@kernel32.dll stdcall';
+function WindowsCloseHandle(Handle: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+function InAddOns(Path: String): Boolean;
+begin
+  Result := Pos('\interface\addons\', Lowercase(AddBackslash(Path))) > 0;
+end;
+
+function UnsafeInstallDirectory: Boolean;
+var
+  Path, Ancestor, Tail, Buffer, Parent: String;
+  Handle: THandle;
+  Size: LongWord;
+begin
+  Path := ExpandFileName(WizardDirValue);
+  Result := InAddOns(Path);
+  if Result then Exit;
+  // Resolve the nearest existing ancestor to catch junctions and symlinks.
+  Ancestor := Path;
+  Tail := '';
+  while not DirExists(Ancestor) do begin
+    Parent := ExtractFileDir(Ancestor);
+    if Parent = Ancestor then begin Result := True; Exit; end;
+    Tail := ExtractFileName(Ancestor) + '\' + Tail;
+    Ancestor := Parent;
+  end;
+  Handle := WindowsCreateFile(Ancestor, 0, 7, 0, 3, $02000000, 0);
+  if Handle = THandle(-1) then begin Result := True; Exit; end;
+  try
+    SetLength(Buffer, 32768);
+    Size := WindowsFinalPath(Handle, Buffer, 32768, 0);
+    if (Size = 0) or (Size >= 32768) then begin Result := True; Exit; end;
+    SetLength(Buffer, Size);
+    Result := InAddOns(AddBackslash(Buffer) + Tail);
+  finally
+    WindowsCloseHandle(Handle);
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (not WizardSilent) and (CurPageID = wpSelectDir) and UnsafeInstallDirectory then begin
+    MsgBox(CustomMessage('UnsafeInstallDirectory'), mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  // /DIR and silent upgrades must follow the same rule as the wizard.
+  if UnsafeInstallDirectory then
+    Result := CustomMessage('UnsafeInstallDirectory');
+end;
 
 function StartupCommand(Mode: String): String;
 begin

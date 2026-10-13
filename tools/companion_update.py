@@ -131,6 +131,11 @@ def launch_installer(target, data, result_root=None):
     result_root = local_settings.PATH.parent if result_root is None else Path(result_root)
     result_root.mkdir(parents=True, exist_ok=True)
     script = installer_script(target, data, executable, os.getpid(), result_root)
+    launch_helper(script)
+
+
+def launch_helper(script):
+    """Run a detached helper with the system DLL search path and a fresh frozen environment."""
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     # PyInstaller's DLL search directory is inherited by external executables.
     # Use Windows' normal search path for the helper/installer, then restore ours.

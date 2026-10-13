@@ -1,5 +1,10 @@
 # Changelog
 
+## Companion 1.0.8
+
+- Prevent Companion installation inside WoW AddOns, including linked folders.
+- Offer safe relocation of portable Companion copies from AddOns, preserving login, settings, startup entries and shortcuts while releasing old executable locks.
+
 ## MPlusLogs 0.5.17
 
 - Add current-dungeon numeric DPS/HPS, Median and Best choices to the primary statistic setting for applicant rows, profile summaries and tooltips, honoring the healer HPS-first preference and keeping missing dungeon data unavailable.
