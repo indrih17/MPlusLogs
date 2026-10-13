@@ -94,10 +94,12 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             builder.load_entries(requests=queue)
 
-    def test_unknown_duplicate_spec_is_rejected(self):
+    def test_multiple_specs_allowed_but_exact_duplicate_rejected(self):
         import json
         path = self.directory / "roster.json"
         path.write_text(json.dumps([self.entry,dict(self.entry,spec="Feral")]),encoding="utf-8")
+        self.assertEqual(len(builder.load_entries(manifest=path)),2)
+        path.write_text(json.dumps([self.entry,self.entry]),encoding="utf-8")
         with self.assertRaises(ValueError):
             builder.load_entries(manifest=path)
 

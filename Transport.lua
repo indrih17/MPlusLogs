@@ -21,6 +21,8 @@ function MPL.SendRequest(name,realm,metric,spec,context)
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     local role=MPL.roles and MPL.roles[MPL.Key(name,realm)]
+    spec=spec or MPL.SelectedSpec(name,realm,role) or ""
+    if spec=="All specs" then spec="" end
     local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role))
     MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context}
     return id,request
@@ -35,7 +37,10 @@ function MPL.SendBatchRequest(players)
         local key=MPL.Key(player.name,player.realm)
         if not expected[key] then
             expected[key]=player
-            rows[#rows+1]=MPL.ExportCharacterRequest(player.name,player.realm,"dps","",player.role):gsub("^MPLQ1\n","")
+            local spec=player.spec or MPL.SelectedSpec(player.name,player.realm,player.role) or ""
+            if spec=="All specs" then spec="" end
+            player.spec=spec
+            rows[#rows+1]=MPL.ExportCharacterRequest(player.name,player.realm,"dps",spec,player.role):gsub("^MPLQ1\n","")
         end
     end
     sequence=sequence+1
@@ -85,6 +90,7 @@ function MPL.ReceiveReply(text, strict)
                 local expected=pendingReply.expected[key]
                 if not expected then return nil,L["Ответ содержит персонажа вне списка кандидатов"] end
                 if expected.role and profile.role~=expected.role then return nil,L["Ответ содержит другую роль кандидата"] end
+                if profile.spec~=(expected.spec~="" and expected.spec or "All specs") then return nil,L["Ответ содержит другую специализацию"] end
             end
             for key in pairs(result.failures) do
                 if not pendingReply.expected[key] then return nil,L["Ошибка относится к персонажу вне списка кандидатов"] end
@@ -115,7 +121,7 @@ function MPL.ReceiveReply(text, strict)
             end
             if not profiles[expected].dual and profiles[expected].metric~=pendingReply.metric then return nil,L["Ответ содержит другую метрику логов"] end
             if pendingReply.role and profiles[expected].role~=pendingReply.role then return nil,L["Ответ содержит другую роль персонажа"] end
-            if pendingReply.spec and pendingReply.spec~="" and profiles[expected].spec~=pendingReply.spec then
+            if profiles[expected].spec~=(pendingReply.spec~="" and pendingReply.spec or "All specs") then
                 return nil,L["Ответ содержит другую специализацию"]
             end
         end

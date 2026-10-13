@@ -237,5 +237,9 @@
   "\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs.": "\nOuvrez MPlusLogs Companion et cliquez sur « Passer à l’API personnelle » pour utiliser votre propre client API Warcraft Logs.",
   "\nСброс личного API через %d мин. %d сек.": "\nAPI personnelle : réinitialisation dans %d min. %d s.",
   "\nСброс общего API через %d мин. %d сек.": "\nAPI partagée : réinitialisation dans %d min. %d s.",
-  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs n’a pas indiqué le délai de réinitialisation du quota."
+  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs n’a pas indiqué le délai de réinitialisation du quota.",
+  "Специализация": "Spécialisation",
+  "Ключ лучшего результата": "Clé du meilleur résultat",
+  "Нет загруженных логов этого подземелья": "Aucun journal chargé pour ce donjon",
+  "Автоматически": "Automatique"
 }

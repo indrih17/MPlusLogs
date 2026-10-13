@@ -237,5 +237,9 @@
   "\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs.": "\nApri MPlusLogs Companion e premi «Passa all’API personale» per usare il tuo client API Warcraft Logs.",
   "\nСброс личного API через %d мин. %d сек.": "\nAPI personale: ripristino tra %d min. %d sec.",
   "\nСброс общего API через %d мин. %d сек.": "\nAPI condivisa: ripristino tra %d min. %d sec.",
-  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs non ha indicato il tempo di ripristino della quota."
+  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs non ha indicato il tempo di ripristino della quota.",
+  "Специализация": "Specializzazione",
+  "Ключ лучшего результата": "Chiave del miglior risultato",
+  "Нет загруженных логов этого подземелья": "Nessun registro caricato per questa spedizione",
+  "Автоматически": "Automatico"
 }

@@ -177,7 +177,7 @@ class BatchTests(unittest.TestCase):
             end
             for i=1,30 do
                 local key=MPlusLogs.Key("Player"..i,"Гордунни")
-                MPlusLogsDB.profiles[key]={updated="2026-10-12 04:00 UTC",metric="dps",dual=true}
+                MPlusLogsDB.profiles[key]={updated="2026-10-12 04:00 UTC",metric="dps",dual=true,spec="All specs"}
             end
             originalProfile=MPlusLogsDB.profiles[MPlusLogs.Key("Player1","Гордунни")]
         ''')
@@ -207,9 +207,9 @@ class BatchTests(unittest.TestCase):
     def test_expired_unknown_date_and_missing_role_metric_are_requested(self):
         self.lua.execute('''
             MPlusLogsDB.profiles[MPlusLogs.Key("Alice","Гордунни")]=
-                {updated="2026-10-12 04:00 UTC",metric="hps",dual=false}
+                {updated="2026-10-12 04:00 UTC",metric="hps",dual=false,spec="All specs"}
             MPlusLogsDB.profiles[MPlusLogs.Key("Bob","Гордунни")]=
-                {updated="2026-10-12 04:00 UTC",metric="dps",dual=true}
+                {updated="2026-10-12 04:00 UTC",metric="dps",dual=true,spec="All specs"}
         ''')
         pending,skipped=self.mpl.FilterFreshProfiles(self.players())
         self.assertEqual(len(pending),1)
@@ -227,7 +227,7 @@ class BatchTests(unittest.TestCase):
         self.lua.execute('''
             for _,name in ipairs({"Alice","Bob"}) do
                 MPlusLogsDB.profiles[MPlusLogs.Key(name,"Гордунни")]=
-                    {updated="2026-10-12 04:00 UTC",metric="dps",dual=true}
+                    {updated="2026-10-12 04:00 UTC",metric="dps",dual=true,spec="All specs"}
             end
         ''')
         self.mpl.UpdateBatchButton()

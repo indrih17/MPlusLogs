@@ -1,11 +1,60 @@
 local addonName, MPL = ...
 local L = MPL.L
 
-function MPL.AddTooltip(tooltip, fullName, realm)
+-- Match the activity's instance map ID through Blizzard's challenge-map API.
+local dungeonNames={
+    [584]="The Blinding Vale",[585]="Voidscar Arena",[586]="Den of Nalorakk",[587]="Murder Row",
+    [588]="Altar of Fangs",[249]="Kings' Rest",[250]="Temple of Sethraliss",[399]="Ruby Life Pools",
+}
+function MPL.ListedDungeon(activityIDs)
+    if InCombatLockdown() or not C_LFGList.GetActivityInfoTable then return end
+    if not activityIDs and C_LFGList.GetActiveEntryInfo then
+        local entry=C_LFGList.GetActiveEntryInfo()
+        activityIDs=entry and entry.activityIDs
+    end
+    if type(activityIDs)~="table" then return end
+    local found
+    for _,id in ipairs(activityIDs) do
+        if issecretvalue and issecretvalue(id) then return end
+        local activity=C_LFGList.GetActivityInfoTable(id)
+        if not activity or (issecretvalue and issecretvalue(activity.isMythicPlusActivity)) or not activity.isMythicPlusActivity then return end
+        local name
+        if C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+            for mapID,canonical in pairs(dungeonNames) do
+                local localized,_,_,_,_,instanceMap=C_ChallengeMode.GetMapUIInfo(mapID)
+                local safeMap=not (issecretvalue and issecretvalue(activity.mapID)) and type(activity.mapID)=="number"
+                if (safeMap and instanceMap and activity.mapID==instanceMap)
+                    or (not safeMap and MPL.SafeString(localized) and ((MPL.SafeString(activity.fullName) and activity.fullName:find(localized,1,true))
+                    or (MPL.SafeString(activity.shortName) and activity.shortName==localized))) then name=canonical; break end
+            end
+        end
+        if not name or (found and found~=name) then return end
+        found=name
+    end
+    return found
+end
+
+function MPL.AddDungeonTooltip(tooltip,profile,metric,stale,dungeon)
+    if not dungeon then return end
+    tooltip:AddLine(dungeon,0.4,0.8,1)
+    for _,row in ipairs(profile.dungeons or {}) do
+        if row.name==dungeon then
+            local level,_,best,median=MPL.MetricValues(profile,row,metric)
+            best,median=MPL.OrderPercentiles(best,median)
+            tooltip:AddDoubleLine(metric:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
+            tooltip:AddDoubleLine(L["Ключ лучшего результата"],level and ("+"..level) or "—")
+            tooltip:AddDoubleLine(L["Залогированные прохождения"],tostring(row.runs or "—"))
+            return
+        end
+    end
+    tooltip:AddLine(L["Нет загруженных логов этого подземелья"],0.65,0.65,0.65)
+end
+
+function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
     if InCombatLockdown() or not MPlusLogsDB or not MPL.GetOption("tooltips") then return end
     local profile, name, server = MPL.GetProfile(fullName,realm)
     if not name then return end
-    local key = MPL.Key(name,server)
+    local key = MPL.Key(name,server)..":"..(profile and MPL.VariantKey(profile) or MPL.SelectedSpec(name,server) or "")..":"..(dungeon or "")
     MPL.Remember(name,server)
     if tooltip.mplKey == key then return end
     tooltip.mplKey = key
@@ -19,13 +68,18 @@ function MPL.AddTooltip(tooltip, fullName, realm)
         local _,_,otherBest,otherMedian=MPL.MetricValues(profile,nil,secondary)
         best,median=MPL.OrderPercentiles(best,median)
         otherBest,otherMedian=MPL.OrderPercentiles(otherBest,otherMedian)
-        tooltip:AddLine(MPL.T(profile.spec) .. L[" / по уровню ключа"],0.8,0.8,0.8)
+        tooltip:AddLine(MPL.SpecLabel(profile.spec) .. L[" / по уровню ключа"],0.8,0.8,0.8)
+        MPL.AddDungeonTooltip(tooltip,profile,primary,stale,dungeon)
         tooltip:AddDoubleLine(primary:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
         tooltip:AddDoubleLine(secondary:upper().." "..MPL.PercentileCaption(),MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale))
         tooltip:AddDoubleLine(L["Залогированные прохождения"],tostring(profile.runs or "—"))
         tooltip:AddLine(MPL.T(profile.source).." / "..lastDate,0.65,0.65,0.65,true)
         if stale then tooltip:AddLine(L["Обновите логи персонажа"],0.65,0.65,0.65) end
-    else tooltip:AddLine(L["Профиль не загружен"],0.65,0.65,0.65) end
+    else
+        local spec=MPL.SelectedSpec(name,server)
+        if spec then tooltip:AddLine(MPL.SpecLabel(spec),0.8,0.8,0.8) end
+        tooltip:AddLine(L["Профиль не загружен"],0.65,0.65,0.65)
+    end
     tooltip:AddLine(L["ПКМ > M+ логи"],0.4,0.8,1)
     tooltip:Show()
 end
@@ -34,11 +88,8 @@ local function applicant(owner)
     if not owner or not owner.memberIdx then return end
     local parent = owner:GetParent()
     if not parent or not parent.applicantID then return end
-    local fullName,_,_,_,_,_,_,_,_,role = C_LFGList.GetApplicantMemberInfo(parent.applicantID,owner.memberIdx)
-    if MPL.SafeString(fullName) and MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] then
-        local name,realm=MPL.Identity(fullName)
-        MPL.roles=MPL.roles or {}; MPL.roles[MPL.Key(name,realm)]=role
-    end
+    local fullName,class,_,_,_,_,_,_,_,role,_,_,_,_,_,specID = C_LFGList.GetApplicantMemberInfo(parent.applicantID,owner.memberIdx)
+    MPL.RecordApplicant(fullName,role,specID,class)
     if MPL.SafeString(fullName) then return fullName end
 end
 local function menu(root, fullName, realm,context)
@@ -66,7 +117,7 @@ local function hookLFG()
         hooksecurefunc("LFGListApplicantMember_OnEnter",function(owner)
             if InCombatLockdown() then return end
             local name = applicant(owner)
-            if name then MPL.AddTooltip(GameTooltip,name) end
+            if name then MPL.AddTooltip(GameTooltip,name,nil,MPL.ListedDungeon()) end
         end)
         hooked.applicant = true
     end
@@ -74,7 +125,7 @@ local function hookLFG()
         hooksecurefunc("LFGListSearchEntry_OnEnter",function(owner)
             if InCombatLockdown() or not owner.resultID then return end
             local info = C_LFGList.GetSearchResultInfo(owner.resultID)
-            if info and MPL.SafeString(info.leaderName) then MPL.AddTooltip(GameTooltip,info.leaderName) end
+            if info and MPL.SafeString(info.leaderName) then MPL.AddTooltip(GameTooltip,info.leaderName,nil,MPL.ListedDungeon(info.activityIDs)) end
         end)
         hooked.search = true
     end
@@ -120,14 +171,15 @@ function MPL.CollectApplicants()
             and type(info.numMembers)=="number" and (not info.applicationStatus or info.applicationStatus=="applied") then
             local roster={}
             for member=1,info.numMembers do
-                local fullName,_,_,_,_,_,_,_,_,role=C_LFGList.GetApplicantMemberInfo(id,member)
+                local fullName,class,_,_,_,_,_,_,_,role,_,_,_,_,_,specID=C_LFGList.GetApplicantMemberInfo(id,member)
+                local spec=MPL.RecordApplicant(fullName,role,specID,class)
                 if MPL.SafeString(fullName) then
                     local name,realm=MPL.Identity(fullName)
                     local key=MPL.Key(name,realm)
                     roster[key]=true
                     if not seen[key] then
                         local knownRole=MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] and role or nil
-                        players[#players+1]={name=name,realm=realm,role=knownRole,applicantID=id,memberIndex=member,groupSize=info.numMembers,roster=roster}
+                        players[#players+1]={name=name,realm=realm,role=knownRole,spec=spec,applicantID=id,memberIndex=member,groupSize=info.numMembers,roster=roster}
                         seen[key]=true
                         if knownRole then MPL.roles=MPL.roles or {}; MPL.roles[key]=knownRole end
                     end

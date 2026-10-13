@@ -25,6 +25,12 @@ def identity(region, realm, name):
     return region.lower(), normalized(realm), normalized(name)
 
 
+def profile_identity(entry):
+    return (*identity(entry.get("region", "eu"), entry["realm"],
+                      entry.get("name") or str(entry.get("character_id"))),
+            entry.get("spec") or "All specs", entry.get("role") or "")
+
+
 def load_entries(manifest=None, requests=None, realms=None):
     entries = []
     if manifest:
@@ -34,9 +40,9 @@ def load_entries(manifest=None, requests=None, realms=None):
     if requests:
         text = requests.read_text(encoding="utf-8-sig")
         mapping = realm_resolver.load_mappings(realms)
-        seen = {identity(e.get("region", "eu"), e.get("realm", ""), e["name"]) for e in entries if e.get("name")}
+        seen = {profile_identity(e) for e in entries if e.get("name")}
         for request in realm_resolver.parse_queue(text,mapping):
-            key = identity(request["region"], request["realm"], request["name"])
+            key = profile_identity(request)
             if key in seen:
                 continue
             entries.append(request)
@@ -55,9 +61,9 @@ def load_entries(manifest=None, requests=None, realms=None):
             raise ValueError("Unsupported metric")
         if entry.get("role") not in {None,"HEALER","TANK","DAMAGER"}:
             raise ValueError("Unsupported role")
-        key = identity(entry.get("region", "eu"), entry["realm"], entry.get("name") or str(entry["character_id"]))
+        key = profile_identity(entry)
         if key in seen:
-            raise ValueError("One spec/metric per character is currently supported; remove duplicate roster entries")
+            raise ValueError("Duplicate character specialization/role; remove duplicate roster entries")
         seen.add(key)
     return entries
 
@@ -112,9 +118,9 @@ def lua_string(text):
 
 
 def bundle(profiles):
-    keys = [identity(p["region"], p["realm"], p["name"]) for p in profiles]
+    keys = [profile_identity(p) for p in profiles]
     if len(set(keys)) != len(keys):
-        raise ValueError("Different roster entries resolved to the same character; database not replaced")
+        raise ValueError("Different roster entries resolved to the same character specialization/role; database not replaced")
     text = "MPL1\n" + "".join(wcl.export(p).removeprefix("MPL1\n") for p in profiles)
     if len(text.encode()) > 500000:
         raise ValueError("Database exceeds current 500 KB limit; split datasets or extend addon storage")

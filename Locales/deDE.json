@@ -237,5 +237,9 @@
   "\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs.": "\nÖffne MPlusLogs Companion und wähle „Zur persönlichen API wechseln“, um deinen eigenen Warcraft Logs API-Client zu verwenden.",
   "\nСброс личного API через %d мин. %d сек.": "\nPersönliche API wird in %d Min. %d Sek. zurückgesetzt.",
   "\nСброс общего API через %d мин. %d сек.": "\nGemeinsame API wird in %d Min. %d Sek. zurückgesetzt.",
-  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs hat keine Rücksetzzeit gemeldet."
+  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs hat keine Rücksetzzeit gemeldet.",
+  "Специализация": "Spezialisierung",
+  "Ключ лучшего результата": "Schlüssel des besten Ergebnisses",
+  "Нет загруженных логов этого подземелья": "Keine geladenen Logs für diesen Dungeon",
+  "Автоматически": "Automatisch"
 }

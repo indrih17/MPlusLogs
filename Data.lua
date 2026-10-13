@@ -61,7 +61,7 @@ end
 function MPL.FilterFreshProfiles(players)
     local pending,skipped={},0
     for _,player in ipairs(players) do
-        local profile=MPL.GetProfile(player.name,player.realm)
+        local profile=MPL.GetProfile(player.name,player.realm,player.spec,player.role)
         local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
         local usable=profile and (profile.dual or profile.metric==metric)
         if usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
@@ -102,25 +102,132 @@ function MPL.Key(name, realm, region)
     return (region or MPL.Region()) .. ":" .. MPL.Normalize(realm) .. ":" .. MPL.Normalize(name) .. ":" .. MPL.zone
 end
 
-function MPL.GetProfile(fullName, realm)
+-- WCL uses English specialization slugs regardless of the WoW client locale.
+MPL.specInfo={
+    [250]={"Blood","TANK","DEATHKNIGHT"},[251]={"Frost","DAMAGER","DEATHKNIGHT"},[252]={"Unholy","DAMAGER","DEATHKNIGHT"},
+    [577]={"Havoc","DAMAGER","DEMONHUNTER"},[581]={"Vengeance","TANK","DEMONHUNTER"},[1480]={"Devourer","DAMAGER","DEMONHUNTER"},
+    [102]={"Balance","DAMAGER","DRUID"},[103]={"Feral","DAMAGER","DRUID"},[104]={"Guardian","TANK","DRUID"},[105]={"Restoration","HEALER","DRUID"},
+    [1467]={"Devastation","DAMAGER","EVOKER"},[1468]={"Preservation","HEALER","EVOKER"},[1473]={"Augmentation","DAMAGER","EVOKER"},
+    [253]={"BeastMastery","DAMAGER","HUNTER"},[254]={"Marksmanship","DAMAGER","HUNTER"},[255]={"Survival","DAMAGER","HUNTER"},
+    [62]={"Arcane","DAMAGER","MAGE"},[63]={"Fire","DAMAGER","MAGE"},[64]={"Frost","DAMAGER","MAGE"},
+    [268]={"Brewmaster","TANK","MONK"},[269]={"Windwalker","DAMAGER","MONK"},[270]={"Mistweaver","HEALER","MONK"},
+    [65]={"Holy","HEALER","PALADIN"},[66]={"Protection","TANK","PALADIN"},[70]={"Retribution","DAMAGER","PALADIN"},
+    [256]={"Discipline","HEALER","PRIEST"},[257]={"Holy","HEALER","PRIEST"},[258]={"Shadow","DAMAGER","PRIEST"},
+    [259]={"Assassination","DAMAGER","ROGUE"},[260]={"Outlaw","DAMAGER","ROGUE"},[261]={"Subtlety","DAMAGER","ROGUE"},
+    [262]={"Elemental","DAMAGER","SHAMAN"},[263]={"Enhancement","DAMAGER","SHAMAN"},[264]={"Restoration","HEALER","SHAMAN"},
+    [265]={"Affliction","DAMAGER","WARLOCK"},[266]={"Demonology","DAMAGER","WARLOCK"},[267]={"Destruction","DAMAGER","WARLOCK"},
+    [71]={"Arms","DAMAGER","WARRIOR"},[72]={"Fury","DAMAGER","WARRIOR"},[73]={"Protection","TANK","WARRIOR"},
+}
+
+function MPL.VariantKey(profile)
+    return profile.spec..":"..(profile.role or "")
+end
+
+function MPL.SpecLabel(spec)
+    if GetSpecializationInfoByID then
+        for id,info in pairs(MPL.specInfo) do
+            if info[1]==spec then
+                local _,name=GetSpecializationInfoByID(id)
+                if MPL.SafeString(name) then return name end
+            end
+        end
+    end
+    return MPL.T(spec)
+end
+
+function MPL.ProfileRole(profile)
+    if profile.role then return profile.role end
+    if profile.spec~="All specs" then
+        for _,info in pairs(MPL.specInfo) do if info[1]==profile.spec then return info[2] end end
+    end
+end
+
+function MPL.SelectedSpec(name,realm,role)
+    local key=MPL.Key(name,realm)
+    role=role or (MPL.roles and MPL.roles[key]) or ""
+    local choices=MPlusLogsDB and MPlusLogsDB.selectedSpecs
+    local selected=choices and choices[key..":"..role]
+    if selected then return selected end
+    local info=MPL.specs and MPL.specs[key]
+    if info and (role=="" or info[2]==role) then return info[1] end
+    if role~="" then return "All specs" end
+end
+
+function MPL.SelectSpec(name,realm,spec,role)
+    MPlusLogsDB=MPlusLogsDB or {}
+    MPlusLogsDB.selectedSpecs=MPlusLogsDB.selectedSpecs or {}
+    role=role or (MPL.roles and MPL.roles[MPL.Key(name,realm)]) or ""
+    MPlusLogsDB.selectedSpecs[MPL.Key(name,realm)..":"..role]=spec
+end
+
+function MPL.RecordApplicant(fullName,role,specID,class)
+    local name,realm=MPL.Identity(fullName)
+    if not name then return end
+    local key=MPL.Key(name,realm)
+    MPL.roles=MPL.roles or {}; MPL.specs=MPL.specs or {}; MPL.classes=MPL.classes or {}
+    MPL.roles[key]=MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] and role or nil
+    local info=not (issecretvalue and issecretvalue(specID)) and MPL.specInfo[specID]
+    MPL.specs[key]=info or nil
+    MPL.classes[key]=MPL.SafeString(class) and class or nil
+    return MPL.SelectedSpec(name,realm,MPL.roles[key])
+end
+
+function MPL.GetProfile(fullName, realm, spec, role)
     local name, server = MPL.Identity(fullName, realm)
     if not name then return end
     local key = MPL.Key(name, server)
-    local saved = MPlusLogsDB and MPlusLogsDB.profiles and MPlusLogsDB.profiles[key]
-    local bundled = MPL.bundled and MPL.bundled[key]
-    -- API dates use the same sortable UTC format. A newer distributed bundle
-    -- must not be hidden by an older manually imported profile.
-    if saved and bundled and saved.updated:match("^%d%d%d%d%-%d%d%-%d%d") and bundled.updated > saved.updated then
-        saved = bundled
+    role=role or (MPL.roles and MPL.roles[key])
+    spec=spec or MPL.SelectedSpec(name,server,role)
+    if spec=="" then spec="All specs" end
+    local selected
+    local function consider(profile)
+        if not profile then return end
+        if spec and profile.spec~=spec then return end
+        local profileRole=MPL.ProfileRole(profile)
+        if role and profileRole and role~=profileRole then return end
+        local stamp=MPL.ProfileDate(profile)
+        local current=selected and MPL.ProfileDate(selected)
+        if not selected or (stamp and (not current or stamp>current)) then selected=profile end
     end
-    return saved or bundled or (MPL.snapshots and MPL.snapshots[key]), name, server
+    consider(MPlusLogsDB and MPlusLogsDB.profiles and MPlusLogsDB.profiles[key])
+    for _,profile in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do consider(profile) end
+    consider(MPL.bundled and MPL.bundled[key])
+    for _,profile in pairs(MPL.bundledSpecs and MPL.bundledSpecs[key] or {}) do consider(profile) end
+    if not selected then consider(MPL.snapshots and MPL.snapshots[key]) end
+    return selected, name, server
+end
+
+function MPL.ProfileSpecs(name,realm,role)
+    local result,seen={"All specs"},{["All specs"]=true}
+    local key=MPL.Key(name,realm)
+    local class=MPL.classes and MPL.classes[key]
+    local function add(spec)
+        if spec and not seen[spec] then result[#result+1]=spec; seen[spec]=true end
+    end
+    for _,info in pairs(MPL.specInfo) do
+        if (not class or info[3]==class) and (not role or info[2]==role) then add(info[1]) end
+    end
+    local profile=MPL.GetProfile(name,realm)
+    if profile then add(profile.spec) end
+    for _,p in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do
+        local profileRole=MPL.ProfileRole(p)
+        if not role or not profileRole or profileRole==role then add(p.spec) end
+    end
+    table.sort(result,function(a,b) if a==b then return false elseif a=="All specs" then return true elseif b=="All specs" then return false end; return a<b end)
+    return result
 end
 
 function MPL.LoadBundle()
-    if not MPL.bundledText or MPL.bundledText == "" then MPL.bundled = {}; return end
+    if not MPL.bundledText or MPL.bundledText == "" then MPL.bundled = {}; MPL.bundledSpecs={}; return end
     local profiles, err = MPL.Parse(MPL.bundledText)
     if not profiles then print(L["MPlusLogs: ошибка базы: "] .. err); return end
     MPL.bundled = profiles
+    MPL.bundledSpecs={}
+    for _,profile in pairs(profiles) do
+        local key=MPL.Key(profile.name,profile.realm,profile.region)
+        MPL.bundledSpecs[key]=MPL.bundledSpecs[key] or {}
+        MPL.bundledSpecs[key][MPL.VariantKey(profile)]=profile
+    end
 end
 
 function MPL.Remember(name, realm)
@@ -178,7 +285,7 @@ function MPL.Parse(text, batch)
     if type(text) ~= "string" or #text > 500000 then return nil, L["Слишком большой импорт (максимум 500 КБ)"] end
     local ok, result = pcall(function()
         local profiles, current, header, failures = {}, nil, false, {}
-        local count, lineNumber = 0, 0
+        local count, lineNumber, variants = 0, 0, {}
         for line in (text .. "\n"):gmatch("([^\n]*)\n") do
             lineNumber=lineNumber+1
             line = line:gsub("\r$", "")
@@ -228,7 +335,10 @@ function MPL.Parse(text, batch)
                     elseif f[1] == "E" then
                         if not current or #f ~= 1 then error(L["Некорректное завершение профиля"]) end
                         local key = MPL.Key(current.name, current.realm, current.region)
-                        if profiles[key] then error(L["Дублирующийся профиль"]) end
+                        local variant=key..":"..MPL.VariantKey(current)
+                        if variants[variant] then error(L["Дублирующийся профиль"]) end
+                        variants[variant]=true
+                        if profiles[key] then key=variant end
                         profiles[key], current = current, nil
                     else
                         local bytes={}
@@ -254,8 +364,19 @@ end
 function MPL.StoreProfiles(profiles)
     MPlusLogsDB = MPlusLogsDB or {profiles={}}
     MPlusLogsDB.profiles = MPlusLogsDB.profiles or {}
+    MPlusLogsDB.specProfiles = MPlusLogsDB.specProfiles or {}
     local count = 0
-    for key, profile in pairs(profiles) do MPlusLogsDB.profiles[key] = profile; count = count + 1 end
+    for _, profile in pairs(profiles) do
+        local key=MPL.Key(profile.name,profile.realm,profile.region)
+        local variants=MPlusLogsDB.specProfiles[key] or {}
+        -- Migrate a legacy profile before updating the compatibility view.
+        local old=MPlusLogsDB.profiles[key]
+        if old then variants[MPL.VariantKey(old)]=old end
+        variants[MPL.VariantKey(profile)]=profile
+        MPlusLogsDB.specProfiles[key]=variants
+        MPlusLogsDB.profiles[key]=profile
+        count=count+1
+    end
     return count
 end
 

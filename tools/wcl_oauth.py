@@ -45,9 +45,14 @@ def token_record(response, previous=None):
         raise ValueError("Warcraft Logs не сообщил срок действия токена.") from None
     if lifetime <= 0:
         raise ValueError("OAuth token already expired")
-    return {"access_token": response["access_token"],
+    record = {"access_token": response["access_token"],
             "refresh_token": response.get("refresh_token") or (previous or {}).get("refresh_token"),
             "expires_at": time.time() + lifetime}
+    # Refreshing credentials does not change the authenticated account.
+    for key in ("_account_id", "_api_budget"):
+        if key in (previous or {}):
+            record[key] = previous[key]
+    return record
 
 
 def exchange(fields):
@@ -118,7 +123,20 @@ def login(client_id, cancel=None, opener=webbrowser.open, timeout=180):
 class Session:
     def __init__(self, client_id, tokens, persist):
         self.client_id, self.tokens, self.persist = client_id, dict(tokens), persist
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
+
+    def cache_scope(self):
+        # Older installations resolve their account once; new logins already
+        # include it in the existing authentication probe.
+        with self.lock:
+            if not valid_account_id(self.tokens.get("_account_id")):
+                self.access_token()
+                updated = dict(self.tokens)
+                validate_access(updated)
+                self.persist(updated)
+                self.tokens = updated
+            principal = f"{self.client_id}:{self.tokens['_account_id']}"
+            return "user-account:" + hashlib.sha256(principal.encode()).hexdigest()
 
     def access_token(self):
         with self.lock:
@@ -137,11 +155,19 @@ class Session:
             self.tokens["expires_at"] = 0
 
 
+def valid_account_id(value):
+    return type(value) is int and 0 < value <= 2147483647
+
+
 def validate_access(tokens):
     """Verify authentication and character API before persisting a new login."""
     data = wcl.request_json(wcl.ROOT + "/api/v2/user",
-                           b'{"query":"{ rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn } characterData { __typename } }"}',
+                           b'{"query":"{ rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn } characterData { __typename } userData { currentUser { id } } }"}',
                            {"Authorization": "Bearer " + tokens["access_token"], "Content-Type": "application/json"})
     if data.get("errors") or not data.get("data", {}).get("characterData"):
         raise ValueError("Вход выполнен, но доступ к API персонажей WCL не подтверждён.")
+    account = (data.get("data", {}).get("userData") or {}).get("currentUser") or {}
+    if not valid_account_id(account.get("id")):
+        raise ValueError("WCL account identity could not be verified. Sign in again.")
+    tokens["_account_id"] = account["id"]
     return data.get("data", {}).get("rateLimitData")

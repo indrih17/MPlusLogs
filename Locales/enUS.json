@@ -237,5 +237,9 @@
   "\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs.": "\nWe recommend opening MPlusLogs Companion and clicking “Switch to personal API” to use your own Warcraft Logs API client.",
   "\nСброс личного API через %d мин. %d сек.": "\nPersonal API resets in %d min. %d sec.",
   "\nСброс общего API через %d мин. %d сек.": "\nShared API resets in %d min. %d sec.",
-  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs did not report the quota reset time."
+  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs did not report the quota reset time.",
+  "Специализация": "Specialization",
+  "Ключ лучшего результата": "Key of best result",
+  "Нет загруженных логов этого подземелья": "No loaded logs for this dungeon",
+  "Автоматически": "Automatic"
 }

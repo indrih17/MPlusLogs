@@ -55,7 +55,7 @@ class ReplyTests(unittest.TestCase):
         load_locales(self.lua,self.mpl)
         for file in ("Data.lua","Snapshot.lua","Transport.lua","UI.lua"):
             self.lua.execute("return assert(loadstring(...))",(ROOT / file).read_text(encoding="utf-8"))("MPlusLogs",self.mpl)
-        args=SimpleNamespace(realm="Гордунни",region="eu",zone=55,season="test",spec="Guardian",metric="dps",server_slug=None)
+        args=SimpleNamespace(realm="Гордунни",region="eu",zone=55,season="test",spec=None,metric="dps",server_slug=None)
         self.body=sync.export(sync.normalize(api_fixture(),args))
 
     def test_send_never_captures_screen_or_changes_settings(self):

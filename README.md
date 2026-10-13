@@ -3,6 +3,10 @@
 Companion reuses dual DPS/HPS profiles for 24 hours, caches valid missing-log
 responses for six hours, and persists its API budget across restarts. Companion
 connects directly to Warcraft Logs through a personal or shared API client.
+The profile cache is isolated by WCL account and API client and survives token
+refreshes and signing back into the same account. Existing sessions resolve their
+account once after upgrading; profiles then populate the new account cache as
+requested. Cache freshness remains 24 hours.
 
 Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows Companion.
 
@@ -20,6 +24,12 @@ Use `/mpl demo` for a fictional preview without an account.
 
 The addon supports eleven locales, player panels, recruitment tooltips,
 dual DPS/HPS profiles, batch candidate loading, stale-data indicators and manual import.
+Recruitment tooltips highlight the listed dungeon with its Best/Median percentiles,
+the key level of the best logged result, and the logged-run count. Specialization
+profiles are stored separately. When WoW supplies an applicant's specialization,
+MPlusLogs requests that specialization; otherwise it uses an explicitly labeled
+All Specs profile. Use the Specialization selector in the profile window to switch
+or load another profile; Automatic follows the available applicant information.
 DPS is shown first for every role, including healers; full profiles use Warcraft Logs-style tables with dungeon icons and DPS/HPS tabs. HPS also remains available in tooltips.
 Customize healer HPS priority, Best avg/Median priority, freshness (6/12/24/48 hours),
 tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl settings`.

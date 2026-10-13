@@ -15,6 +15,7 @@ from test_addon import api_fixture
 import build_database as builder
 import clipboard_companion as companion
 import wcl_sync as wcl
+import wcl_oauth as oauth
 from api_budget import Budget, BudgetError
 
 
@@ -34,6 +35,22 @@ class EfficiencyTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.cache = Path(self.temp.name)
         self.entry = {"name": "Киндрих", "realm": "Гордунни", "server_slug": "gordunni", "region": "eu"}
+
+    def test_relogin_reuses_profile_without_sharing_another_accounts_data(self):
+        calls = []
+        def fetch(_):
+            calls.append(1)
+            return dual()
+        def entry(account, token):
+            session = oauth.Session("public-id", {"_account_id": account, "access_token": token,
+                                                   "expires_at": 0}, lambda _: self.fail("cache lookup must not refresh credentials"))
+            return dict(self.entry, _cache_scope=session.cache_scope())
+        builder.build([entry(17, "first-login")], self.cache, fetcher=fetch, now=100000)
+        _, report = builder.build([entry(17, "second-login")], self.cache, fetcher=fetch, now=100001)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(report["cacheHits"], 1)
+        builder.build([entry(18, "another-account")], self.cache, fetcher=fetch, now=100002)
+        self.assertEqual(len(calls), 2)
 
     def test_role_and_metric_switch_reuses_both_metrics_with_original_date(self):
         calls = []

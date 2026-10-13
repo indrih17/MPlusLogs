@@ -88,6 +88,63 @@ class OAuthTests(unittest.TestCase):
                 session.access_token()
             exchange.assert_not_called()
 
+    def test_account_scope_survives_rotating_tokens_restart_and_login(self):
+        tokens = {"access_token": "old", "refresh_token": "old-refresh", "expires_at": 0,
+                  "_account_id": 17, "_api_budget": {"limit": 720}}
+        saved = []
+        session = oauth.Session("public-id", tokens, saved.append)
+        with patch.object(oauth, "exchange", return_value={"access_token": "new", "refresh_token": "new-refresh", "expires_in": 3600}), \
+             patch.object(wcl_sync, "request_json") as request:
+            scope = session.cache_scope()
+            session.access_token()
+            self.assertEqual(session.cache_scope(), scope)
+            restarted = oauth.Session("public-id", saved[-1], saved.append)
+            self.assertEqual(restarted.cache_scope(), scope)
+            login = oauth.Session("public-id", dict(saved[-1], access_token="another-login", refresh_token="another-refresh"), saved.append)
+            self.assertEqual(login.cache_scope(), scope)
+            request.assert_not_called()
+        self.assertEqual(saved[-1]["_account_id"], 17)
+        self.assertEqual(saved[-1]["_api_budget"], {"limit": 720})
+        for account, client in ((18, "public-id"), (17, "other-client")):
+            other = oauth.Session(client, dict(saved[-1], _account_id=account), saved.append)
+            self.assertNotEqual(other.cache_scope(), scope)
+
+    def test_legacy_session_resolves_account_once_and_persists_it(self):
+        tokens = {"access_token": "test", "expires_at": time.time() + 3600}
+        saved = []
+        response = {"data": {"characterData": {"__typename": "CharacterData"},
+                             "userData": {"currentUser": {"id": 17}}, "rateLimitData": {"limitPerHour": 720}}}
+        session = oauth.Session("public-id", tokens, saved.append)
+        with patch.object(wcl_sync, "request_json", return_value=response) as request:
+            scope = session.cache_scope()
+            self.assertEqual(session.cache_scope(), scope)
+            self.assertEqual(oauth.Session("public-id", saved[-1], saved.append).cache_scope(), scope)
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(saved[-1]["_account_id"], 17)
+        self.assertIn("currentUser { id }", json.loads(request.call_args.args[1])["query"])
+
+    def test_login_probe_records_identity_and_returns_quota(self):
+        tokens = {"access_token": "test"}
+        quota = {"limitPerHour": 720, "pointsSpentThisHour": 10, "pointsResetIn": 300}
+        response = {"data": {"characterData": {"__typename": "CharacterData"},
+                             "userData": {"currentUser": {"id": 17}}, "rateLimitData": quota}}
+        with patch.object(wcl_sync, "request_json", return_value=response):
+            self.assertEqual(oauth.validate_access(tokens), quota)
+        self.assertEqual(tokens["_account_id"], 17)
+
+    def test_unverified_identity_never_persists_or_shares_cache(self):
+        for value in (None, True, "17", 0, -1, 1.5, 2147483648):
+            with self.subTest(value=value):
+                saved = []
+                session = oauth.Session("public-id", {"access_token": "test", "expires_at": time.time()+3600}, saved.append)
+                response = {"data": {"characterData": {"__typename": "CharacterData"},
+                                     "userData": {"currentUser": {"id": value}}}}
+                with patch.object(wcl_sync, "request_json", return_value=response):
+                    with self.assertRaises(ValueError):
+                        session.cache_scope()
+                self.assertFalse(saved)
+
+
     def test_oauth_requests_use_user_endpoint_and_invalidate_401(self):
         invalidate = unittest.mock.Mock()
         client = clipboard_companion.Client(token_provider=lambda: "fake-token", invalidate_token=invalidate)

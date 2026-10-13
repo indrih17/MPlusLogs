@@ -129,6 +129,36 @@ local function buildPanel()
     f.character = label(f,20,-48,900,"","GameFontHighlightLarge")
     panelFill(f,20,-80,880,26,0.105,0.06,0.12)
     f.context = label(f,30,-87,860)
+    f.specButton=button(f,L["Специализация"],630,0,270,function()
+        if InCombatLockdown() or not MenuUtil or not MenuUtil.CreateContextMenu then return end
+        local role=MPL.roles and MPL.roles[MPL.Key(f.name,f.realm)]
+        MenuUtil.CreateContextMenu(f.specButton,function(_,root)
+            root:CreateTitle(L["Специализация"])
+            local choiceKey=MPL.Key(f.name,f.realm)..":"..(role or "")
+            root:CreateRadio(L["Автоматически"],function()
+                return not (MPlusLogsDB.selectedSpecs and MPlusLogsDB.selectedSpecs[choiceKey])
+            end,function()
+                MPL.SelectSpec(f.name,f.realm,nil,role)
+                local sent=f.inviteSent
+                MPL.ShowProfile(f.name,f.realm,f.applicant,true)
+                if sent then f.inviteSent=true; MPL.UpdateProfileInvite() end
+                if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
+            end)
+            for _,spec in ipairs(MPL.ProfileSpecs(f.name,f.realm,role)) do
+                root:CreateRadio(MPL.SpecLabel(spec),function()
+                    return MPlusLogsDB.selectedSpecs and MPlusLogsDB.selectedSpecs[choiceKey]==spec
+                end,function()
+                    MPL.SelectSpec(f.name,f.realm,spec,role)
+                    local sent=f.inviteSent
+                    MPL.ShowProfile(f.name,f.realm,f.applicant,true)
+                    if sent then f.inviteSent=true; MPL.UpdateProfileInvite() end
+                    if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
+                end)
+            end
+        end)
+    end)
+    f.specButton:ClearAllPoints(); f.specButton:SetPoint("TOPRIGHT",-40,-82)
+    f.context:SetWidth(580)
     f.metricTabs={dps=metricTab(f,"dps",20),hps=metricTab(f,"hps",112)}
     f.filter = label(f,218,-120,680)
     f.scoreLabel=label(f,64,-163,310,L["Рейтинг Mythic+"],"GameFontHighlight")
@@ -232,7 +262,7 @@ function MPL.RenderProfileStats(f)
     f.headings[8]:SetText(firstHeading); f.headings[9]:SetText(secondHeading)
     f.secondaryGroup:SetText(metric:upper()..L[" / по уровню ключа"])
     if not profile then return end
-    f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.T(profile.spec))
+    f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.SpecLabel(profile.spec))
     f.scoreValue:SetText(profile.score and string.format("%.0f",profile.score) or "—")
     f.scoreValue:SetTextColor(stale and 0.53 or 226/255,stale and 0.53 or 104/255,stale and 0.53 or 168/255)
     local _,_,best,median=MPL.MetricValues(profile,nil,metric)
@@ -299,13 +329,15 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
     if profile then stale,lastDate=MPL.IsProfileStale(profile) end
     local primary=profile and MPL.PrimaryMetric(profile,name,server) or "dps"
     local secondary=primary=="hps" and "dps" or "hps"
-    f.name, f.realm, f.profile = name, server, profile
+    f.name, f.realm, f.profile = name, server, profile or false
+    f.selectedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
+    f.specButton:SetText(L["Специализация"]..": "..MPL.SpecLabel(f.selectedSpec))
     f.character:SetText(name .. " — " .. server)
     f.lookup:SetText(name .. "-" .. server)
     f.scroll:SetVerticalScroll(0)
     for _, row in ipairs(f.rows) do row:Hide() end
     f.viewMetric=primary; f.stale=stale
-    f.context:SetText(profile and (profile.season.."  /  "..MPL.T(profile.spec)) or "Midnight M+ Season 2")
+    f.context:SetText(profile and (profile.season.."  /  "..MPL.SpecLabel(profile.spec)) or "Midnight M+ Season 2")
     f.loadButton:ClearAllPoints()
     if profile then
         f.scroll:Show(); f.emptyMessage:Hide()
@@ -316,6 +348,8 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice)
         f.footer:SetText(profile.characterID == 81818678 and profile.source == "Снимок со скриншота пользователя" and L["* Пометка WCL сохранена со скриншота. Общие 162 лога и строки показаны как в источнике."] or L["Логи: только прохождения, доступные WCL; отсутствие данных не означает плохую игру."])
     else
         f.scroll:Hide(); f.emptyMessage:Show()
+        f.emptyMessage:SetText(f.selectedSpec~="All specs" and (L["Профиль не загружен"]..": "..MPL.SpecLabel(f.selectedSpec))
+            or L["Данные этого персонажа ещё не загружены."])
         f.loadButton:SetPoint("CENTER",0,-15); f.loadButton:SetSize(260,36)
         f.loadButton:SetText(L["Загрузить M+ логи"])
         f.source:SetText(""); f.note:SetText("")
@@ -432,7 +466,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
         end
         f.begin=function()
             f.quotaError=nil
-            local spec=f.profile and f.profile.spec~="All specs" and f.profile.spec or ""
+            local spec=MPL.SelectedSpec(f.name,f.realm) or (f.profile and f.profile.spec) or "All specs"
+            if spec=="All specs" then spec="" end
             local id,request,skipped,total
             if f.batch then
                 local players,err=MPL.CollectApplicants()
@@ -675,7 +710,8 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
     local cell=cells[member]
     if InCombatLockdown() then if cell then cell:Hide() end; return end
     local active=applicantLogLayout()
-    local name,_,_,_,_,_,_,_,_,role=C_LFGList.GetApplicantMemberInfo(appID,index)
+    local name,class,_,_,_,_,_,_,_,role,_,_,_,_,_,specID=C_LFGList.GetApplicantMemberInfo(appID,index)
+    MPL.RecordApplicant(name,role,specID,class)
     if not cell then
         cell=CreateFrame("Button",nil,member); cell:SetSize(56,20)
         cell:SetPoint("LEFT",member,"LEFT",280,0)
@@ -692,12 +728,13 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
             GameTooltip:SetOwner(cell,"ANCHOR_RIGHT"); GameTooltip:ClearLines()
             GameTooltip:AddLine(cell.metric:upper().." "..MPL.PrimaryPercentileLabel()..L[" по уровню ключа"])
             GameTooltip:AddLine(cell.detail,0.8,0.8,0.8,true)
+            if cell.profile then MPL.AddDungeonTooltip(GameTooltip,cell.profile,cell.metric,cell.stale,MPL.ListedDungeon()) end
             GameTooltip:AddLine(L["Нажмите для полной сводки"],1,1,1); GameTooltip:Show()
         end)
         cell:SetScript("OnLeave",function() GameTooltip:Hide() end)
         cells[member]=cell
     end
-    cell.appID=appID; cell.index=index; cell.key=false; cell.metric="dps"; cell.detail=L["Логи не загружены"]
+    cell.appID=appID; cell.index=index; cell.key=false; cell.metric="dps"; cell.detail=L["Логи не загружены"]; cell.profile=false
     cell.text:SetText("—")
     local row=member:GetParent()
     if row then row:SetWidth(309+(active and applicantExtraWidth or 0)) end
@@ -717,11 +754,12 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
     local profile=MPL.GetProfile(shortName,realm)
     if profile then
         local stale,lastDate=MPL.IsProfileStale(profile)
+        cell.profile=profile; cell.stale=stale
         cell.metric=MPL.PrimaryMetric(profile,shortName,realm)
         local _,_,best,median=MPL.MetricValues(profile,nil,cell.metric)
         local first=MPL.OrderPercentiles(best,median)
         cell.text:SetText(MPL.Percent(first,stale))
-        cell.detail=L["Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or "")
+        cell.detail=MPL.SpecLabel(profile.spec).." / "..L["Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or "")
     else cell.text:SetText("|cff888888—|r") end
     cell:Show()
 end

@@ -1,7 +1,6 @@
 """Browser sign-in, automatic clipboard processing, Windows tray. No client secret."""
 from pathlib import Path
 import json
-import hashlib
 import os
 import queue
 import threading
@@ -412,8 +411,7 @@ class App:
             clipboard = bridge.WindowsClipboard(owner=owner)
             if session:
                 # Do not reuse user-endpoint data between accounts.
-                principal = session.tokens.get("refresh_token") or session.tokens.get("access_token", "")
-                scope = "user:" + hashlib.sha256((self.client_id + principal).encode()).hexdigest()
+                scope = session.cache_scope()
                 state_path = personal_api.budget_path(DATA_ROOT, self.api_mode, self.client_id)
                 client = bridge.Client(3600 if self.api_mode == "personal" else 120,
                     token_provider=session.access_token, invalidate_token=session.invalidate,

@@ -86,7 +86,7 @@ class SettingsTests(unittest.TestCase):
         self.install()
         self.lua.execute('''
             MPlusLogsDB.profiles[MPlusLogs.Key("Alice","Гордунни")]=
-                {updated="2026-10-11 08:00 UTC",metric="dps",dual=true}
+                {updated="2026-10-11 08:00 UTC",metric="dps",dual=true,spec="All specs"}
         ''')
         profile,_,_=self.mpl.GetProfile('Alice','Гордунни')
         self.assertFalse(self.mpl.IsProfileStale(profile)[0])

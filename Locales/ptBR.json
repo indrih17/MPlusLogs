@@ -237,5 +237,9 @@
   "\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs.": "\nAbra MPlusLogs Companion e clique em “Mudar para API pessoal” para usar seu próprio cliente API Warcraft Logs.",
   "\nСброс личного API через %d мин. %d сек.": "\nA API pessoal reinicia em %d min. %d s.",
   "\nСброс общего API через %d мин. %d сек.": "\nA API compartilhada reinicia em %d min. %d s.",
-  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs não informou o tempo para reiniciar a cota."
+  "\nWarcraft Logs не сообщил время сброса лимита.": "\nWarcraft Logs não informou o tempo para reiniciar a cota.",
+  "Специализация": "Especialização",
+  "Ключ лучшего результата": "Chave do melhor resultado",
+  "Нет загруженных логов этого подземелья": "Nenhum registro carregado desta masmorra",
+  "Автоматически": "Automático"
 }
