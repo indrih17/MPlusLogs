@@ -41,6 +41,7 @@ def hashes(entries):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-only", action="store_true")
+    parser.add_argument("--companion-only", action="store_true", help="Reject any change to the published addon contents or version")
     parser.add_argument("--same-version", action="store_true", help="Keep current versions when explicitly requested; permit addon license updates, reject addon behavior changes")
     parser.add_argument("--summary", action="append")
     args = parser.parse_args()
@@ -63,6 +64,9 @@ def main():
         raise RuntimeError("Publishing checkout has unfinished changes; inspect them first")
     git("pull", "--ff-only", "origin", "main")
     baseline = addon_version.state(REPO)
+    if args.companion_only and (addon_version.version() != baseline["version"] or
+                               addon_version.source_hash() != baseline["source_hash"]):
+        raise RuntimeError("Companion-only publication requires the published addon contents and version")
     if args.same_version:
         if addon_version.source_hash() != baseline["source_hash"]:
             if addon_version.source_hash(exclude_license=True) != addon_version.source_hash(REPO, exclude_license=True):
@@ -84,6 +88,8 @@ def main():
         raise RuntimeError("Source changed during validation; wait until editing finishes")
     release = addon_version.version()
     addon_changed = release != baseline["version"] or addon_version.source_hash() != baseline["source_hash"]
+    if args.companion_only and addon_changed:
+        raise RuntimeError("Companion-only publication cannot release addon changes")
     old_companion = json.loads((REPO / "packaging/companion-version.json").read_text(encoding="utf-8"))["version"]
     companion_changed = companion_version.version() != old_companion or args.same_version
     components = (["MPlusLogs " + release] if addon_changed else []) + (["Companion " + companion_version.version()] if companion_changed else [])

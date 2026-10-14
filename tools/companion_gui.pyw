@@ -19,7 +19,6 @@ import appearance
 import companion_i18n as i18n
 import companion_update as updates
 import personal_api
-import history_ui
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
@@ -104,9 +103,6 @@ class App:
         self.login_button.pack(side="left")
         self.settings_button = ttk.Button(buttons, textvariable=self.textvar('Настройки'), command=self.settings)
         self.settings_button.pack(side="left", padx=(8, 0))
-        self.local_history=history_ui.LocalHistory(self)
-        self.history_button=ttk.Button(frame,textvariable=self.textvar("Local history"),command=self.local_history.open)
-        self.history_button.pack(anchor="w",pady=(0,8))
         if self.session:
             self.login_button.pack_forget()
         self.api_banner = ttk.Frame(frame)
@@ -442,15 +438,13 @@ class App:
                         if text.startswith(("MPLQ1", "MPLQ2")) or (text.startswith("MPLS1") and "MPLQ" in text):
                             post("status", "Запрос скопирован не полностью. Выделите поле в WoW (Ctrl+A), затем Ctrl+C.")
                         continue
-                    is_history=clipboard_protocol.unwrap_request(text)[1].startswith("MPLHQ1\n")
-                    post("status", "Reading local combat history…" if is_history else "Загружаю данные Warcraft Logs…")
-                    if not is_history and not session and not diagnostic:
+                    post("status", "Загружаю данные Warcraft Logs…")
+                    if not session and not diagnostic:
                         request_id=clipboard_protocol.unwrap_request(text)[0]
                         from urllib.parse import quote
                         response="MPLE1\n"+request_id+"\n"+quote("Сначала войдите в Warcraft Logs.",safe="")
                     else:
-                        response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic,
-                                                            local_history=self.local_history.reply)
+                        response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic)
                     if isinstance(client, bridge.Client):
                         snapshot = client.budget.snapshot()
                         if snapshot["limitPerHour"]:
@@ -486,10 +480,6 @@ class App:
                 # Display upstream observations without an extra API request or disk write.
                 self.config.setdefault("oauth", {})["_api_budget"] = value
                 self.refresh_api_display()
-            elif kind == "history_refresh":
-                self.local_history.render(progress=value)
-            elif kind == "history_error":
-                self.local_history.render(error=value)
             elif kind == "show":
                 self.show()
             elif kind == "update_downloading":
@@ -563,7 +553,6 @@ class App:
                     self.root.bell()
         if not self.installing_update:
             self.start()
-            if self.want_running: self.local_history.poll(time.monotonic())
         self.root.update_idletasks()
         height = max(330, self.body.winfo_reqheight())
         if self.root.winfo_height() != height:
@@ -588,8 +577,6 @@ class App:
             if self.personal_setup:
                 appearance.apply(self.root, mode, self.personal_setup.window)
                 self.personal_setup.canvas.configure(background=appearance.PALETTES[mode]["background"])
-            if self.local_history:
-                self.local_history.apply_theme(mode)
             self.applied_theme = mode
             self.root.after_idle(lambda: appearance.titlebar(self.root, mode == "dark"))
             self.style_language_menu()
@@ -612,9 +599,6 @@ class App:
         if self.personal_setup:
             self.personal_setup.window.title(i18n.tr("Personal API setup"))
             self.personal_setup.show(self.personal_setup.step)
-        if self.local_history.window and self.local_history.window.winfo_exists():
-            self.local_history.window.title(i18n.tr("Local combat history"))
-            self.local_history.render()
         self.refresh_api_display()
         self.save_preferences()
 
@@ -662,7 +646,6 @@ class App:
         self.exiting = True
         self.want_running = False
         self.stop.set()
-        if getattr(self,"local_history",None): self.local_history.close()
         self.auth_cancel.set()
         if self.tray:
             self.tray.close()

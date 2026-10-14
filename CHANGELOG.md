@@ -1,5 +1,10 @@
 # Changelog
 
+## Companion 1.0.11
+
+- Remove the local combat history preview and analysis from Companion.
+- Link directly to the current Companion installer in download instructions.
+
 ## MPlusLogs 0.5.19
 
 - Open party members' logs in tabs, including group applicants, with one batch refresh for missing or stale profiles.
