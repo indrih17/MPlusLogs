@@ -111,7 +111,7 @@ class BatchTests(unittest.TestCase):
         self.lua.execute('''
             listingCategory=2
             C_LFGList.GetActiveEntryInfo=function() return {activityIDs={123}} end
-            C_LFGList.GetActivityInfoTable=function() return {categoryID=listingCategory} end
+            C_LFGList.GetActivityInfoTable=function() return {categoryID=listingCategory,isMythicPlusActivity=listingCategory==2} end
             IsInRaid=function() return false end
         ''')
         self.mpl.InstallBatchButton()
@@ -130,7 +130,7 @@ class BatchTests(unittest.TestCase):
         self.lua.execute('''
             listingCategory=2
             C_LFGList.GetActiveEntryInfo=function() return {activityIDs={123}} end
-            C_LFGList.GetActivityInfoTable=function() return {categoryID=listingCategory} end
+            C_LFGList.GetActivityInfoTable=function() return {categoryID=listingCategory,isMythicPlusActivity=listingCategory==2} end
         ''')
         self.mpl.InstallBatchButton()
         button=self.mpl.batchButton

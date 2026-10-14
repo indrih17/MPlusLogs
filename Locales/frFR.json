@@ -248,5 +248,12 @@
   "Best (текущий данж)": "Best (donjon actuel)",
   "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "Le donjon actuel est celui de votre annonce de groupe. Si ses journaux manquent, « — » est affiché.",
   "HPS (текущий данж)": "HPS (donjon actuel)",
-  "DPS / HPS (текущий данж)": "DPS / HPS (donjon actuel)"
+  "DPS / HPS (текущий данж)": "DPS / HPS (donjon actuel)",
+  "Показывать логи M+ в заявках и поиске рейдовых групп.": "Afficher les logs M+ dans les candidatures et les annonces de groupes de raid.",
+  "Показывать логи M+ в заявках и поиске групп для арен и полей боя.": "Afficher les logs M+ dans les candidatures et les annonces de groupes pour les arènes et les champs de bataille.",
+  "Все остальные группы: мировые боссы, обычные подземелья, вылазки и произвольные сборы.": "Tous les autres groupes : boss mondiaux, donjons classiques, gouffres et groupes personnalisés.",
+  "Где ещё показывать логи М+": "Logs M+ dans les autres groupes",
+  "Показывать логи М+ в рейдах": "Afficher les logs M+ en raid",
+  "Показывать логи М+ в PvP": "Afficher les logs M+ en JcJ",
+  "Показывать логи М+ в других группах": "Afficher les logs M+ dans les autres groupes"
 }

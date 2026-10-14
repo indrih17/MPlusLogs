@@ -248,5 +248,12 @@
   "Best (текущий данж)": "Best (spedizione attuale)",
   "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "La spedizione attuale è quella del tuo annuncio di gruppo. Se mancano i registri, viene mostrato «—».",
   "HPS (текущий данж)": "HPS (spedizione attuale)",
-  "DPS / HPS (текущий данж)": "DPS / HPS (spedizione attuale)"
+  "DPS / HPS (текущий данж)": "DPS / HPS (spedizione attuale)",
+  "Показывать логи M+ в заявках и поиске рейдовых групп.": "Mostra i log M+ nelle richieste e negli annunci dei gruppi di incursione.",
+  "Показывать логи M+ в заявках и поиске групп для арен и полей боя.": "Mostra i log M+ nelle richieste e negli annunci dei gruppi per arene e campi di battaglia.",
+  "Все остальные группы: мировые боссы, обычные подземелья, вылазки и произвольные сборы.": "Tutti gli altri gruppi: boss mondiali, spedizioni normali, scorribande e gruppi personalizzati.",
+  "Где ещё показывать логи М+": "Log M+ negli altri gruppi",
+  "Показывать логи М+ в рейдах": "Mostra i log M+ nelle incursioni",
+  "Показывать логи М+ в PvP": "Mostra i log M+ in PvP",
+  "Показывать логи М+ в других группах": "Mostra i log M+ negli altri gruppi"
 }

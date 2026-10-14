@@ -248,5 +248,12 @@
   "Best (текущий данж)": "Best (current dungeon)",
   "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "The current dungeon is the dungeon in your group listing. If its logs are missing, “—” is shown.",
   "HPS (текущий данж)": "HPS (current dungeon)",
-  "DPS / HPS (текущий данж)": "DPS / HPS (current dungeon)"
+  "DPS / HPS (текущий данж)": "DPS / HPS (current dungeon)",
+  "Показывать логи M+ в заявках и поиске рейдовых групп.": "Show M+ logs in applications and listings for raid groups.",
+  "Показывать логи M+ в заявках и поиске групп для арен и полей боя.": "Show M+ logs in applications and listings for arenas and battlegrounds.",
+  "Все остальные группы: мировые боссы, обычные подземелья, вылазки и произвольные сборы.": "All other groups: world bosses, regular dungeons, delves and custom groups.",
+  "Где ещё показывать логи М+": "Show M+ logs in other groups",
+  "Показывать логи М+ в рейдах": "Show M+ logs in raids",
+  "Показывать логи М+ в PvP": "Show M+ logs in PvP",
+  "Показывать логи М+ в других группах": "Show M+ logs in other groups"
 }

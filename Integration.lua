@@ -1,6 +1,43 @@
 local addonName, MPL = ...
 local L = MPL.L
 
+local pvpCategories={[4]=true,[7]=true,[8]=true,[9]=true,[10]=true}
+local function safe(value)
+    return not (issecretvalue and issecretvalue(value))
+end
+
+function MPL.GroupLogCategory(activity)
+    if type(activity)~="table" or not safe(activity) then return end
+    if not safe(activity.isMythicPlusActivity) or not safe(activity.isPvpActivity) or not safe(activity.isRatedPvpActivity)
+        or not safe(activity.categoryID) then return end
+    if activity.isMythicPlusActivity then return "mythicPlus" end
+    if activity.isPvpActivity or activity.isRatedPvpActivity==true or pvpCategories[activity.categoryID] then return "showInPvp" end
+    if activity.categoryID==3 then
+        if not safe(activity.difficultyID) then return end
+        -- Open-world boss listings have no instance difficulty.
+        if activity.difficultyID==0 then return "showInOtherGroups" end
+        return "showInRaids"
+    end
+    if type(activity.categoryID)=="number" then return "showInOtherGroups" end
+end
+
+function MPL.GroupLogsEnabled(activityIDs)
+    if InCombatLockdown() or not C_LFGList.GetActivityInfoTable then return false end
+    if not activityIDs and C_LFGList.GetActiveEntryInfo then
+        if C_LFGList.HasActiveEntryInfo and not C_LFGList.HasActiveEntryInfo() then return false end
+        local entry=C_LFGList.GetActiveEntryInfo()
+        activityIDs=entry and entry.activityIDs
+    end
+    if type(activityIDs)~="table" or not safe(activityIDs) then return false end
+    for _,id in ipairs(activityIDs) do
+        if safe(id) then
+            local key=MPL.GroupLogCategory(C_LFGList.GetActivityInfoTable(id))
+            if key=="mythicPlus" or (key and MPL.GetOption(key)) then return true end
+        end
+    end
+    return false
+end
+
 -- Match the activity's instance map ID through Blizzard's challenge-map API.
 local dungeonNames={
     [584]="The Blinding Vale",[585]="Voidscar Arena",[586]="Den of Nalorakk",[587]="Murder Row",
@@ -119,7 +156,7 @@ local function hookLFG()
     end
     if not hooked.applicant and type(LFGListApplicantMember_OnEnter) == "function" then
         hooksecurefunc("LFGListApplicantMember_OnEnter",function(owner)
-            if InCombatLockdown() then return end
+            if InCombatLockdown() or not MPL.GroupLogsEnabled() then return end
             local name = applicant(owner)
             if name then MPL.AddTooltip(GameTooltip,name,nil,MPL.ListedDungeon()) end
         end)
@@ -129,12 +166,15 @@ local function hookLFG()
         hooksecurefunc("LFGListSearchEntry_OnEnter",function(owner)
             if InCombatLockdown() or not owner.resultID then return end
             local info = C_LFGList.GetSearchResultInfo(owner.resultID)
-            if info and MPL.SafeString(info.leaderName) then MPL.AddTooltip(GameTooltip,info.leaderName,nil,MPL.ListedDungeon(info.activityIDs)) end
+            if info and MPL.SafeString(info.leaderName) and MPL.GroupLogsEnabled(info.activityIDs) then
+                MPL.AddTooltip(GameTooltip,info.leaderName,nil,MPL.ListedDungeon(info.activityIDs))
+            end
         end)
         hooked.search = true
     end
     if not hooked.menu and Menu and Menu.ModifyMenu then
         Menu.ModifyMenu("MENU_LFG_FRAME_MEMBER_APPLY",function(owner,root)
+            if not MPL.GroupLogsEnabled() then return end
             local fullName=applicant(owner)
             local context
             if MPL.SafeString(fullName) then
@@ -150,7 +190,7 @@ local function hookLFG()
         Menu.ModifyMenu("MENU_LFG_FRAME_SEARCH_ENTRY",function(owner,root)
             if not owner or not owner.resultID then return end
             local info = C_LFGList.GetSearchResultInfo(owner.resultID)
-            if info then menu(root,info.leaderName) end
+            if info and MPL.GroupLogsEnabled(info.activityIDs) then menu(root,info.leaderName) end
         end)
         for _, tag in ipairs({"PLAYER","SELF","TARGET","FOCUS","PARTY","RAID_PLAYER","FRIEND","GUILD","GUILD_OFFLINE","CHAT_ROSTER"}) do
             Menu.ModifyMenu("MENU_UNIT_"..tag,function(_,root,context)
@@ -270,21 +310,6 @@ function MPL.InviteFromProfile(context)
     return true
 end
 
-local function isRaidListing()
-    if InCombatLockdown() or not C_LFGList.GetActiveEntryInfo or not C_LFGList.GetActivityInfoTable then return false end
-    local entry=C_LFGList.GetActiveEntryInfo()
-    local activities=entry and entry.activityIDs
-    if type(activities)~="table" or (issecretvalue and issecretvalue(activities)) then return false end
-    for _,id in ipairs(activities) do
-        if not (issecretvalue and issecretvalue(id)) then
-            local activity=C_LFGList.GetActivityInfoTable(id)
-            -- Group Finder category 3 includes raids from every expansion.
-            if activity and not (issecretvalue and issecretvalue(activity.categoryID)) and activity.categoryID==3 then return true end
-        end
-    end
-    return false
-end
-
 function MPL.InstallBatchButton()
     local viewer=LFGListFrame and LFGListFrame.ApplicationViewer
     if not viewer or MPL.batchButton then return end
@@ -292,7 +317,7 @@ function MPL.InstallBatchButton()
     b:SetSize(260,24)
     b:SetPoint("BOTTOMLEFT",viewer,"TOPLEFT",8,4)
     b:SetScript("OnClick",function()
-        if not isRaidListing() then MPL.ShowBatchDownload() end
+        if MPL.GroupLogsEnabled() then MPL.ShowBatchDownload() end
     end)
     MPL.batchButton=b
     local loaded,total=0,0
@@ -302,7 +327,9 @@ function MPL.InstallBatchButton()
         pending,loaded=MPL.FilterFreshProfiles(players)
         total=#players
         b:SetText(L["Загрузить логи всех ("]..loaded.."/"..total..")")
-        if #pending>0 and not err and not isRaidListing() then b:Enable() else b:Disable() end
+        local visible=MPL.GroupLogsEnabled()
+        b:SetShown(visible)
+        if visible and #pending>0 and not err then b:Enable() else b:Disable() end
         if MPL.RefreshApplicantLogs then MPL.RefreshApplicantLogs() end
         if MPL.UpdateProfileInvite then MPL.UpdateProfileInvite() end
     end

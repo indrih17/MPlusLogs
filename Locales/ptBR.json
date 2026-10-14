@@ -248,5 +248,12 @@
   "Best (текущий данж)": "Best (masmorra atual)",
   "Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—».": "A masmorra atual é a do anúncio do seu grupo. Se não houver logs, será exibido «—».",
   "HPS (текущий данж)": "HPS (masmorra atual)",
-  "DPS / HPS (текущий данж)": "DPS / HPS (masmorra atual)"
+  "DPS / HPS (текущий данж)": "DPS / HPS (masmorra atual)",
+  "Показывать логи M+ в заявках и поиске рейдовых групп.": "Mostrar logs M+ nas candidaturas e anúncios de grupos de raide.",
+  "Показывать логи M+ в заявках и поиске групп для арен и полей боя.": "Mostrar logs M+ nas candidaturas e anúncios de grupos de arenas e campos de batalha.",
+  "Все остальные группы: мировые боссы, обычные подземелья, вылазки и произвольные сборы.": "Todos os outros grupos: chefes mundiais, masmorras comuns, imersões e grupos personalizados.",
+  "Где ещё показывать логи М+": "Logs M+ em outros grupos",
+  "Показывать логи М+ в рейдах": "Mostrar logs M+ em raides",
+  "Показывать логи М+ в PvP": "Mostrar logs M+ no JxJ",
+  "Показывать логи М+ в других группах": "Mostrar logs M+ em outros grupos"
 }

@@ -1,3 +1,4 @@
-## MPlusLogs 0.5.20
+## MPlusLogs 0.5.21
 
-- Disable Load all logs for raid listings and recheck the listing before starting a batch request.
+- Keep Mythic+ logs always enabled in M+ groups and add independent opt-in settings for raids, PvP, and all other groups.
+- Group the content visibility checkboxes in a separate section at the bottom of addon settings and apply them to log columns, tooltips, menus, and batch downloads.

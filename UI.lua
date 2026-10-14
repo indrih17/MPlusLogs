@@ -791,7 +791,7 @@ local function applicantLogLayout(forceInactive)
     local f=MPL.logColumn
     if not f then return false end
     local active=not forceInactive and LFGListFrame and LFGListFrame.activePanel==f.viewer
-        and f.viewer:IsVisible() and f.headers[4]:IsShown()
+        and f.viewer:IsVisible() and MPL.GroupLogsEnabled()
         and (not C_LFGList.HasActiveEntryInfo or C_LFGList.HasActiveEntryInfo())
     if not InCombatLockdown() then
         -- The native LFG stub has a fixed width, even when PVEFrame grows.
@@ -816,6 +816,8 @@ local function applicantLogLayout(forceInactive)
             end
         end
         if active then
+            f:ClearAllPoints()
+            f:SetPoint("LEFT",f.headers[f.headers[4]:IsShown() and 4 or 3],"RIGHT",0,0)
             for i,header in ipairs(f.headers) do
                 header:SetWidth(logColumns[i])
                 header.Label:ClearAllPoints(); header.Label:SetPoint("CENTER")
@@ -842,6 +844,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
     local cell=cells[member]
     if InCombatLockdown() then if cell then cell:Hide() end; return end
     local active=applicantLogLayout()
+    local ratingShown=MPL.logColumn.headers[4]:IsShown()
     local name,class,_,_,_,_,_,_,_,role,_,_,_,_,_,specID=C_LFGList.GetApplicantMemberInfo(appID,index)
     MPL.RecordApplicant(name,role,specID,class)
     if not cell then
@@ -849,6 +852,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
         cell:SetPoint("LEFT",member,"LEFT",280,0)
         cell.text=label(cell,0,-4,56,"","GameFontHighlightSmall"); cell.text:SetJustifyH("CENTER")
         cell:SetScript("OnClick",function()
+            if not MPL.GroupLogsEnabled() then return end
             for _,player in ipairs(MPL.CollectApplicants()) do
                 if player.applicantID==cell.appID and player.memberIndex==cell.index
                     and MPL.Key(player.name,player.realm)==cell.key then
@@ -869,10 +873,11 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
         cells[member]=cell
     end
     cell.appID=appID; cell.index=index; cell.key=false; cell.metric="dps"; cell.detail=L["Логи не загружены"]; cell.profile=false
+    cell:ClearAllPoints(); cell:SetPoint("LEFT",member,"LEFT",ratingShown and 280 or 226,0)
     cell.text:SetText("—")
     local row=member:GetParent()
     if row then row:SetWidth(309+(active and applicantExtraWidth or 0)) end
-    member:SetWidth(active and 256+applicantExtraWidth or (MPL.logColumn.headers[4]:IsShown() and 256 or 200))
+    member:SetWidth((ratingShown and 256 or 200)+(active and applicantExtraWidth or 0))
     member.Name:SetPoint("RIGHT",member,"LEFT",active and 115 or 95,0)
     member.RoleIcon1:ClearAllPoints(); member.RoleIcon1:SetPoint("LEFT",active and 124 or 104,0)
     member.ItemLevel:ClearAllPoints(); member.ItemLevel:SetPoint("CENTER",member,"LEFT",active and 204 or 177,0)

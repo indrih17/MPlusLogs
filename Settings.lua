@@ -15,7 +15,7 @@ end
 
 function MPL.RegisterSettings()
     if MPL.settingsCategory or not Settings or not Settings.RegisterVerticalLayoutCategory then return end
-    local category=Settings.RegisterVerticalLayoutCategory("MPlusLogs")
+    local category,layout=Settings.RegisterVerticalLayoutCategory("MPlusLogs")
     local function setting(key,kind,title,default)
         return Settings.RegisterProxySetting(category,"MPLUSLOGS_"..key,kind,title,default,
             function() return MPL.GetOption(key) end,function(value) MPL.SetOption(key,value) end)
@@ -39,6 +39,13 @@ function MPL.RegisterSettings()
         L["Добавлять показатели M+ при наведении на персонажей и заявки."])
     Settings.CreateCheckbox(category,setting("stalePopup",Settings.VarType.Boolean,L["Предупреждать об устаревших логах"],true),
         L["Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется."])
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Где ещё показывать логи М+"]))
+    Settings.CreateCheckbox(category,setting("showInRaids",Settings.VarType.Boolean,L["Показывать логи М+ в рейдах"],false),
+        L["Показывать логи M+ в заявках и поиске рейдовых групп."])
+    Settings.CreateCheckbox(category,setting("showInPvp",Settings.VarType.Boolean,L["Показывать логи М+ в PvP"],false),
+        L["Показывать логи M+ в заявках и поиске групп для арен и полей боя."])
+    Settings.CreateCheckbox(category,setting("showInOtherGroups",Settings.VarType.Boolean,L["Показывать логи М+ в других группах"],false),
+        L["Все остальные группы: мировые боссы, обычные подземелья, вылазки и произвольные сборы."])
     Settings.RegisterAddOnCategory(category)
     MPL.settingsCategory=category
 end

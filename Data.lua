@@ -3,7 +3,8 @@ local L = MPL.L
 MPlusLogs = MPL
 MPL.zone = 55
 MPL.maxProfileAge = 24 * 60 * 60
-local defaults={healerHpsFirst=false,percentile="best",freshHours=24,tooltips=true,stalePopup=true}
+local defaults={healerHpsFirst=false,percentile="best",freshHours=24,tooltips=true,stalePopup=true,
+    showInRaids=false,showInPvp=false,showInOtherGroups=false}
 
 function MPL.GetOption(key)
     local options=MPlusLogsDB and MPlusLogsDB.options

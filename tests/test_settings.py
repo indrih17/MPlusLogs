@@ -17,15 +17,22 @@ class SettingsTests(unittest.TestCase):
 
     def mock_settings(self):
         self.lua.execute('''
-            Settings={VarType={Boolean="boolean",String="string",Number="number"},values={},controls={}}
-            Settings.RegisterVerticalLayoutCategory=function(name) return {name=name,GetID=function() return 97 end} end
+            Settings={VarType={Boolean="boolean",String="string",Number="number"},values={},controls={},layout={}}
+            Settings.RegisterVerticalLayoutCategory=function(name)
+                return {name=name,GetID=function() return 97 end},
+                    {AddInitializer=function(_,initializer) Settings.layout[#Settings.layout+1]=initializer end}
+            end
+            CreateSettingsListSectionHeaderInitializer=function(name) return {section=name} end
             Settings.RegisterProxySetting=function(category,key,kind,name,default,get,set)
-                local entry={key=key,get=get,set=set,default=default,kind=kind}
+                local entry={key=key,get=get,set=set,default=default,kind=kind,name=name}
                 Settings.values[key]=entry; return entry
             end
-            Settings.CreateCheckbox=function(_,setting) Settings.controls[#Settings.controls+1]=setting end
+            Settings.CreateCheckbox=function(_,setting)
+                Settings.controls[#Settings.controls+1]=setting; Settings.layout[#Settings.layout+1]=setting
+            end
             Settings.CreateDropdown=function(_,setting,options)
                 setting.items=options(); Settings.controls[#Settings.controls+1]=setting
+                Settings.layout[#Settings.layout+1]=setting
             end
             Settings.CreateControlTextContainer=function()
                 return {data={},Add=function(self,key,text) self.data[#self.data+1]={key=key,text=text} end,
@@ -38,9 +45,21 @@ class SettingsTests(unittest.TestCase):
     def test_native_category_and_saved_settings(self):
         self.install(); self.mock_settings(); self.mpl.RegisterSettings(); self.mpl.RegisterSettings()
         settings=self.lua.globals().Settings
-        self.assertEqual(len(settings.controls),5)
+        self.assertEqual(len(settings.controls),8)
         self.assertEqual(self.lua.globals().registeredCategory,'MPlusLogs')
         values=settings['values']
+        self.assertIsNone(values.MPLUSLOGS_showInMythicPlus)
+        self.assertEqual(settings.layout[6].section,'Где ещё показывать логи М+')
+        for index,(key,name) in enumerate([
+            ('showInRaids','Показывать логи М+ в рейдах'),
+            ('showInPvp','Показывать логи М+ в PvP'),
+            ('showInOtherGroups','Показывать логи М+ в других группах'),
+        ],6):
+            self.assertEqual(settings.controls[index].key,'MPLUSLOGS_'+key)
+            self.assertEqual(settings.controls[index].name,name)
+        for key,default in [('showInRaids',False),('showInPvp',False),('showInOtherGroups',False)]:
+            self.assertEqual(values['MPLUSLOGS_'+key]['get'](),default)
+            self.assertEqual(values['MPLUSLOGS_'+key]['default'],default)
         self.assertEqual(values.MPLUSLOGS_percentile['get'](),'best')
         self.assertEqual(len(values.MPLUSLOGS_percentile['items']),5)
         self.assertEqual(len(values.MPLUSLOGS_freshHours['items']),4)

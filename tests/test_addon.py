@@ -84,7 +84,9 @@ function LFGListApplicantMember_OnEnter() end
 function LFGListSearchEntry_OnEnter() end
 C_LFGList = {
     GetApplicantMemberInfo=function() return applicantName or "Киндрих-Гордунни" end,
-    GetSearchResultInfo=function() return {leaderName="Киндрих-Гордунни"} end
+    GetSearchResultInfo=function() return {leaderName="Киндрих-Гордунни",activityIDs={1}} end,
+    GetActiveEntryInfo=function() return {activityIDs={1}} end,
+    GetActivityInfoTable=function() return {categoryID=2,isMythicPlusActivity=true} end
 }
 Menu = {callbacks={}}
 function Menu.ModifyMenu(name, callback) Menu.callbacks[name] = callback end
