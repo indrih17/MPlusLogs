@@ -84,6 +84,27 @@ class SpecProfileTests(unittest.TestCase):
         self.assertIsNone(count)
         self.assertIn('другого персонажа',error)
 
+    def test_leaderboard_only_reply_opens_normal_no_logs_profile(self):
+        self.transport()
+        raw=api_fixture(); char=raw['data']['characterData']['character']
+        char['damage']=char.pop('performance')
+        char['damage']['throughputRankings']=[]
+        char['healing']=copy.deepcopy(char['damage'])
+        self.mpl.ShowDownload('Киндрих','Гордунни',None)
+        request=self.mpl.downloadWindow.request
+        with tempfile.TemporaryDirectory(dir=ROOT,prefix='.test-work-') as directory:
+            response=clipboard_protocol.reply(request,{'eu':{'гордунни':'gordunni'}},Path(directory),lambda _:raw)
+            self.assertTrue(response.startswith('MPLE1\n'))
+            cached=builder.read_cache(next(Path(directory).glob('*.json')))
+            self.assertTrue(cached['negative'])
+            self.assertNotIn('refresh_error',cached)
+            edit=self.mpl.downloadWindow.edit
+            edit.SetText(edit,response); edit.scripts.OnTextChanged(edit,True)
+        self.lua.execute('local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end')
+        self.assertFalse(self.mpl.downloadWindow.shown)
+        self.assertTrue(self.mpl.panel.emptyMessage.shown)
+        self.assertNotIn('Companion',self.mpl.panel.emptyMessage.text)
+
     def test_hidden_and_cooldown_replies_open_normal_empty_profile(self):
         self.transport()
         for message in ["No usable profile: Rankings hidden: Warcraft Logs denied access", "No usable profile: Profile refresh is cooling down; retry after 3182 seconds"]:

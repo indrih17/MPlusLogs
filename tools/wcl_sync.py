@@ -115,14 +115,14 @@ def rankings(value):
 
 
 def throughput_rankings(value, label):
-    """Normalize the JSON-encoded map some WCL responses return as a string."""
-    if value is None:
-        return {}
+    """Normalize WCL maps; missing measurements may be null or an empty array."""
     if isinstance(value, str):
         try:
             value = json.loads(value)
         except (TypeError, ValueError):
             raise ValueError(f"Unknown {label} throughputRankings shape; expected a JSON object") from None
+    if value is None or (isinstance(value, list) and not value):
+        return {}
     if not isinstance(value, dict):
         raise ValueError(f"Unknown {label} throughputRankings shape; expected an object")
     return value
@@ -180,8 +180,12 @@ def normalize(raw, args):
     secondary=(damage if metric=="hps" else healing) if dual else None
     other=throughput_rankings(secondary.get("throughputRankings") if secondary else None,"secondary")
     throughput = throughput_rankings(performance.get("throughputRankings"),"primary")
-    if not throughput:
+    if "throughputRankings" not in performance:
         raise ValueError("M+ throughputRankings missing; refresh using points_and_damage/points_and_healing")
+    if not throughput and not other:
+        # zoneRankings also contains leaderboard scores from runs with no
+        # uploaded combat log. Those scores cannot supply DPS/HPS measurements.
+        raise NoProfile("Публичные логи M+ не найдены")
     server = character.get("server") or {}
     region = (server.get("region") or {}).get("slug", args.region).lower()
     if region not in {"eu", "us", "kr", "tw", "cn"}:

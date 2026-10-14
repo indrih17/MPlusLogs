@@ -18,7 +18,7 @@ WITHOUT COMPANION INSTALLED AND RUNNING, THE ADDON CANNOT LOAD NEW LOG DATA.
 
     **Couldn't connect your personal API?** Choose **Use shared API** in Companion and sign in through Warcraft Logs. Everyone using this option shares the same request allowance, which can run out quickly when many people load logs. We recommend switching to your personal API when you can.
 
-3. In WoW, open your Group Finder applications and click **Load all logs** above the list.
+3. In WoW, when forming a Mythic+ group, a **Load all logs** button will appear above the application list.
 4. Press **Ctrl+C** in the addon window and wait for Companion's sound: it means the reply is ready. Sound is on by default; Companion can stay in the tray.
     - **Without sound:** before pressing **Ctrl+V**, check that Companion says **“The reply is on the clipboard. Return to WoW and press Ctrl+V.”**
 5. Once the reply is ready, press **Ctrl+V** in the same addon window. The loaded results will appear in the **Logs** column.
@@ -61,7 +61,7 @@ Questions or ideas? Join us on [Discord](https://discord.gg/URUukHCUW).
 
     **Не получилось подключить личный API?** Выберите в Companion **«Использовать общий API»** и авторизуйтесь через Warcraft Logs. Лимит запросов этого API делят все пользователи — при большой нагрузке он может быстро закончиться. Поэтому рекомендуем по возможности перейти на личный API.
 
-3. В WoW откройте список заявок в поиске группы и нажмите **«Загрузить логи всех»** над списком.
+3. В WoW при формировании группы для М+ над списком заявок появится кнопка **«Загрузить логи всех»**.
 4. В окне аддона нажмите **Ctrl+C** и дождитесь звукового сигнала Companion — он означает, что ответ готов. Звук включён по умолчанию; помощник может оставаться в трее.
     - **Без звука:** перед нажатием **Ctrl+V** дождитесь в окне Companion сообщения **«Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V»**.
 5. Когда ответ готов, нажмите **Ctrl+V** в том же окне аддона. Загруженные результаты появятся в колонке **«Логи»**.

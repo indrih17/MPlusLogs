@@ -346,13 +346,37 @@ class AdapterTests(unittest.TestCase):
 
     def test_missing_secondary_rows_are_dashes_not_zero(self):
         import copy
+        for empty in ({}, [], "[]", None, "null"):
+            with self.subTest(empty=empty):
+                raw=api_fixture(); char=raw["data"]["characterData"]["character"]
+                char["damage"]=char.pop("performance")
+                char["healing"]=copy.deepcopy(char["damage"])
+                char["healing"]["throughputRankings"]=empty
+                profile=sync.normalize(raw,self.args())
+                self.assertEqual(profile["dungeons"][0]["amount"],168110)
+                self.assertIsNone(profile["dungeons"][0]["otherAmount"])
+                self.assertIsNone(profile["dungeons"][0]["otherBest"])
+
+    def test_leaderboard_only_rankings_are_no_public_logs(self):
+        import copy
+        for empty in ({}, [], "[]", None, "null"):
+            with self.subTest(empty=empty):
+                raw=api_fixture(); char=raw["data"]["characterData"]["character"]
+                char["damage"]=char.pop("performance")
+                char["damage"]["throughputRankings"]=empty
+                char["healing"]=copy.deepcopy(char["damage"])
+                with self.assertRaisesRegex(sync.NoProfile,"Публичные логи M\\+ не найдены"):
+                    sync.normalize(raw,self.args())
+
+    def test_empty_primary_keeps_available_secondary_measurements(self):
+        import copy
         raw=api_fixture(); char=raw["data"]["characterData"]["character"]
         char["damage"]=char.pop("performance")
         char["healing"]=copy.deepcopy(char["damage"])
-        char["healing"]["throughputRankings"]={}
+        char["damage"]["throughputRankings"]=[]
         profile=sync.normalize(raw,self.args())
-        self.assertIsNone(profile["dungeons"][0]["otherAmount"])
-        self.assertIsNone(profile["dungeons"][0]["otherBest"])
+        self.assertIsNone(profile["dungeons"][0]["amount"])
+        self.assertEqual(profile["dungeons"][0]["otherAmount"],168110)
 
     def test_secondary_throughput_rankings_accepts_json_encoded_object(self):
         import copy,json
