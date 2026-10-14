@@ -1,8 +1,0 @@
-## Interface: 120007, 120100, 120105
-## Title: MPlusLogs Probe B (control)
-## Notes: Loaded file-read control. Its original payload must stay in memory.
-## Dependencies: MPlusLogs
-## LoadOnDemand: 1
-## DefaultState: enabled
-
-Payload.lua

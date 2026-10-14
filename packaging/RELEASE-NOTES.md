@@ -1,4 +1,3 @@
-## Companion 1.0.11
+## MPlusLogs 0.5.20
 
-- Remove the local combat history preview and analysis from Companion.
-- Link directly to the current Companion installer in download instructions.
+- Disable Load all logs for raid listings and recheck the listing before starting a batch request.

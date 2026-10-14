@@ -39,7 +39,6 @@ ENGLISH={
     'Ссылка на логи M+':'M+ logs link',
     'Публичные логи M+ не найдены':'No public M+ logs found',
     'включены':'enabled',
-    'Сначала нажмите «1. Подготовить».':'Click "1. Prepare" first.',
     '* Пометка WCL сохранена со скриншота. Общие 162 лога и строки показаны как в источнике.':'* The WCL marker is preserved from the screenshot. The total of 162 runs and individual rows match the source.',
     'В буфере нет ответа MPlusLogs для этого запроса. Нажмите Ctrl+V позже; проверьте помощник.':'The clipboard does not contain a MPlusLogs response for this request. Try Ctrl+V again and check the companion.',
     'Теперь нажмите |cffffd100Ctrl+V|r.\nБез вставки WoW не может получить ответ помощника.':'Press |cffffd100Ctrl+V|r now.\nWoW needs you to paste the companion response.',

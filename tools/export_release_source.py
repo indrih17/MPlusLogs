@@ -16,8 +16,6 @@ def entries():
         for pattern in patterns:
             files.extend((ROOT / directory).glob(pattern))
     files.extend([ROOT / "experiments/wcl-points-and-damage.json"])
-    files.extend((ROOT / "experiments/ondemand").rglob("*.lua"))
-    files.extend((ROOT / "experiments/ondemand").rglob("*.toc"))
     result = []
     for path in sorted(set(files)):
         if not path.is_file():

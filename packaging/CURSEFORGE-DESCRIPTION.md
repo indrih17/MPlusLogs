@@ -1,63 +1,83 @@
 # MPlusLogs
 
-View Mythic+ Warcraft Logs profiles while recruiting a group. MPlusLogs adds DPS and HPS percentiles, logged-run counts, specialization, key levels and data freshness to player panels and group finder tooltips. Right-click an applicant or player to open their full dungeon table and Warcraft Logs link.
+Use MPlusLogs to check Mythic+ Warcraft Logs while putting a group together.
 
-## Windows Companion required for fresh data
+The addon adds a **Logs** column to your Group Finder applications. Left-click a player's number in that column to open their dungeon table: DPS/HPS, Best % and Median %, key levels and logged-run counts. You can switch between specializations and copy their Warcraft Logs link from the same window.
 
-**[Download MPlusLogs Companion for Windows](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe)** — the current published installer for Windows 10/11 x64. This permanent download link is updated when a new Companion version is released.
+## Getting started
 
-Run the downloaded **MPlusLogs-Companion-Setup.exe** and install Companion outside WoW `Interface\AddOns`; use the default installation folder. Python is included. Companion supports all WoW client languages; choose one in **Settings → Language**. Companion checks for updates and offers an **Install update and restart** button when a new version is available.
+WoW addons cannot fetch data from websites directly. **MPlusLogs Companion** is a Windows app that gets the requested data from Warcraft Logs and passes it back to the addon through your clipboard.
 
-1. Install this addon with CurseForge.
-2. Start the Companion and sign in through Warcraft Logs in your browser.
-3. In WoW, open `/mpl` or right-click a group applicant and choose M+ logs.
-4. Choose Load M+ logs, press **Ctrl+C**, wait for the Companion response, then press **Ctrl+V** in the addon.
+WITHOUT COMPANION INSTALLED AND RUNNING, THE ADDON CANNOT LOAD NEW LOG DATA.
 
-Use `/mpl demo` to preview a fictional profile. `/mpl import` supports manual import. Cached profiles are saved between sessions; profiles older than 24 hours are marked as stale.
+1. Install the addon with CurseForge and [download Companion for Windows 10/11 x64](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe). Run **MPlusLogs-Companion-Setup.exe**.
+2. Start Companion and choose **Set up personal API**. The built-in guide will help you:
+    - create your Warcraft Logs API client;
+    - paste its **Client ID**;
+    - authorize access in your browser.
 
-## Privacy and limitations
+    **Couldn't connect your personal API?** Choose **Use shared API** in Companion and sign in through Warcraft Logs. Everyone using this option shares the same request allowance, which can run out quickly when many people load logs. We recommend switching to your personal API when you can.
 
-The addon cannot access the internet directly. The Companion processes only MPlusLogs request envelopes from the clipboard and sends the requested character identifiers and filters to Warcraft Logs. Other clipboard text is not sent. It does not read game memory or automate gameplay. Login tokens are protected locally with Windows DPAPI. Autostart and sounds can be configured in Companion Settings.
+3. In WoW, open your Group Finder applications and click **Load all logs** above the list.
+4. Press **Ctrl+C** in the addon window and wait for Companion's sound: it means the reply is ready. Sound is on by default; Companion can stay in the tray.
+    - **Without sound:** before pressing **Ctrl+V**, check that Companion says **“The reply is on the clipboard. Return to WoW and press Ctrl+V.”**
+5. Once the reply is ready, press **Ctrl+V** in the same addon window. The loaded results will appear in the **Logs** column.
 
-Percentiles reflect available Warcraft Logs data, not every run a player has completed. Tank DPS is not a measure of survival. Missing data is shown as unavailable, never as a zero percentile.
+If Companion says the clipboard changed, click **Copy last reply** there, then paste it into WoW with **Ctrl+V**.
 
-The addon follows your WoW client language: English, Russian, German, French, Italian, Spanish, Portuguese, Korean and Chinese. Community translation corrections are welcome.
+You can also use `/mpl`: in a party it opens your group's logs; outside a party it opens your target's logs, or your own if no player is targeted.
 
-[Source and issue tracker](https://github.com/indrih17/MPlusLogs)
+## A few things to know
 
-## Community
+- Saved data stays between sessions. **Last loaded** is the date the data was fetched, not the date a key was completed. Stale data is shown in grey.
+- Only runs available to Warcraft Logs are included. Missing logs are shown as unavailable; percentiles do not measure survival, interrupts or mechanics.
+- Companion processes only MPlusLogs clipboard requests. Other clipboard text is not sent to Warcraft Logs.
 
-Join the [MPlusLogs Discord server](https://discord.gg/URUukHCUW) to discuss the addon, ask questions and share feedback.
+Addon settings are in WoW under **Options → AddOns → MPlusLogs**. The addon follows your WoW client language. Companion's language can be changed in **Settings → Language**.
+
+Questions or ideas? Join us on [Discord](https://discord.gg/URUukHCUW).
+
+[Source and issue tracker](https://github.com/indrih17/MPlusLogs).
 
 ***
 
 ## MPlusLogs
 
-Смотрите логи Mythic+ при наборе группы. MPlusLogs показывает процентили DPS и HPS, число прохождений, специализацию, уровень ключа и дату прохождения ключа в панелях игроков и подсказках списка заявок. Нажмите правой кнопкой по заявке или игроку, чтобы открыть полную таблицу подземелий и ссылку на Warcraft Logs.
+С помощью этого аддона вы можете посмотреть логи Mythic+ при наборе группы.
 
-### Для загрузки логов обязательно установите и запустите MPlusLogs Companion на Windows
+В списке заявок появится колонка **«Логи»**. Нажмите левой кнопкой по числу рядом с игроком в этой колонке — откроется таблица по подземельям: DPS/HPS, Best % и Median %, уровни ключей и число записанных прохождений. Там же можно переключать специализации и скопировать ссылку на Warcraft Logs.
 
-**[Скачать MPlusLogs Companion для Windows](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe)** — установщик актуальной опубликованной версии для Windows 10/11 x64. Эта постоянная ссылка обновляется при выпуске новой версии компаньона.
+### Как начать
 
-Запустите скачанный **MPlusLogs-Companion-Setup.exe** и установите Companion вне папки WoW `Interface\AddOns`, оставив предложенную установщиком папку. Python отдельно устанавливать не нужно. Язык можно выбрать в **Settings → Language**. Компаньон проверяет обновления и предлагает кнопку **Install update and restart**, когда доступна новая версия. Войдите в Warcraft Logs через браузер из Companion.
+Аддоны WoW не могут сами запрашивать данные с сайтов. Для этого нужен **MPlusLogs Companion** — помощник для Windows. Он получает нужные логи из Warcraft Logs и передаёт их аддону через буфер обмена.
 
-1. Установите аддон через CurseForge.
-2. Запустите Companion и войдите в Warcraft Logs через браузер.
-3. В WoW откройте `/mpl` или нажмите правой кнопкой по заявке на вступление в группу и выберите логи M+.
-4. Выберите «Загрузить M+ логи», нажмите **Ctrl+C**, дождитесь ответа Companion и нажмите **Ctrl+V** в аддоне.
+БЕЗ УСТАНОВЛЕННОГО И ЗАПУЩЕННОГО COMPANION АДДОН НЕ СМОЖЕТ ЗАГРУЗИТЬ НОВЫЕ ЛОГИ.
 
-**Без установленного и запущенного Companion онлайн-загрузка логов не работает.**
+1. Установите аддон через CurseForge и [скачайте Companion для Windows 10/11 x64](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe). Запустите **MPlusLogs-Companion-Setup.exe**.
+2. Запустите Companion и выберите **«Подключить личный API»**. Встроенная инструкция поможет:
+    - создать API-клиент Warcraft Logs;
+    - вставить его **Client ID**;
+    - подтвердить доступ в браузере.
 
-Команда `/mpl demo` показывает вымышленный профиль. Для ручного импорта используйте `/mpl import`. Профили сохраняются между сессиями; данные старше 24 часов отмечаются как устаревшие.
+    **Не получилось подключить личный API?** Выберите в Companion **«Использовать общий API»** и авторизуйтесь через Warcraft Logs. Лимит запросов этого API делят все пользователи — при большой нагрузке он может быстро закончиться. Поэтому рекомендуем по возможности перейти на личный API.
 
-## Конфиденциальность и ограничения
+3. В WoW откройте список заявок в поиске группы и нажмите **«Загрузить логи всех»** над списком.
+4. В окне аддона нажмите **Ctrl+C** и дождитесь звукового сигнала Companion — он означает, что ответ готов. Звук включён по умолчанию; помощник может оставаться в трее.
+    - **Без звука:** перед нажатием **Ctrl+V** дождитесь в окне Companion сообщения **«Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V»**.
+5. Когда ответ готов, нажмите **Ctrl+V** в том же окне аддона. Загруженные результаты появятся в колонке **«Логи»**.
 
-Аддон не подключается к интернету напрямую. Companion обрабатывает только запросы MPlusLogs из буфера обмена и отправляет Warcraft Logs запрошенные имена персонажей и фильтры. Остальной текст буфера не отправляется. Companion не читает память игры и не автоматизирует игровой процесс. Токены входа защищены Windows DPAPI. Автозапуск и звук настраиваются отдельно.
+Если Companion сообщает, что буфер изменился, нажмите в нём **«Скопировать последний ответ»**, затем вставьте его в WoW через **Ctrl+V**.
 
-Процентили основаны на доступных логах Warcraft Logs, а не на всех прохождениях игрока. DPS танка не показывает его выживаемость. Если данных нет, аддон показывает их как недоступные, а не как нулевой процентиль. Язык аддона зависит от языка клиента WoW.
+Можно также воспользоваться `/mpl`: в пати команда открывает логи участников группы, а вне пати — выбранного игрока или ваши, если игрок не выбран.
 
-[Github проекта](https://github.com/indrih17/MPlusLogs)
+### Полезно знать
 
-## Сообщество
+- Загруженные данные сохраняются между сессиями. **«Последняя загрузка»** — дата получения данных, а не прохождения ключа. Устаревшие данные показаны серым.
+- В статистику попадают только прохождения, доступные Warcraft Logs. Если логов нет, это видно в окне. Проценты не оценивают выживание, прерывания и выполнение механик.
+- Companion обрабатывает только запросы MPlusLogs из буфера обмена. Другой текст не отправляется в Warcraft Logs.
 
-Обсудить аддон, задать вопрос или оставить отзыв можно в [Discord MPlusLogs](https://discord.gg/URUukHCUW).
+Настройки аддона находятся в WoW: **«Параметры → Модификации → MPlusLogs»**. Аддон использует язык вашего клиента WoW. Язык Companion можно поменять в **«Настройки → Язык»**.
+
+Есть вопрос или идея? Заходите в [Discord](https://discord.gg/URUukHCUW).
+
+[Исходный код и сообщения об ошибках](https://github.com/indrih17/MPlusLogs).

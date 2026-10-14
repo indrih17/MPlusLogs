@@ -270,13 +270,30 @@ function MPL.InviteFromProfile(context)
     return true
 end
 
+local function isRaidListing()
+    if InCombatLockdown() or not C_LFGList.GetActiveEntryInfo or not C_LFGList.GetActivityInfoTable then return false end
+    local entry=C_LFGList.GetActiveEntryInfo()
+    local activities=entry and entry.activityIDs
+    if type(activities)~="table" or (issecretvalue and issecretvalue(activities)) then return false end
+    for _,id in ipairs(activities) do
+        if not (issecretvalue and issecretvalue(id)) then
+            local activity=C_LFGList.GetActivityInfoTable(id)
+            -- Group Finder category 3 includes raids from every expansion.
+            if activity and not (issecretvalue and issecretvalue(activity.categoryID)) and activity.categoryID==3 then return true end
+        end
+    end
+    return false
+end
+
 function MPL.InstallBatchButton()
     local viewer=LFGListFrame and LFGListFrame.ApplicationViewer
     if not viewer or MPL.batchButton then return end
     local b=CreateFrame("Button",nil,viewer,"UIPanelButtonTemplate")
     b:SetSize(260,24)
     b:SetPoint("BOTTOMLEFT",viewer,"TOPLEFT",8,4)
-    b:SetScript("OnClick",function() MPL.ShowBatchDownload() end)
+    b:SetScript("OnClick",function()
+        if not isRaidListing() then MPL.ShowBatchDownload() end
+    end)
     MPL.batchButton=b
     local loaded,total=0,0
     local function update()
@@ -285,7 +302,7 @@ function MPL.InstallBatchButton()
         pending,loaded=MPL.FilterFreshProfiles(players)
         total=#players
         b:SetText(L["Загрузить логи всех ("]..loaded.."/"..total..")")
-        if #pending>0 and not err then b:Enable() else b:Disable() end
+        if #pending>0 and not err and not isRaidListing() then b:Enable() else b:Disable() end
         if MPL.RefreshApplicantLogs then MPL.RefreshApplicantLogs() end
         if MPL.UpdateProfileInvite then MPL.UpdateProfileInvite() end
     end
@@ -364,12 +381,9 @@ SLASH_MPLUSLOGS2 = "/mpluslogs"
 SlashCmdList.MPLUSLOGS = function(text)
     text = strtrim(text or "")
     if text == "settings" then MPL.OpenSettings()
-    elseif text=="history" then MPL.ShowHistory(UnitFullName("player"))
-    elseif text:match("^history%s+") then MPL.ShowHistory(text:match("^history%s+(.+)$"))
     elseif text == "import" then MPL.ShowImport()
     elseif text == "applicants" then MPL.ShowBatchDownload()
     elseif text == "results" then MPL.OpenBatchResults()
-    elseif text == "probe" then MPL.ShowProbe()
     elseif text == "requests" then MPL.ShowRequests()
     elseif text == "demo" then MPL.ShowProfile("Киндрих","Гордунни")
     elseif text == "tooltip" then

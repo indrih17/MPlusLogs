@@ -107,6 +107,43 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(self.mpl.batchButton.text,"Загрузить логи всех (0/2)")
         self.assertTrue(self.lua.eval("function(a,b) return a==b end")(self.mpl.batchButton.parent,self.lua.globals().LFGListFrame.ApplicationViewer))
 
+    def test_batch_button_tracks_raid_and_dungeon_listing_switches(self):
+        self.lua.execute('''
+            listingCategory=2
+            C_LFGList.GetActiveEntryInfo=function() return {activityIDs={123}} end
+            C_LFGList.GetActivityInfoTable=function() return {categoryID=listingCategory} end
+            IsInRaid=function() return false end
+        ''')
+        self.mpl.InstallBatchButton()
+        button=self.mpl.batchButton
+        self.assertTrue(button.enabled)
+        self.lua.globals().listingCategory=3
+        self.mpl.UpdateBatchButton()
+        self.assertFalse(button.enabled)
+        self.assertEqual(button.text,"Загрузить логи всех (0/2)")
+        self.lua.execute('listingCategory=2; IsInRaid=function() return true end')
+        button.Show(button)
+        button.scripts.OnUpdate(button,30)
+        self.assertTrue(button.enabled)
+
+    def test_batch_button_rechecks_listing_before_starting_a_request(self):
+        self.lua.execute('''
+            listingCategory=2
+            C_LFGList.GetActiveEntryInfo=function() return {activityIDs={123}} end
+            C_LFGList.GetActivityInfoTable=function() return {categoryID=listingCategory} end
+        ''')
+        self.mpl.InstallBatchButton()
+        button=self.mpl.batchButton
+        self.lua.globals().listingCategory=3
+        # The listing changed before the button received its next update.
+        button.scripts.OnClick()
+        self.assertIsNone(self.mpl.pendingReply)
+        self.assertIsNone(self.mpl.downloadWindow)
+        self.lua.globals().listingCategory=2
+        button.scripts.OnClick()
+        self.assertIsNotNone(self.mpl.pendingReply)
+        self.assertTrue(self.mpl.pendingReply.batch)
+
     def test_one_exchange_imports_success_and_reports_hidden_character(self):
         self.mpl.ShowBatchDownload()
         f=self.mpl.downloadWindow

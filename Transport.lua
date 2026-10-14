@@ -57,15 +57,6 @@ function MPL.SendBatchRequest(players)
     return id,envelope(id,"MPLQ2\n"..table.concat(rows))
 end
 
-function MPL.SendHistoryRequest(name,realm)
-    if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
-    sequence=sequence+1
-    local id=tostring(GetServerTime()).."-"..sequence
-    local function field(s) return s:gsub("[%z\1-\31\127|]","") end
-    MPL.pendingReply={id=id,name=name,realm=realm,history=true}
-    return id,"MPLS2\n"..id.."\nMPLC1 history\nMPLHQ1\nQ\t"..MPL.Region().."\t"..field(realm).."\t"..field(name).."\n"
-end
-
 function MPL.ReceiveReply(text, strict)
     local pendingReply=MPL.pendingReply
     if text:match("^MPLS2[\r\n]") then
@@ -77,7 +68,7 @@ function MPL.ReceiveReply(text, strict)
         local id,message=text:match("^MPLE1\r?\n([^\r\n]+)\r?\n(.*)")
         if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос"] end
         message=message:gsub("%%(%x%x)",function(hex) return string.char(tonumber(hex,16)) end)
-        if not pendingReply.batch and not pendingReply.history then
+        if not pendingReply.batch then
             local lower=string.lower(message)
             local reason
             if lower:find("rankings hidden",1,true) then reason="hidden"
@@ -115,7 +106,6 @@ function MPL.ReceiveReply(text, strict)
             local available={}
             for capability in capabilities:gmatch("[a-z]+") do available[capability]=true end
             MPL.companionInfo={version=version,capabilities=available}
-            if pendingReply.history and not available.history then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             if pendingReply.includeSpecs and not available.specprofiles then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             for _,capability in ipairs(MPL.requiredCompanionCapabilities or {}) do
                 if not available[capability] then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
@@ -128,15 +118,6 @@ function MPL.ReceiveReply(text, strict)
         if body:match("^MPLB1\r?\n") then
             body=body:gsub("^MPLB1\r?\n", "",1)
             body=body:gsub("%%(%x%x)",function(hex) return string.char(tonumber(hex,16)) end)
-        end
-        if pendingReply.history then
-            local result,err=MPL.ParseHistory(body)
-            if not result then return nil,err end
-            if MPL.Key(result.name,result.realm,result.region)~=MPL.Key(pendingReply.name,pendingReply.realm) then return nil,L["Ответ содержит данные другого персонажа"] end
-            local count=MPL.StoreHistory(result)
-            MPL.pendingReply=nil
-            MPL.ShowHistory(result.name,result.realm)
-            return count
         end
         if pendingReply.batch then
             local result,err=MPL.Parse(body,true)

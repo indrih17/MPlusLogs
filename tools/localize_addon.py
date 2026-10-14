@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ['Data.lua', 'History.lua', 'Transport.lua', 'UI.lua', 'Settings.lua', 'Integration.lua', 'Probe.lua']
+FILES = ['Data.lua', 'Transport.lua', 'UI.lua', 'Settings.lua', 'Integration.lua']
 TOKEN = re.compile(r'--\[\[.*?\]\]|--[^\n]*|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'', re.S)
 CYRILLIC = re.compile('[\u0400-\u04ff]')
 SKIP = {'Киндрих', 'Гордунни', 'Снимок со скриншота пользователя'}

@@ -225,7 +225,6 @@ local function buildPanel()
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function() MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant) end)
-    button(f,L["Local history"],490,53,220,function() MPL.ShowHistory(f.name,f.realm) end)
     f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
     f.lookup = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
@@ -554,7 +553,7 @@ function MPL.ShowCompanionUpdates()
     f.edit:SetFocus(); f.edit:HighlightText()
 end
 
-function MPL.ShowDownload(fullName, realm, profile,context,batch,history)
+function MPL.ShowDownload(fullName, realm, profile,context,batch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     if not MPL.downloadWindow then
@@ -604,9 +603,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,history)
             local spec=MPL.SelectedSpec(f.name,f.realm) or (f.profile and f.profile.spec) or "All specs"
             if spec=="All specs" then spec="" end
             local id,request,skipped,total
-            if f.history then
-                id,request=MPL.SendHistoryRequest(f.name,f.realm)
-            elseif f.batch then
+            if f.batch then
                 local players,err
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.status:SetText(err); return end
@@ -682,8 +679,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,history)
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
     f.batch=batch or false
-    f.history=history or false
-    f.title:SetText(history and L["Local combat history"] or L["M+ логи / Warcraft Logs"])
+    f.title:SetText(L["M+ логи / Warcraft Logs"])
     f.applicant=context or false
     f.character:SetText(name.." — "..server)
     f.steps:SetText(L["|cff8888881. Отправка запроса    /    2. Получение логов|r"])
@@ -696,84 +692,6 @@ end
 
 function MPL.ShowBatchDownload()
     MPL.ShowDownload(L["Кандидаты"],GetNormalizedRealmName(),nil,nil,true)
-end
-
-function MPL.ShowHistory(fullName,realm)
-    if not MPL.SafeString(fullName) then fullName,realm=UnitFullName("player") end
-    local name,server=MPL.Identity(fullName,realm)
-    if not name then return end
-    if not MPL.historyWindow then
-        local f=window("MPlusLogsHistoryWindow",L["Local combat history"],960,660,true)
-        f.character=label(f,20,-48,900,"","GameFontHighlightLarge")
-        f.summary=label(f,20,-80,900); f.summary:SetHeight(42)
-        f.scroll=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
-        f.scroll:SetPoint("TOPLEFT",20,-140); f.scroll:SetPoint("BOTTOMLEFT",20,96); f.scroll:SetSize(408,420)
-        f.content=CreateFrame("Frame",nil,f.scroll); f.content:SetSize(388,1); f.scroll:SetScrollChild(f.content); f.rows={}
-        f.scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
-        f.empty=label(f,20,-154,400,L["No local observations for this character. Choose a combat log in Companion."])
-        f.empty:SetHeight(100)
-        label(f,470,-145,220,L["Player"])
-        label(f,690,-145,75,L["Interrupts"])
-        label(f,775,-145,65,L["Deaths"])
-        label(f,850,-145,70,L["Dispels"])
-        f.party={}
-        for i=1,5 do
-            local y=-175-(i-1)*52
-            f.party[i]={name=label(f,470,y,210),spec=label(f,470,y-18,210),
-                interrupts=label(f,690,y,70),deaths=label(f,775,y,65),dispels=label(f,850,y,70)}
-        end
-        f.source=label(f,470,-448,450); f.source:SetHeight(58)
-        f.coverage=label(f,470,-510,450); f.coverage:SetHeight(60)
-        label(f,20,-580,900,L["Raw event counts from local files, separate from WCL percentiles. Partial logs are not complete-run totals."]):SetHeight(32)
-        button(f,L["Refresh history"],20,20,230,function() MPL.ShowDownload(f.name,f.realm,nil,nil,false,true) end)
-        button(f,L["Закрыть"],790,20,140,function() f:Hide() end)
-        MPL.historyWindow=f
-    end
-    local f=MPL.historyWindow
-    f.name,f.realm=name,server
-    f.character:SetText(name.." — "..server)
-    local runs,observations,totals=MPL.HistoryRuns(name,server)
-    f.runs=runs
-    f.summary:SetText(string.format(L["Local runs: %d / Complete observations: %d"],#runs,observations).."\n"
-        ..L["Interrupts"]..": "..(observations>0 and totals.interrupts or "—").." / "
-        ..L["Deaths"]..": "..(observations>0 and totals.deaths or "—").." / "..L["Dispels"]..": "..(observations>0 and totals.dispels or "—"))
-    local function select(run)
-        f.selected=run
-        for i,row in ipairs(f.party) do
-            local p=run and run.players[i]
-            for _,cell in pairs(row) do cell:SetText("") end
-            if p then
-                row.name:SetText(p.name~="" and (p.name.."-"..p.realm) or p.guid)
-                local info=MPL.specInfo[p.specID]
-                row.spec:SetText(info and MPL.SpecLabel(info[1]) or "—")
-                row.interrupts:SetText(p.interrupts); row.deaths:SetText(p.deaths); row.dispels:SetText(p.dispels)
-            end
-        end
-        f.source:SetText(run and (L["Combat log"]..": "..run.source.."\n"..string.format(L["Source lines: %d-%d"],run.firstLine,run.lastLine)) or "")
-        f.coverage:SetText(run and (L[run.coverage=="complete" and "Complete" or "Partial"]
-            .." / "..L[run.status=="completed" and "Completed" or run.status=="in_progress" and "In progress" or "Incomplete"]
-            .."\n"..L["Includes owned pets/totems; dispels include spellsteals."]
-            ..(run.yearInferred and ("\n"..L["Year inferred from file date."]) or "")) or "")
-    end
-    for _,row in ipairs(f.rows) do row:Hide() end
-    for i,run in ipairs(runs) do
-        local row=f.rows[i]
-        if not row then
-            row=CreateFrame("Button",nil,f.content); row:SetSize(388,52)
-            row.caption=label(row,4,-5,380); row.caption:SetHeight(44)
-            row:SetScript("OnClick",function() select(row.run) end)
-            f.rows[i]=row
-        end
-        row.run=run
-        -- Rebind each time the window changes character; avoid a stale selection closure.
-        row:SetScript("OnClick",function() select(row.run) end)
-        row:SetPoint("TOPLEFT",0,-(i-1)*54)
-        row.caption:SetText("+"..run.level.." "..run.dungeon.."\n"..run.started:gsub("T"," "):sub(1,19).." / "..L[run.coverage=="complete" and "Complete" or "Partial"])
-        row:Show()
-    end
-    f.content:SetHeight(math.max(1,#runs*54)); f.scroll:SetVerticalScroll(0)
-    f.empty:SetShown(#runs==0)
-    select(runs[1]); f:Show(); MPL.UpdatePanelScroll(f)
 end
 
 function MPL.ShowBatchResults(players,profiles,failures,count,open)
