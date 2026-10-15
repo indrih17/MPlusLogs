@@ -1,6 +1,7 @@
 """Run the actual installer code with isolated registry values and destinations."""
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,75 @@ def compiler():
 
 @unittest.skipUnless(sys.platform == "win32" and compiler(), "Requires Windows and Inno Setup compiler")
 class InstallerTests(unittest.TestCase):
+    def test_reinstall_can_change_directory_with_stale_uninstall_record(self):
+        import winreg
+        source = (ROOT / "packaging/companion.iss").read_text(encoding="utf-8")
+        app_id = "MPlusLogs-Reinstall-Test-" + uuid.uuid4().hex
+        startup_key = "Software\\" + app_id
+        uninstall_key = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + app_id + "_is1"
+        with tempfile.TemporaryDirectory(prefix="MPlusLogs-reinstall-test-") as temporary:
+            base = Path(temporary)
+            old = base / "WoW/Interface/AddOns/MPlusLogs/Companion"
+            chosen = base / "Programs/Companion"
+            payload = base / "fixture.txt"
+            payload.write_text("isolated reinstall fixture")
+            # Keep production Setup directives and code, including directory-page policy.
+            source = re.sub(r"^AppId=.*$", "AppId=" + app_id, source, flags=re.M)
+            for name, value in (("DefaultDirName", str(chosen)), ("OutputDir", str(base)),
+                                ("OutputBaseFilename", "TestSetup")):
+                source = re.sub(r"^" + name + r"=.*$", lambda match: name + "=" + value, source, flags=re.M)
+            source = re.sub(r"^SetupIconFile=.*\n", "", source, flags=re.M)
+            source = re.sub(r"\[Files\].*?\[Code\]", lambda match:
+                            '[Files]\nSource: "' + str(payload) + '"; DestDir: "{app}"\n[Code]', source, flags=re.S)
+            source = source.replace("Software\\Microsoft\\Windows\\CurrentVersion\\Run", startup_key)
+            source += r'''
+<event('CurPageChanged')>
+procedure DriveReinstall(CurPageID: Integer);
+begin
+  if ExpandConstant('{param:AUTOTEST|0}') <> '1' then Exit;
+  if CurPageID = wpSelectDir then begin
+    SaveStringToFile(ExpandConstant('{param:PAGEPROOF}'), WizardDirValue, False);
+    WizardForm.DirEdit.Text := ExpandConstant('{param:CHOSENDIR}');
+  end;
+  // Let a broken installer finish safely so the missing-page assertion fails
+  // without leaving an unattended error screen or writing into AddOns.
+  if CurPageID = wpReady then
+    WizardForm.DirEdit.Text := ExpandConstant('{param:CHOSENDIR}');
+end;
+'''
+            script = base / "fixture.iss"
+            script.write_text(source, encoding="utf-8")
+            compiled = subprocess.run([compiler(), "/Q", str(script)], capture_output=True, text=True, timeout=60)
+            self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            try:
+                # Simulate a legacy installation removed by an addon update, with only
+                # its Windows registration left. Never touch the real Companion key.
+                with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, uninstall_key, 0,
+                                       winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as key:
+                    for name, value in (("Inno Setup: App Path", str(old)),
+                                        ("InstallLocation", str(old)),
+                                        ("DisplayName", "MPlusLogs Installer Test"),
+                                        ("UninstallString", str(old / "unins000.exe"))):
+                        winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+                proof = base / "directory-page.txt"
+                log = base / "reinstall.log"
+                installed = subprocess.run([str(base / "TestSetup.exe"), "/VERYSILENT", "/SP-", "/LANG=english", "/SUPPRESSMSGBOXES", "/NORESTART",
+                    "/UPDATECOMPANION=1", "/AUTOTEST=1", "/PAGEPROOF=" + str(proof),
+                    "/CHOSENDIR=" + str(chosen), "/LOG=" + str(log)], capture_output=True, timeout=30)
+                details = log.read_text(encoding="utf-8-sig", errors="replace")
+                self.assertTrue(proof.exists(), "Reinstall skipped directory selection:\n" + details)
+                self.assertEqual(proof.read_text(), str(old))
+                self.assertEqual(installed.returncode, 0, details)
+                self.assertTrue((chosen / "fixture.txt").exists())
+                self.assertFalse(old.exists())
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, uninstall_key, 0,
+                                    winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+                    self.assertEqual(winreg.QueryValueEx(key, "InstallLocation")[0].rstrip("\\"), str(chosen))
+                    self.assertIn(str(chosen), winreg.QueryValueEx(key, "UninstallString")[0])
+                self.assertTrue((chosen / "unins000.exe").is_file())
+            finally:
+                winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, uninstall_key, winreg.KEY_WOW64_64KEY)
+
     def test_existing_autostart_can_be_read_during_wizard_initialization(self):
         import winreg
         code = (ROOT / "packaging/companion.iss").read_text(encoding="utf-8").split("[Code]", 1)[1]

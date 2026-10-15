@@ -1,5 +1,9 @@
 # Changelog
 
+## Companion 1.0.13
+
+- Allow choosing a new Companion installation folder when reinstalling, including when addon updates removed the previous installation but left its Windows registration.
+
 ## MPlusLogs 0.5.22
 
 - Prefix dungeon-specific tooltip rows with bracketed dungeon abbreviations and remove the source/date row.

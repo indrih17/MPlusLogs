@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.12"
+  #define AppVersion "1.0.13"
 #endif
 
 [Setup]
@@ -9,6 +9,9 @@ AppVersion={#AppVersion}
 AppPublisher=indrih
 AppPublisherURL=https://github.com/indrih17/MPlusLogs
 DefaultDirName={localappdata}\Programs\MPlusLogs Companion
+; A stale installation record can point inside AddOns after an addon update.
+; Keep directory selection available so reinstall can repair that location.
+DisableDirPage=no
 DefaultGroupName=MPlusLogs Companion
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
