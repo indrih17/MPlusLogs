@@ -1,10 +1,11 @@
-MPlusLogs Companion 1.0.13 for Windows 10/11 x64
+MPlusLogs Companion 1.0.14 for Windows 10/11 x64
 
 Install using the Setup exe, or extract the entire portable ZIP to a permanent
 folder and run MPlusLogs-Companion.exe. Python is included; no separate install
 is needed. Keep all files in the portable folder together.
 
-Keep Companion outside WoW Interface\AddOns so it cannot block addon updates.
+Companion may be installed in Interface\AddOns or its own separate folder.
+Do not install it inside an individual addon folder, such as AddOns\MPlusLogs.
 Setup rejects AddOns destinations. A portable copy started from AddOns offers
 to copy its program files to %LOCALAPPDATA%\Programs\MPlusLogs Companion
 (or an unused numbered folder), update its own shortcuts and startup entries,

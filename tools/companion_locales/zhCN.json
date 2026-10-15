@@ -149,8 +149,8 @@
   "Partial counts are observed events, not complete-run totals.": "Partial counts are observed events, not complete-run totals.",
   "Specialization ID": "Specialization ID",
   "Local preview / not published": "Local preview / not published",
-  "Companion is inside the WoW AddOns folder and can block addon updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion 位于 WoW 的 AddOns 文件夹中，可能阻止插件更新。是否将其移至 {path}？登录和设置将保留。选择“否”将关闭 Companion 以解除文件锁定。",
+  "Companion is inside an addon folder and can block its updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion 位于某个插件的文件夹中，可能阻止该插件更新。是否将其移至 {path}？登录和设置将保留。选择“否”将关闭 Companion 以解除文件锁定。",
   "Companion will restart from {path}. The old files are kept and will be unlocked after it closes.": "Companion 将从 {path} 重新启动。旧文件将保留，并在程序关闭后解除锁定。",
-  "Could not relocate Companion: {error}. Companion will close. Install it outside Interface/AddOns and try again.": "无法移动 Companion：{error}。Companion 将关闭。请将其安装在 Interface/AddOns 之外并重试。",
+  "Could not relocate Companion: {error}. Companion will close. Install it outside individual addon folders and try again.": "无法移动 Companion：{error}。Companion 将关闭。请将其安装在各个插件的文件夹之外并重试。",
   "Для загрузки этих логов обновите MPlusLogs Companion.": "请更新 MPlusLogs Companion 以加载这些日志。"
 }

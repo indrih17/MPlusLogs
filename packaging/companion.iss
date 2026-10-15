@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.13"
+  #define AppVersion "1.0.14"
 #endif
 
 [Setup]
@@ -39,7 +39,7 @@ english.StartupWindows=Start automatically when I sign in to Windows
 english.StartupRetail=Start automatically with WoW Retail
 english.StartupManual=Do not start automatically; I will open it myself
 english.StartupRegistryWarning=Windows could not save the automatic start setting. Open MPlusLogs Companion settings to choose it manually.
-english.UnsafeInstallDirectory=Choose a folder outside WoW Interface\AddOns. A running Companion in AddOns can prevent addon updates. The recommended location is %LOCALAPPDATA%\Programs\MPlusLogs Companion.
+english.UnsafeInstallDirectory=Do not install Companion inside an individual addon folder (for example AddOns\MPlusLogs). Choose AddOns itself, a separate Companion folder, or %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 russian.StartupPageTitle=Когда запускать MPlusLogs Companion
 russian.StartupPageDescription=Выберите, когда помощник должен быть готов к загрузке логов.
 russian.StartupPageNote=Позже это можно изменить в настройках Companion. В конце установки также будет предложено открыть программу.
@@ -47,7 +47,7 @@ russian.StartupWindows=Запускать автоматически при вх
 russian.StartupRetail=Запускать автоматически вместе с WoW Retail
 russian.StartupManual=Не запускать автоматически — я буду открывать программу сам
 russian.StartupRegistryWarning=Windows не сохранила настройку автозапуска. Выберите её вручную в настройках MPlusLogs Companion.
-russian.UnsafeInstallDirectory=Выберите папку вне WoW Interface\AddOns. Запущенный Companion в AddOns мешает обновлению аддона. Рекомендуемая папка: %LOCALAPPDATA%\Programs\MPlusLogs Companion.
+russian.UnsafeInstallDirectory=Не устанавливайте Companion в папку отдельного аддона (например AddOns\MPlusLogs). Выберите саму папку AddOns, отдельную папку Companion или %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -80,9 +80,32 @@ function WindowsFinalPath(Handle: THandle; Buffer: String; Size, Flags: LongWord
 function WindowsCloseHandle(Handle: THandle): Boolean;
   external 'CloseHandle@kernel32.dll stdcall';
 
-function InAddOns(Path: String): Boolean;
+function InAddonFolder(Path: String): Boolean;
+var
+  Marker, Tail, Folder: String;
+  Index: Integer;
+  Entry: TFindRec;
 begin
-  Result := Pos('\interface\addons\', Lowercase(AddBackslash(Path))) > 0;
+  Result := False;
+  Path := AddBackslash(Path);
+  Marker := '\interface\addons\';
+  Index := Pos(Marker, Lowercase(Path));
+  if Index = 0 then Exit;
+  Tail := Copy(Path, Index + Length(Marker), Length(Path));
+  if Tail = '' then Exit; // AddOns itself is allowed.
+  Folder := Copy(Tail, 1, Pos('\', Tail) - 1);
+  // Our addon remains protected if an updater has already removed its TOC.
+  if Lowercase(Folder) = 'mpluslogs' then begin Result := True; Exit; end;
+  Folder := Copy(Path, 1, Index + Length(Marker) - 1) + Folder;
+  if FindFirst(AddBackslash(Folder) + '*.toc', Entry) then begin
+    try
+      repeat
+        if (Entry.Attributes and $10) = 0 then begin Result := True; Break; end;
+      until not FindNext(Entry);
+    finally
+      FindClose(Entry);
+    end;
+  end;
 end;
 
 function UnsafeInstallDirectory: Boolean;
@@ -92,7 +115,7 @@ var
   Size: LongWord;
 begin
   Path := ExpandFileName(WizardDirValue);
-  Result := InAddOns(Path);
+  Result := InAddonFolder(Path);
   if Result then Exit;
   // Resolve the nearest existing ancestor to catch junctions and symlinks.
   Ancestor := Path;
@@ -110,7 +133,7 @@ begin
     Size := WindowsFinalPath(Handle, Buffer, 32768, 0);
     if (Size = 0) or (Size >= 32768) then begin Result := True; Exit; end;
     SetLength(Buffer, Size);
-    Result := InAddOns(AddBackslash(Buffer) + Tail);
+    Result := InAddonFolder(AddBackslash(Buffer) + Tail);
   finally
     WindowsCloseHandle(Handle);
   end;

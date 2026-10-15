@@ -163,7 +163,20 @@ end;
                 alias = base / 'junction'
                 subprocess.run(['cmd', '/c', 'mklink', '/J', str(alias), str(addon_root)],
                                capture_output=True, check=True)
-                for unsafe in (addon_root / 'MPlusLogs/Companion', alias / 'Companion'):
+                addon = addon_root / 'OtherAddon'
+                addon.mkdir()
+                (addon / 'OtherAddon_Mainline.toc').write_text('## Interface: 120100')
+                addon_alias = base / 'addon-junction'
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(addon_alias), str(addon)],
+                               capture_output=True, check=True)
+                for safe in (addon_root, addon_root / 'Companion'):
+                    log = base / 'allowed.log'
+                    installed = subprocess.run([str(base / 'TestSetup.exe'), '/VERYSILENT', '/SUPPRESSMSGBOXES',
+                        '/NORESTART', '/UPDATECOMPANION=1', '/DIR=' + str(safe), '/LOG=' + str(log)],
+                        capture_output=True, timeout=30)
+                    self.assertEqual(installed.returncode, 0, log.read_text(encoding='utf-8-sig', errors='replace'))
+                    self.assertTrue((safe / 'fixture.txt').exists())
+                for unsafe in (addon_root / 'MPlusLogs/Companion', alias / 'OtherAddon/Companion', addon_alias / 'Companion'):
                     log = base / 'blocked.log'
                     installed = subprocess.run([str(base / 'TestSetup.exe'), '/VERYSILENT', '/SUPPRESSMSGBOXES',
                         '/NORESTART', '/DIR=' + str(unsafe), '/LOG=' + str(log)], capture_output=True, timeout=30)

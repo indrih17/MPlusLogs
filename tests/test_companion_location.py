@@ -21,10 +21,33 @@ import companion_location as location
 
 class LocationTests(unittest.TestCase):
     def test_path_boundaries_and_case(self):
-        for path in (r'C:\WoW\Interface\AddOns', r'D:\WOW\INTERFACE\ADDONS\MPlusLogs\app.exe'):
+        for path in (r'D:\WOW\INTERFACE\ADDONS\MPlusLogs\app.exe',):
             self.assertTrue(location.inside_addons(path))
-        for path in (r'C:\AddOns\app.exe', r'C:\WoW\Interface\AddOns-old\app.exe', r'C:\Programs\Companion'):
+        for path in (r'C:\AddOns\app.exe', r'C:\WoW\Interface\AddOns-old\app.exe', r'C:\Programs\Companion',
+                     r'C:\WoW\Interface\AddOns', r'C:\WoW\Interface\AddOns\MPlusLogs-Companion.exe',
+                     r'C:\WoW\Interface\AddOns\MPlusLogs Companion\app.exe'):
             self.assertFalse(location.inside_addons(path))
+
+    def test_only_actual_addon_folders_are_protected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'Interface/AddOns'
+            addon = root / 'OtherAddon'
+            addon.mkdir(parents=True)
+            (addon / 'OtherAddon_Mainline.toc').write_text('## Interface: 120100')
+            self.assertTrue(location.inside_addons(addon / 'Companion/app.exe'))
+            self.assertFalse(location.inside_addons(root / 'Companion/app.exe'))
+            self.assertFalse(location.inside_addons(root / 'MPlusLogs-Companion.exe'))
+            alias = Path(temporary) / 'alias'
+            subprocess.run(['cmd', '/c', 'mklink', '/J', str(alias), str(addon)], check=True, capture_output=True)
+            self.assertTrue(location.inside_addons(alias / 'Companion/app.exe'))
+
+    def test_guard_allows_companion_beside_addons(self):
+        for path in (r'C:\WoW\Interface\AddOns\MPlusLogs-Companion.exe',
+                     r'C:\WoW\Interface\AddOns\Companion\MPlusLogs-Companion.exe'):
+            with patch.object(sys, 'frozen', True, create=True), patch.object(sys, 'executable', path), \
+                    patch('tkinter.Tk') as window:
+                self.assertFalse(location.guard())
+                window.assert_not_called()
 
     def test_copy_only_payload_and_preserve_existing_installation(self):
         with tempfile.TemporaryDirectory() as temporary:

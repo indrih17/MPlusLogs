@@ -1,4 +1,4 @@
-"""Keep frozen Companion binaries outside WoW's replaceable AddOns directory."""
+"""Keep frozen Companion binaries outside individual replaceable addon folders."""
 import json
 from itertools import chain
 import os
@@ -14,8 +14,19 @@ EXECUTABLE = "MPlusLogs-Companion.exe"
 
 
 def inside_addons(path):
-    parts = [part.casefold() for part in PureWindowsPath(str(path)).parts]
-    return any(parts[index:index + 2] == ["interface", "addons"] for index in range(len(parts) - 1))
+    """Protect addon folders, allowing AddOns itself and separate Companion folders."""
+    for candidate in (PureWindowsPath(str(path)), PureWindowsPath(str(Path(path).resolve()))):
+        parts = candidate.parts
+        for index in range(len(parts) - 2):
+            if [part.casefold() for part in parts[index:index + 2]] != ['interface', 'addons']:
+                continue
+            # Retain protection for our own addon after an updater removes its TOC.
+            if parts[index + 2].casefold() == 'mpluslogs':
+                return True
+            addon = Path(PureWindowsPath(*parts[:index + 3]))
+            if any(toc.is_file() for toc in addon.glob('*.toc')):
+                return True
+    return False
 
 
 def safe_directory():
@@ -141,7 +152,7 @@ def guard():
         i18n.set_language(local_settings.load().get("language", "system"))
         destination = safe_directory()
         if not messagebox.askyesno("MPlusLogs Companion", i18n.tr(
-                "Companion is inside the WoW AddOns folder and can block addon updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files."
+                "Companion is inside an addon folder and can block its updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files."
                 ).format(path=destination), parent=root):
             return True
         new_executable = copy_runtime(executable, destination)
@@ -154,7 +165,7 @@ def guard():
         ).format(path=destination), parent=root)
     except (OSError, ValueError, KeyError) as exc:
         messagebox.showerror("MPlusLogs Companion", i18n.tr(
-            "Could not relocate Companion: {error}. Companion will close. Install it outside Interface/AddOns and try again."
+            "Could not relocate Companion: {error}. Companion will close. Install it outside individual addon folders and try again."
         ).format(error=exc), parent=root)
     finally:
         root.destroy()

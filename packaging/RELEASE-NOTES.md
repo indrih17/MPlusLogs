@@ -1,3 +1,3 @@
-## Companion 1.0.13
+## Companion 1.0.14
 
-- Allow choosing a new Companion installation folder when reinstalling, including when addon updates removed the previous installation but left its Windows registration.
+- Allow installing and running Companion directly in Interface\AddOns or a separate folder alongside addons; protect individual addon folders from Companion file locks.

@@ -149,8 +149,8 @@
   "Partial counts are observed events, not complete-run totals.": "Partial counts are observed events, not complete-run totals.",
   "Specialization ID": "Specialization ID",
   "Local preview / not published": "Local preview / not published",
-  "Companion is inside the WoW AddOns folder and can block addon updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion si trova nella cartella AddOns di WoW e può bloccare gli aggiornamenti degli addon. Spostarlo in {path}? Accesso e impostazioni saranno conservati. Scegliendo No, Companion si chiuderà per liberare i file.",
+  "Companion is inside an addon folder and can block its updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion si trova nella cartella di un addon e può bloccarne gli aggiornamenti. Spostarlo in {path}? Accesso e impostazioni saranno conservati. Scegliendo No, Companion si chiuderà per liberare i file.",
   "Companion will restart from {path}. The old files are kept and will be unlocked after it closes.": "Companion si riavvierà da {path}. I vecchi file vengono conservati e saranno sbloccati dopo la chiusura.",
-  "Could not relocate Companion: {error}. Companion will close. Install it outside Interface/AddOns and try again.": "Impossibile spostare Companion: {error}. Companion si chiuderà. Installalo fuori da Interface/AddOns e riprova.",
+  "Could not relocate Companion: {error}. Companion will close. Install it outside individual addon folders and try again.": "Impossibile spostare Companion: {error}. Companion si chiuderà. Installalo fuori dalle cartelle dei singoli addon e riprova.",
   "Для загрузки этих логов обновите MPlusLogs Companion.": "Aggiorna MPlusLogs Companion per caricare questi registri."
 }

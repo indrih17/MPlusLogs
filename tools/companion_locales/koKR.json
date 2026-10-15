@@ -149,8 +149,8 @@
   "Partial counts are observed events, not complete-run totals.": "Partial counts are observed events, not complete-run totals.",
   "Specialization ID": "Specialization ID",
   "Local preview / not published": "Local preview / not published",
-  "Companion is inside the WoW AddOns folder and can block addon updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion이 WoW AddOns 폴더에 있어 애드온 업데이트를 차단할 수 있습니다. {path}(으)로 이동할까요? 로그인과 설정은 유지됩니다. 아니요를 선택하면 파일 잠금을 해제하기 위해 Companion이 종료됩니다.",
+  "Companion is inside an addon folder and can block its updates. Move it to {path}? Login and settings will be preserved. Choosing No closes Companion to release the files.": "Companion이 개별 애드온 폴더에 있어 해당 애드온의 업데이트를 차단할 수 있습니다. {path}(으)로 이동할까요? 로그인과 설정은 유지됩니다. 아니요를 선택하면 파일 잠금을 해제하기 위해 Companion이 종료됩니다.",
   "Companion will restart from {path}. The old files are kept and will be unlocked after it closes.": "Companion이 {path}에서 다시 시작됩니다. 이전 파일은 유지되며 프로그램이 종료된 후 잠금이 해제됩니다.",
-  "Could not relocate Companion: {error}. Companion will close. Install it outside Interface/AddOns and try again.": "Companion을 이동할 수 없습니다: {error}. Companion이 종료됩니다. Interface/AddOns 외부에 설치하고 다시 시도하세요.",
+  "Could not relocate Companion: {error}. Companion will close. Install it outside individual addon folders and try again.": "Companion을 이동할 수 없습니다: {error}. Companion이 종료됩니다. 개별 애드온 폴더 외부에 설치하고 다시 시도하세요.",
   "Для загрузки этих логов обновите MPlusLogs Companion.": "이 로그를 불러오려면 MPlusLogs Companion을 업데이트하세요."
 }
