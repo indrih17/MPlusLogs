@@ -39,6 +39,11 @@ function MPL.RegisterSettings()
         L["Добавлять показатели M+ при наведении на персонажей и заявки."])
     Settings.CreateCheckbox(category,setting("stalePopup",Settings.VarType.Boolean,L["Предупреждать об устаревших логах"],true),
         L["Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется."])
+    Settings.CreateDropdown(category,setting("mainSpec",Settings.VarType.String,L["Основной спек"],"current"),function()
+        local options=Settings.CreateControlTextContainer()
+        options:Add("current",L["Текущий"]); options:Add("logs",L["По логам"])
+        return options:GetData()
+    end,L["Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей."])
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Где ещё показывать логи М+"]))
     Settings.CreateCheckbox(category,setting("showInRaids",Settings.VarType.Boolean,L["Показывать логи М+ в рейдах"],false),
         L["Показывать логи M+ в заявках и поиске рейдовых групп."])

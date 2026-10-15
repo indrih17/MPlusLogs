@@ -71,23 +71,28 @@ function MPL.ListedDungeon(activityIDs)
     return found
 end
 
+local dungeonAbbreviations={
+    ["The Blinding Vale"]="BV",["Voidscar Arena"]="VA",["Den of Nalorakk"]="DON",["Murder Row"]="MR",
+    ["Altar of Fangs"]="AOF",["Kings' Rest"]="KR",["Temple of Sethraliss"]="TOS",["Ruby Life Pools"]="RLP",
+}
+
 function MPL.AddDungeonTooltip(tooltip,profile,metric,stale,dungeon)
     if not dungeon then return end
-    tooltip:AddLine(dungeon,0.4,0.8,1)
+    local prefix="["..(dungeonAbbreviations[dungeon] or dungeon).."] "
     for _,row in ipairs(profile.dungeons or {}) do
         if row.name==dungeon then
             local level,_,best,median=MPL.MetricValues(profile,row,metric)
             if MPL.GetOption("percentile")=="dungeon_dps" then
-                tooltip:AddDoubleLine(L["Лучший "]..metric:upper(),MPL.PrimaryStatistic(profile,metric,dungeon,stale))
+                tooltip:AddDoubleLine(prefix..L["Лучший "]..metric:upper(),MPL.PrimaryStatistic(profile,metric,dungeon,stale))
             end
             best,median=MPL.OrderPercentiles(best,median)
-            tooltip:AddDoubleLine(metric:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
-            tooltip:AddDoubleLine(L["Ключ лучшего результата"],level and ("+"..level) or "—")
-            tooltip:AddDoubleLine(L["Залогированные прохождения"],tostring(row.runs or "—"))
+            tooltip:AddDoubleLine(prefix..metric:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
+            tooltip:AddDoubleLine(prefix..L["Ключ лучшего результата"],level and ("+"..level) or "—")
+            tooltip:AddDoubleLine(prefix..L["Залогированные прохождения"],tostring(row.runs or "—"))
             return
         end
     end
-    tooltip:AddLine(L["Нет загруженных логов этого подземелья"],0.65,0.65,0.65)
+    tooltip:AddLine(prefix..L["Нет загруженных логов этого подземелья"],0.65,0.65,0.65)
 end
 
 function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
@@ -102,7 +107,7 @@ function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
     tooltip:AddLine(" ")
     tooltip:AddLine("MPlusLogs / M+ S2",0.4,0.8,1)
     if profile then
-        local stale,lastDate=MPL.IsProfileStale(profile)
+        local stale=MPL.IsProfileStale(profile)
         local primary=MPL.PrimaryMetric(profile,name,server)
         local secondary=primary=="hps" and "dps" or "hps"
         local _,_,best,median=MPL.MetricValues(profile,nil,primary)
@@ -114,7 +119,6 @@ function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
         tooltip:AddDoubleLine(primary:upper().." "..MPL.PercentileCaption(),MPL.Percent(best,stale).." / "..MPL.Percent(median,stale))
         tooltip:AddDoubleLine(secondary:upper().." "..MPL.PercentileCaption(),MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale))
         tooltip:AddDoubleLine(L["Залогированные прохождения"],tostring(profile.runs or "—"))
-        tooltip:AddLine(MPL.T(profile.source).." / "..lastDate,0.65,0.65,0.65,true)
         if stale then tooltip:AddLine(L["Обновите логи персонажа"],0.65,0.65,0.65) end
     else
         local spec=MPL.SelectedSpec(name,server)
@@ -137,7 +141,17 @@ local function menu(root, fullName, realm,context)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     root:CreateDivider()
-    root:CreateButton(L["M+ логи (MPlusLogs)"],function() MPL.ShowProfile(name,server,context) end)
+    root:CreateButton(L["M+ логи (MPlusLogs)"],function()
+        if not context and not (IsInRaid and IsInRaid()) then
+            local players=MPL.CollectParty()
+            for _,player in ipairs(players) do
+                if #players>1 and MPL.Key(player.name,player.realm)==MPL.Key(name,server) then
+                    MPL.ShowGroupProfiles(players,player); return
+                end
+            end
+        end
+        MPL.ShowProfile(name,server,context)
+    end)
     root:CreateButton(L["Загрузить M+ логи"],function()
         MPL.ShowDownload(name,server,MPL.GetProfile(name,server),context)
     end)

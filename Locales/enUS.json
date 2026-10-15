@@ -255,5 +255,9 @@
   "Где ещё показывать логи М+": "Show M+ logs in other groups",
   "Показывать логи М+ в рейдах": "Show M+ logs in raids",
   "Показывать логи М+ в PvP": "Show M+ logs in PvP",
-  "Показывать логи М+ в других группах": "Show M+ logs in other groups"
+  "Показывать логи М+ в других группах": "Show M+ logs in other groups",
+  "Основной спек": "Main specialization",
+  "Текущий": "Current",
+  "По логам": "From logs",
+  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Current: specialization from applicant or group data. From logs: specialization based on saved WCL history; may differ from the current one."
 }

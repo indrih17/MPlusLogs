@@ -45,16 +45,16 @@ class SettingsTests(unittest.TestCase):
     def test_native_category_and_saved_settings(self):
         self.install(); self.mock_settings(); self.mpl.RegisterSettings(); self.mpl.RegisterSettings()
         settings=self.lua.globals().Settings
-        self.assertEqual(len(settings.controls),8)
+        self.assertEqual(len(settings.controls),9)
         self.assertEqual(self.lua.globals().registeredCategory,'MPlusLogs')
         values=settings['values']
         self.assertIsNone(values.MPLUSLOGS_showInMythicPlus)
-        self.assertEqual(settings.layout[6].section,'Где ещё показывать логи М+')
+        self.assertEqual(settings.layout[7].section,'Где ещё показывать логи М+')
         for index,(key,name) in enumerate([
             ('showInRaids','Показывать логи М+ в рейдах'),
             ('showInPvp','Показывать логи М+ в PvP'),
             ('showInOtherGroups','Показывать логи М+ в других группах'),
-        ],6):
+        ],7):
             self.assertEqual(settings.controls[index].key,'MPLUSLOGS_'+key)
             self.assertEqual(settings.controls[index].name,name)
         for key,default in [('showInRaids',False),('showInPvp',False),('showInOtherGroups',False)]:
@@ -63,6 +63,14 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(values.MPLUSLOGS_percentile['get'](),'best')
         self.assertEqual(len(values.MPLUSLOGS_percentile['items']),5)
         self.assertEqual(len(values.MPLUSLOGS_freshHours['items']),4)
+        main=values.MPLUSLOGS_mainSpec
+        self.assertEqual(main['get'](),'current')
+        self.assertEqual(main['default'],'current')
+        self.assertEqual([(item.key,item.text) for item in main['items'].values()],
+                         [('current','Текущий'),('logs','По логам')])
+        main['set']('logs')
+        self.assertEqual(self.lua.globals().MPlusLogsDB.options.mainSpec,'logs')
+        self.assertFalse(self.mpl.SetOption('mainSpec','invalid'))
         values.MPLUSLOGS_healerHpsFirst['set'](True)
         self.assertTrue(self.lua.globals().MPlusLogsDB.options.healerHpsFirst)
         values.MPLUSLOGS_percentile['set']('median')

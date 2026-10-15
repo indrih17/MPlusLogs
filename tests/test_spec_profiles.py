@@ -304,8 +304,11 @@ class SpecProfileTests(unittest.TestCase):
         tooltip = self.lua.globals().GameTooltip
         self.mpl.AddTooltip(tooltip, "Киндрих-Гордунни", None, "Den of Nalorakk")
         lines = [tooltip.lines[i][1] for i in range(1, len(tooltip.lines)+1)]
-        self.assertIn("Den of Nalorakk", lines)
-        self.assertIn("Ключ лучшего результата", lines)
+        self.assertNotIn("Den of Nalorakk", lines)
+        self.assertIn("[DON] DPS Best / Median", lines)
+        self.assertIn("[DON] Ключ лучшего результата", lines)
+        self.assertIn("[DON] Залогированные прохождения", lines)
+        self.assertIn("DPS Best / Median", lines)
         self.assertNotIn("Altar of Fangs", lines)
         self.assertIn("Залогированные прохождения", lines)
 
@@ -313,8 +316,8 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.Import(self.export())
         tooltip = self.lua.globals().GameTooltip
         self.mpl.AddDungeonTooltip(tooltip, self.profile(), "dps", False, "Murder Row")
-        self.assertEqual(tooltip.lines[2][1], "Нет загруженных логов этого подземелья")
-        self.assertEqual(len(tooltip.lines), 2)
+        self.assertEqual(tooltip.lines[1][1], "[MR] Нет загруженных логов этого подземелья")
+        self.assertEqual(len(tooltip.lines), 1)
 
     def test_listing_resolution_uses_map_ids_and_refuses_ambiguous_activities(self):
         self.lua.execute('''
@@ -428,6 +431,37 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.ShowProfile("Киндрих","Гордунни")
         self.assertEqual(self.mpl.panel.specButton.text,"Feral")
         self.assertEqual(self.mpl.panel.profile.spec,"Feral")
+
+    def test_main_spec_comes_from_applicant_even_without_its_logs(self):
+        self.mpl.Import(self.export("Feral"))
+        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 102, "DRUID")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Balance")
+        self.mpl.SelectSpec("Киндрих", "Гордунни", "Feral")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Balance")
+        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 103, "DRUID")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Feral")
+        self.assertIsNone(self.mpl.MainProfileSpec("Киндрих", "Гордунни", "HEALER"))
+
+    def test_log_history_does_not_mark_unknown_current_spec_as_main(self):
+        self.mpl.Import(self.export("Feral"))
+        self.assertIsNone(self.mpl.MainProfileSpec("Киндрих", "Гордунни"))
+        self.assertEqual(self.mpl.DefaultProfileSpec("Киндрих", "Гордунни"), "Feral")
+        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 103, "DRUID")
+        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", None, "DRUID")
+        self.assertIsNone(self.mpl.MainProfileSpec("Киндрих", "Гордунни"))
+
+    def test_main_spec_setting_switches_between_current_and_saved_logs(self):
+        self.mpl.Import(self.export("Feral"))
+        self.mpl.Import(self.export("Balance", date="2026-10-13 00:00 UTC"))
+        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 103, "DRUID")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Feral")
+        self.mpl.SetOption("mainSpec", "logs")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Balance")
+        self.assertEqual(self.mpl.SelectedSpec("Киндрих", "Гордунни"), "Balance")
+        self.mpl.SelectSpec("Киндрих", "Гордунни", "Feral")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Balance")
+        self.mpl.SetOption("mainSpec", "current")
+        self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Feral")
 
 
 if __name__ == "__main__":

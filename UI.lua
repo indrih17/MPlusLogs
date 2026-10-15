@@ -556,6 +556,16 @@ end
 function MPL.ShowDownload(fullName, realm, profile,context,batch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
+    -- Loading from a player tab (including its stale-data notice) must keep
+    -- the shared exchange instead of replacing it with a single-player one.
+    local players=MPL.panel and MPL.panel.groupPlayers
+    if batch==nil and type(players)=="table" and #players>1 then
+        for _,player in ipairs(players) do
+            if MPL.Key(player.name,player.realm)==MPL.Key(name,server) then
+                batch=players; break
+            end
+        end
+    end
     if not MPL.downloadWindow then
         local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,382,true)
         f.programmatic=false; f.revision=0; f.phase="idle"; f.request=""; f.quotaElapsed=0

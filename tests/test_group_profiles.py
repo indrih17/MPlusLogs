@@ -2,6 +2,7 @@
 import unittest
 
 import test_batch
+import test_addon
 import clipboard_protocol
 import realm_resolver
 
@@ -36,6 +37,40 @@ class GroupProfileTests(unittest.TestCase):
         self.assertEqual(len(f.groupPlayers), 5)
         self.assertFalse(f.inviteButton.shown)
 
+    def open_unit_menu(self, name):
+        self.lua.execute('''
+            eventFrames={}
+            local original=CreateFrame
+            CreateFrame=function(...) local f=original(...); eventFrames[#eventFrames+1]=f; return f end
+        ''')
+        self.lua.execute("return assert(loadstring(...))", (test_addon.ROOT / "Integration.lua").read_text(encoding="utf-8"))("MPlusLogs", self.mpl)
+        self.lua.execute('''
+            eventFrames[1].scripts.OnEvent(eventFrames[1],"PLAYER_LOGIN")
+            menuRoot={}
+            function menuRoot:CreateDivider() end
+            function menuRoot:CreateButton(_,callback) if not self.callback then self.callback=callback end end
+        ''')
+        self.lua.globals().Menu.callbacks.MENU_UNIT_PARTY(None, self.lua.globals().menuRoot,
+            self.lua.table_from({'name':name,'realm':'Гордунни'}))
+        self.lua.globals().menuRoot.callback()
+
+    def test_party_menu_opens_whole_party_with_clicked_member_selected(self):
+        self.party()
+        self.open_unit_menu('Member3')
+        f=self.mpl.panel
+        self.assertEqual(f.name,'Member3')
+        self.assertEqual(len(f.groupPlayers),5)
+        self.assertEqual(len(self.mpl.pendingReply.players),5)
+        f.playerTabs[2].scripts.OnClick()
+        self.assertEqual(f.name,'Member1')
+        self.assertEqual(len(f.groupPlayers),5)
+
+    def test_party_menu_does_not_replace_unrelated_character_with_party(self):
+        self.party()
+        self.open_unit_menu('Other')
+        self.assertEqual(self.mpl.panel.name,'Other')
+        self.assertNotEqual(self.lua.eval('type')(self.mpl.panel.groupPlayers),'table')
+
     def test_applicant_group_keeps_clicked_member_and_only_its_application(self):
         self.mpl.ShowProfile("Bob", "Гордунни", self.players()[2])
         f = self.mpl.panel
@@ -46,6 +81,28 @@ class GroupProfileTests(unittest.TestCase):
         self.assertEqual(f.name, "Alice")
         self.assertEqual(f.applicant.memberIndex, 1)
         self.assertEqual(f.applicant.applicantID, 10)
+
+    def test_load_button_in_party_tab_keeps_whole_party_request(self):
+        self.party()
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        f = self.mpl.panel
+        f.playerTabs[3].scripts.OnClick()
+        f.loadButton.scripts.OnClick()
+        self.assertTrue(self.mpl.pendingReply.batch)
+        self.assertEqual(len(self.mpl.pendingReply.players), 5)
+        request = self.mpl.downloadWindow.request
+        response = clipboard_protocol.reply(request, realm_resolver.load_mappings(), self.cache, self.fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response, True), 5)
+        self.assertEqual(f.name, "Member2")
+        f.playerTabs[2].scripts.OnClick()
+        self.assertTrue(f.profile)
+        self.assertTrue(f.scroll.shown)
+
+    def test_load_button_in_applicant_tab_keeps_application_group(self):
+        self.mpl.ShowProfile("Bob", "Гордунни", self.players()[2])
+        self.mpl.panel.loadButton.scripts.OnClick()
+        self.assertTrue(self.mpl.pendingReply.batch)
+        self.assertEqual(len(self.mpl.pendingReply.players), 2)
 
     def test_batch_reply_refreshes_selected_tab_and_keeps_hidden_member(self):
         self.mpl.ShowProfile("Alice", "Гордунни", self.players()[1])

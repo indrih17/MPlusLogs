@@ -4,7 +4,7 @@ MPlusLogs = MPL
 MPL.zone = 55
 MPL.maxProfileAge = 24 * 60 * 60
 local defaults={healerHpsFirst=false,percentile="best",freshHours=24,tooltips=true,stalePopup=true,
-    showInRaids=false,showInPvp=false,showInOtherGroups=false}
+    showInRaids=false,showInPvp=false,showInOtherGroups=false,mainSpec="current"}
 
 function MPL.GetOption(key)
     local options=MPlusLogsDB and MPlusLogsDB.options
@@ -17,6 +17,8 @@ function MPL.SetOption(key,value)
     if defaults[key]==nil then return false end
     if key=="percentile" then
         if not ({best=true,median=true,dungeon_dps=true,dungeon_median=true,dungeon_best=true})[value] then return false end
+    elseif key=="mainSpec" then
+        if value~="current" and value~="logs" then return false end
     elseif key=="freshHours" then
         if not ({[6]=true,[12]=true,[24]=true,[48]=true})[value] then return false end
     elseif type(value)~="boolean" then return false end
@@ -195,9 +197,7 @@ function MPL.SelectedSpec(name,realm,role)
     local choices=MPlusLogsDB and MPlusLogsDB.selectedSpecs
     local selected=choices and choices[key..":"..role]
     if selected then return selected end
-    local info=MPL.specs and MPL.specs[key]
-    if info and (role=="" or info[2]==role) then return info[1] end
-    local main=MPL.MainProfileSpec and MPL.MainProfileSpec(name,realm,role~="" and role or nil)
+    local main=MPL.DefaultProfileSpec and MPL.DefaultProfileSpec(name,realm,role~="" and role or nil)
     if main then return main end
     if role~="" then return "All specs" end
 end
@@ -294,9 +294,20 @@ function MPL.GetProfile(fullName, realm, spec, role)
     return selected, name, server
 end
 
--- The default specialization is independent of a manual menu selection.
--- Aggregate WCL profiles retain their filter; primarySpec is display metadata.
+-- Manual log selection does not change the configured main specialization.
 function MPL.MainProfileSpec(name,realm,role)
+    if MPL.GetOption("mainSpec")=="logs" then return MPL.LoggedProfileSpec(name,realm,role) end
+    local current=MPL.specs and MPL.specs[MPL.Key(name,realm)]
+    if current and (not role or current[2]==role) then return current[1] end
+end
+
+-- Keep the fallback for choosing which saved logs to open when no current
+-- specialization is known, without labelling that historical choice as main.
+function MPL.DefaultProfileSpec(name,realm,role)
+    return MPL.MainProfileSpec(name,realm,role) or MPL.LoggedProfileSpec(name,realm,role)
+end
+
+function MPL.LoggedProfileSpec(name,realm,role)
     local key=MPL.Key(name,realm)
     local latest,concrete,available=nil,nil,{}
     local function consider(p)
@@ -316,14 +327,11 @@ function MPL.MainProfileSpec(name,realm,role)
     for _,p in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do consider(p) end
     consider(MPL.bundled and MPL.bundled[key])
     for _,p in pairs(MPL.bundledSpecs and MPL.bundledSpecs[key] or {}) do consider(p) end
-    local current=MPL.specs and MPL.specs[key]
-    if current and available[current[1]] and (not role or current[2]==role) then return current[1] end
     if latest then
         local main=latest.primarySpec or latest.spec
         if not concrete or available[main] then return main end
     end
     if concrete then return concrete.spec end
-    if current and (not role or current[2]==role) then return current[1] end
 end
 
 function MPL.ProfileSpecs(name,realm,role)

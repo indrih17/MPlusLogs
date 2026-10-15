@@ -1,4 +1,6 @@
-## Companion 1.0.12
+## MPlusLogs 0.5.22
 
-- Treat empty Warcraft Logs throughput arrays as absent measurements instead of rejecting the response format.
-- Show the normal no-public-logs state for leaderboard-only results and preserve available DPS or HPS when the other metric is absent.
+- Prefix dungeon-specific tooltip rows with bracketed dungeon abbreviations and remove the source/date row.
+- Open all party profiles from a party member menu while keeping the clicked member selected.
+- Preserve the full party when loading logs from player tabs or stale-data notices.
+- Add a Main specialization setting: current group/applicant specialization by default, or saved WCL history.
