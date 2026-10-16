@@ -96,14 +96,22 @@ function MPL.IsProfileStale(profile, now)
     return not timestamp or (now or GetServerTime())-timestamp>=MPL.GetOption("freshHours")*3600,display
 end
 
-function MPL.FilterFreshProfiles(players)
+function MPL.FilterFreshProfiles(players,refresh)
     local pending,skipped={},0
     for _,player in ipairs(players) do
-        local profile=MPL.GetProfile(player.name,player.realm,player.spec,player.role)
+        -- Party tabs outlive their initial spec snapshot. Refresh the profile
+        -- currently selected in the UI, without mutating an in-flight batch.
+        local spec=MPL.SelectedSpec(player.name,player.realm,player.role) or player.spec
+        local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
         local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
         local usable=profile and (profile.dual or profile.metric==metric)
-        if usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
-        else pending[#pending+1]=player end
+        if not refresh and usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
+        else
+            local request={}
+            for key,value in pairs(player) do request[key]=value end
+            request.spec=spec
+            pending[#pending+1]=request
+        end
     end
     return pending,skipped
 end
@@ -376,7 +384,7 @@ end
 
 function MPL.Percent(value, stale)
     if value == nil then return "—" end
-    local color = value >= 99 and "ffe268a8" or value >= 95 and "ffff8000" or value >= 75 and "ffa335ee" or value >= 50 and "ff0070dd" or value >= 25 and "ff1eff00" or "ff999999"
+    local color = value >= 100 and "ffe5cc80" or value >= 99 and "ffe268a8" or value >= 95 and "ffff8000" or value >= 75 and "ffa335ee" or value >= 50 and "ff0070ff" or value >= 25 and "ff1eff00" or "ff666666"
     if stale then color="ff888888" end
     local text = string.format("%.1f", value):gsub("%.0$", "")
     return "|c" .. color .. text .. "%|r"

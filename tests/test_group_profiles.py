@@ -1,5 +1,7 @@
 """Party/applicant tabs and one shared Companion exchange."""
 import unittest
+import copy
+from unittest.mock import patch
 
 import test_batch
 import test_addon
@@ -98,6 +100,46 @@ class GroupProfileTests(unittest.TestCase):
         self.assertTrue(f.profile)
         self.assertTrue(f.scroll.shown)
 
+    def test_party_refresh_uses_current_selected_spec_instead_of_opening_snapshot(self):
+        self.party()
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        # The window initially captured All specs. The user then opens an older
+        # Arms profile and asks to refresh it without closing the party window.
+        self.lua.execute('''
+            local p={name="Member2",realm="Гордунни",region="eu",spec="Arms",role="DAMAGER",
+                metric="dps",dual=true,season="test",updated="2026-10-10 04:00 UTC",source="WCL API",dungeons={}}
+            MPlusLogs.StoreProfiles({p})
+            MPlusLogs.SelectSpec("Member2","Гордунни","Arms","DAMAGER")
+        ''')
+        f = self.mpl.panel
+        f.playerTabs[3].scripts.OnClick()
+        self.assertTrue(f.stale)
+        f.loadButton.scripts.OnClick()
+        self.assertIn('Arms', self.mpl.downloadWindow.request)
+        response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, self.fetch)
+        self.mpl.ReceiveReply(response, True)
+        self.assertEqual(f.profile.spec, 'Arms')
+        self.assertFalse(f.stale)
+
+    def test_fresh_aggregate_does_not_skip_stale_selected_spec(self):
+        self.party()
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        self.lua.execute('''
+            local function stored(spec,updated)
+                return {name="Member2",realm="Гордунни",region="eu",spec=spec,role="DAMAGER",
+                    metric="dps",dual=true,season="test",updated=updated,source="WCL API",dungeons={}}
+            end
+            MPlusLogs.StoreProfiles({stored("Arms","2026-10-10 04:00 UTC")})
+            MPlusLogs.StoreProfiles({stored("All specs","2026-10-12 04:00 UTC")})
+            MPlusLogs.SelectSpec("Member2","Гордунни","Arms","DAMAGER")
+        ''')
+        old_pending = self.mpl.pendingReply.players[3]
+        pending = self.mpl.FilterFreshProfiles(self.mpl.panel.groupPlayers)[0]
+        selected = next(player for player in pending.values() if player.name == 'Member2')
+        self.assertEqual(selected.spec, 'Arms')
+        self.assertEqual(old_pending.spec, '')
+        self.assertEqual(self.mpl.panel.groupPlayers[3].spec, 'All specs')
+
     def test_load_button_in_applicant_tab_keeps_application_group(self):
         self.mpl.ShowProfile("Bob", "Гордунни", self.players()[2])
         self.mpl.panel.loadButton.scripts.OnClick()
@@ -130,6 +172,14 @@ class GroupProfileTests(unittest.TestCase):
         self.mpl.ShowProfile("Other", "Гордунни")
         self.assertFalse(f.playerTabs[1].shown)
         self.assertFalse(f.playerTabs[2].shown)
+
+    def test_refresh_of_fresh_party_does_not_open_empty_exchange_or_clear_pending(self):
+        self.lua.execute('MPlusLogs.FilterFreshProfiles=function() return {},2 end')
+        self.mpl.ShowProfile('Alice', 'Гордунни', self.players()[1])
+        self.lua.execute('MPlusLogs.pendingReply={id="other-request"}')
+        self.mpl.panel.loadButton.scripts.OnClick()
+        self.assertIsNone(self.mpl.downloadWindow)
+        self.assertEqual(self.mpl.pendingReply.id, 'other-request')
 
     def test_old_batch_reply_does_not_reopen_group_after_manual_lookup(self):
         self.mpl.ShowProfile("Alice", "Гордунни", self.players()[1])
@@ -168,6 +218,77 @@ class GroupProfileTests(unittest.TestCase):
             end
         ''')
         self.assertEqual(len(self.mpl.CollectParty()), 3)
+
+    def test_single_saved_spec_can_load_other_specs_without_reloading_party(self):
+        self.party()
+        self.mpl.SelectSpec('Member2', 'Гордунни', 'Subtlety', 'DAMAGER')
+        calls = []
+        def fetch(args):
+            calls.append(args.name)
+            raw = self.fetch(args)
+            char = raw['data']['characterData']['character']
+            char['damage']['allStars'] = [{'spec':'Subtlety','points':3000}, {'spec':'Assassination','points':2000}]
+            char['damage']['rankings'][0]['spec'] = 'Subtlety'
+            char['healing'] = copy.deepcopy(char['damage'])
+            return raw
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response, True), 5)
+        f = self.mpl.panel
+        f.playerTabs[3].scripts.OnClick()
+        self.assertEqual(set(self.mpl.ProfileSpecs('Member2', 'Гордунни').values()), {'Subtlety'})
+        self.assertTrue(f.specButton.canSelectSpecs)
+        self.assertTrue(f.specButton.arrow.shown)
+        self.lua.execute('''
+            MenuUtil={CreateContextMenu=function(_,build)
+                specActions={}
+                build(nil,{CreateTitle=function() end,CreateRadio=function() end,CreateDivider=function() end,
+                    CreateButton=function(_,text,callback) specActions[text]=callback end})
+            end}
+        ''')
+        f.specButton.scripts.OnClick()
+        self.lua.globals().specActions['Загрузить другие специализации']()
+        self.assertFalse(self.mpl.pendingReply.batch)
+        self.assertTrue(self.mpl.pendingReply.includeSpecs)
+        calls.clear()
+        response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, fetch)
+        count, error = self.mpl.ReceiveReply(response, True)
+        self.assertEqual(count, 2)
+        self.assertIsNone(error)
+        self.assertEqual(set(calls), {'Member2'})
+        self.assertEqual(set(self.mpl.ProfileSpecs('Member2', 'Гордунни').values()), {'Subtlety', 'Assassination'})
+        self.assertEqual(len(f.groupPlayers), 5)
+        self.assertEqual(f.name, 'Member2')
+
+    def test_manual_party_update_bypasses_companion_cache_and_imports_new_level(self):
+        self.party()
+        for name in ('Alice', 'Member1', 'Member2', 'Member3', 'Member4'):
+            self.mpl.SelectSpec(name, 'Гордунни', 'All specs', 'HEALER' if name=='Alice' else 'DAMAGER')
+        calls=[]
+        level=[19]
+        def fetch(args):
+            calls.append(args.name)
+            raw=self.fetch(args)
+            char=raw['data']['characterData']['character']
+            for metric in ('damage','healing'):
+                char[metric]['throughputRankings']['12825']['best_level']=level[0]
+            return raw
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        with patch('build_database.time.time',return_value=100000):
+            response=clipboard_protocol.reply(self.mpl.downloadWindow.request,realm_resolver.load_mappings(),self.cache,fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response,True),5)
+        self.assertEqual(self.mpl.panel.profile.dungeons[1].level,19)
+        self.assertEqual(len(calls),5)
+        level[0]=20
+        for stamp in (143200,143201,143500):
+            self.mpl.panel.loadButton.scripts.OnClick()
+            self.assertTrue(self.mpl.pendingReply.refresh)
+            self.assertIn('MPLC1 refresh\n',self.mpl.downloadWindow.request)
+            with patch('build_database.time.time',return_value=stamp):
+                response=clipboard_protocol.reply(self.mpl.downloadWindow.request,realm_resolver.load_mappings(),self.cache,fetch)
+            self.assertEqual(self.mpl.ReceiveReply(response,True),5)
+            self.assertEqual(self.mpl.panel.profile.dungeons[1].level,20)
+        self.assertEqual(len(calls),15)
 
 
 if __name__ == "__main__":

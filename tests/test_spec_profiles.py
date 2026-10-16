@@ -341,7 +341,7 @@ class SpecProfileTests(unittest.TestCase):
         self.lua.execute('''
             MenuUtil={CreateContextMenu=function(_,builder)
                 radioOptions={}
-                local root={CreateTitle=function() end,CreateRadio=function(_,label,checked,select)
+                local root={CreateTitle=function() end,CreateDivider=function() end,CreateButton=function() end,CreateRadio=function(_,label,checked,select)
                     radioOptions[label]={checked=checked,select=select}
                 end}
                 builder(nil,root)
@@ -409,7 +409,7 @@ class SpecProfileTests(unittest.TestCase):
         self.lua.execute('''
             MenuUtil={CreateContextMenu=function(_,builder)
                 radioOptions={}
-                builder(nil,{CreateTitle=function() end,CreateRadio=function(_,text,checked,select)
+                builder(nil,{CreateTitle=function() end,CreateDivider=function() end,CreateButton=function() end,CreateRadio=function(_,text,checked,select)
                     radioOptions[text]={checked=checked,select=select}
                 end})
             end}

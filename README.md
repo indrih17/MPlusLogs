@@ -6,19 +6,20 @@ connects directly to Warcraft Logs through a personal or shared API client.
 The profile cache is isolated by WCL account and API client and survives token
 refreshes and signing back into the same account. Existing sessions resolve their
 account once after upgrading; profiles then populate the new account cache as
-requested. Cache freshness remains 24 hours.
+requested. Automatic reads reuse this cache. The explicit **Update M+ logs**
+button fetches fresh WCL data once five minutes have passed since the last
+successful request for that character and specialization. Cache reads and
+requests for other profiles do not restart this timer.
 
 Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows Companion.
 
 ## Install
 
-Keep Companion outside WoW `Interface\AddOns`; the installer uses
-`%LOCALAPPDATA%\Programs\MPlusLogs Companion` by default and rejects AddOns
-destinations. Portable copies launched from AddOns offer to relocate their
-program files and restart, preserving login, settings and their own startup
-entries and shortcuts. Declining closes Companion to release the files.
-For older versions already in AddOns, exit Companion from the tray and install
-the latest Setup outside AddOns once; their old built-in updater keeps the old path.
+The installer uses `%LOCALAPPDATA%\Programs\MPlusLogs Companion` by default.
+Companion may also live directly in `Interface\AddOns` or in its own separate
+folder. Do not place it inside an individual addon folder such as
+`AddOns\MPlusLogs`: an addon update can remove those files. Reinstalling always
+offers a directory selection, including when the previous files are missing.
 
 Install the addon from [CurseForge](https://www.curseforge.com/wow/addons/mpluslogs).
 **REQUIRED: Install and run MPlusLogs Companion on Windows. Online log loading does not work without it.**
@@ -26,6 +27,29 @@ Download the [current MPlusLogs Companion installer for Windows](https://github.
 and run the Setup exe. This permanent link is updated whenever a new Companion
 version is published. Windows 10/11 x64;
 no separate Python installation is needed. The Companion supports all WoW client languages; select one in Settings > Language.
+
+The installer is the recommended option and updates through Setup. Alternatively,
+download the [portable ZIP for Windows](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Portable.zip),
+extract the entire folder, and run `MPlusLogs-Companion.exe`. Keep `_internal`
+beside the EXE. Both download links always point to the current release.
+The portable version updates its own files from a verified ZIP and rolls back
+if replacement or the new runtime's self-test fails. It does not run Setup or
+register an installed application. Both versions share login and settings in
+AppData and support optional startup with Windows or WoW Retail. Re-enable
+startup after manually moving a portable folder.
+
+### Установка — русский
+
+Рекомендуемый вариант — [установщик Companion](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe).
+Он устанавливает программу и обновляет её через Setup.
+Также доступна [portable версия в ZIP](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Portable.zip):
+распакуйте папку целиком и запустите `MPlusLogs-Companion.exe`, оставив `_internal`
+рядом. Обновление portable версии заменяет её файлы без установщика; при ошибке
+замены или самопроверки восстанавливается предыдущая версия.
+Оба варианта сохраняют вход и настройки в AppData и поддерживают автозапуск
+с Windows или WoW Retail. После ручного переноса папки portable включите
+автозапуск заново из нового расположения. Не размещайте Companion внутри папки
+отдельного аддона, например `AddOns\MPlusLogs`.
 
 Sign in through Warcraft Logs in the Companion. In WoW, right-click an applicant
 or open `/mpl`, request their M+ logs, press Ctrl+C, wait, then press Ctrl+V.
@@ -37,8 +61,8 @@ Recruitment tooltips highlight the listed dungeon with its Best/Median percentil
 the key level of the best logged result, and the logged-run count. Specialization
 profiles are stored separately. When WoW supplies an applicant's specialization,
 MPlusLogs requests that specialization; otherwise it uses an explicitly labeled
-All Specs profile. Use the Specialization selector in the profile window to switch
-or load another profile; Automatic follows the available applicant information.
+All Specs profile. Use the specialization selector in the profile window to switch
+between saved profiles or choose **Load other specializations** for that player.
 DPS is shown first for every role, including healers; full profiles use Warcraft Logs-style tables with dungeon icons and DPS/HPS tabs. HPS also remains available in tooltips.
 Customize healer HPS priority, Best avg/Median priority, freshness (6/12/24/48 hours),
 tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl settings`.
@@ -66,8 +90,8 @@ the requested character name, realm, region and filters, with the WCL access
 token. The local browser callback is bound to 127.0.0.1; a WCL password is never
 entered into Companion. See [Warcraft Logs Privacy Policy](https://www.warcraftlogs.com/help/privacy).
 
-Installed Companion also checks GitHub for update metadata at startup and daily,
-and downloads an available installer to a temporary folder. Installation needs
+Companion also checks GitHub for update metadata at startup and daily,
+and downloads an available installer or portable ZIP to a temporary folder. Applying an update needs
 the user's action. Update requests do not include WCL tokens, clipboard text,
 character profiles or user settings. Standard network requests expose the client
 IP address and request headers to the contacted service. See
@@ -117,7 +141,13 @@ development character snapshot from the shipped addon. The source snapshot is
 a development test fixture. Frozen resources are checked without account access.
 Release binaries are currently unsigned.
 
-Companion starts its own version series at 1.0.0; the addon keeps its 0.x series. Each component advances only when its shipped files change. Companion-only releases do not create addon updates on CurseForge. Companion has an independent version. It checks for updates on startup and once a day, downloads a verified installer and offers an install-and-restart button. Settings, login and startup choices are preserved. Existing users must install this updater-enabled Companion once. Portable users can use the same update button; it installs into the current folder and registers the installation with Windows.
+Companion starts its own version series at 1.0.0; the addon keeps its 0.x series.
+Each component advances only when its shipped files change. Companion-only
+releases do not create addon updates on CurseForge. The installed version
+downloads a verified Setup EXE; the portable version downloads a verified ZIP.
+Both offer the same update-and-restart action and preserve login, settings and
+startup choices. Older portable copies without ZIP update support need to be
+replaced with the current portable download once.
 
 Every push to `main` runs the Windows tests and builds the addon. Companion binaries are built and released only when its shipped inputs change. The workflow
 publishes GitHub Release assets and uploads the addon to CurseForge with changelog.

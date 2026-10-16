@@ -259,5 +259,7 @@
   "Основной спек": "Main specialization",
   "Текущий": "Current",
   "По логам": "From logs",
-  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Current: specialization from applicant or group data. From logs: specialization based on saved WCL history; may differ from the current one."
+  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Current: specialization from applicant or group data. From logs: specialization based on saved WCL history; may differ from the current one.",
+  "Загрузить другие специализации": "Load other specializations",
+  "Загружена одна специализация": "One specialization loaded"
 }

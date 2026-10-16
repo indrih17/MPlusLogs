@@ -1,11 +1,13 @@
-MPlusLogs 0.5.22
+MPlusLogs 0.5.23
 
 Mythic+ Warcraft Logs DPS/HPS profiles in group finder tooltips and player panels.
 Install this folder in World of Warcraft/_retail_/Interface/AddOns.
 
 REQUIRED: Install and run MPlusLogs Companion on Windows. Without it, online log loading does not work.
-Download the Windows Companion separately:
-https://github.com/indrih17/MPlusLogs/releases/tag/companion-channel
+Recommended Windows installer:
+https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe
+Alternative portable ZIP (extract the entire folder):
+https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Portable.zip
 
 Sign in to Warcraft Logs in the Companion. In WoW, right-click a group applicant
 or use /mpl, choose Load M+ logs, copy with Ctrl+C, then paste with Ctrl+V.

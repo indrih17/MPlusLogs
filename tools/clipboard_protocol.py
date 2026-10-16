@@ -4,7 +4,7 @@ from urllib.parse import quote
 import clipboard_companion as bridge
 import companion_update
 
-CAPABILITIES = {"dual", "batch", "updater", "specprofiles"}
+CAPABILITIES = {"dual", "batch", "updater", "specprofiles", "refresh"}
 
 
 def describe_clipboard(text):
@@ -51,7 +51,8 @@ def reply(text,mapping,cache,client=None,diagnostic=False):
     try:
         batch=body.startswith("MPLQ2\n")
         result,_=bridge.process_request(body,mapping,cache,client,batch=batch,
-            spec_profiles=metadata_requested and 'specprofiles' in required)
+            spec_profiles=metadata_requested and 'specprofiles' in required,
+            refresh=metadata_requested and 'refresh' in required)
         # WoW EditBox expands clipboard tabs to spaces. Encode the entire
         # data block, including delimiters, before handing it to the game.
         metadata = "MPLV1 " + companion_update.current_version() + " " + ",".join(sorted(CAPABILITIES)) + "\n" if metadata_requested else ""

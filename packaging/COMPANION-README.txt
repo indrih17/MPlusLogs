@@ -1,4 +1,4 @@
-MPlusLogs Companion 1.0.14 for Windows 10/11 x64
+MPlusLogs Companion 1.0.15 for Windows 10/11 x64
 
 Install using the Setup exe, or extract the entire portable ZIP to a permanent
 folder and run MPlusLogs-Companion.exe. Python is included; no separate install
@@ -6,13 +6,13 @@ is needed. Keep all files in the portable folder together.
 
 Companion may be installed in Interface\AddOns or its own separate folder.
 Do not install it inside an individual addon folder, such as AddOns\MPlusLogs.
-Setup rejects AddOns destinations. A portable copy started from AddOns offers
+Setup rejects individual addon folders. A portable copy started inside an addon offers
 to copy its program files to %LOCALAPPDATA%\Programs\MPlusLogs Companion
 (or an unused numbered folder), update its own shortcuts and startup entries,
 and restart. Login and settings stay in the per-user data directory. Declining
 closes Companion. Old files are kept; remove only the old Companion payload
 after it exits, without deleting addon files.
-For an older Companion already inside AddOns, exit it from the tray and run
+For an older Companion already inside an addon folder, exit it from the tray and run
 the latest Setup in the recommended folder; older versions cannot relocate
 themselves through their built-in updater.
 
@@ -34,5 +34,8 @@ Source and releases: https://github.com/indrih17/MPlusLogs
 
 Companion updates independently of the addon. Updates are checked on startup
 and daily. Use Install update and restart, or Settings > Check Companion updates.
-Login, settings and startup preferences are preserved. Portable updates install
-into the current folder and register the installation with Windows.
+Login, settings and startup preferences are preserved. Portable updates download
+a verified ZIP, close Companion, replace only its program files in the same
+folder, and restart. A failed replacement or self-test restores the previous
+files. Portable updates do not run Setup or register an installed application.
+Logs and the last update result are stored in the per-user data directory.

@@ -2,8 +2,9 @@
 import json
 from pathlib import Path
 import re
+import sys
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 
 
 def normalized(text):

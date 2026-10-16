@@ -35,13 +35,13 @@ jobs:
         run: |
           $companionVersion = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.version())"
           $existing = gh release view "companion-v$companionVersion" --json assets 2>$null
-          $complete = $LASTEXITCODE -eq 0 -and "MPlusLogs-Companion-$companionVersion-Setup.exe" -in ($existing | ConvertFrom-Json).assets.name
+          $complete = $LASTEXITCODE -eq 0 -and "MPlusLogs-Companion-$companionVersion-Setup.exe" -in ($existing | ConvertFrom-Json).assets.name -and "MPlusLogs-Companion-$companionVersion-Portable.zip" -in ($existing | ConvertFrom-Json).assets.name
           New-Item -ItemType Directory -Force release-output/channel-state | Out-Null
           gh release download companion-channel --pattern companion-update.json --dir release-output/channel-state --clobber 2>$null
           if ($LASTEXITCODE -eq 0) {
             $published = Get-Content release-output/channel-state/companion-update.json -Raw | ConvertFrom-Json
             $sourceHash = python -c "import sys; sys.path.insert(0,'tools'); import companion_version; print(companion_version.source_hash())"
-            $complete = $complete -and $published.version -eq $companionVersion -and $published.source_hash -eq $sourceHash
+            $complete = $complete -and $published.version -eq $companionVersion -and $published.source_hash -eq $sourceHash -and $null -ne $published.portable
           } else { $complete = $false }
           $addonVersion = python -c "import sys; sys.path.insert(0,'tools'); import addon_version; print(addon_version.version())"
           $existingAddon = gh release view "v$addonVersion" --json assets 2>$null
@@ -67,7 +67,7 @@ jobs:
               gh release create $companionTag --target (git rev-parse HEAD) --title "MPlusLogs Companion $companionVersion" --notes-file packaging/RELEASE-NOTES.md --latest=false
               if ($LASTEXITCODE -ne 0) { throw 'Companion release creation failed' }
             }
-            $files = Get-Item "release-output/MPlusLogs-Companion-$companionVersion-Setup.exe"
+            $files = Get-Item "release-output/MPlusLogs-Companion-$companionVersion-Setup.exe", "release-output/MPlusLogs-Companion-$companionVersion-Portable.zip"
             gh release upload $companionTag $files.FullName --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Companion upload failed' }
             gh release edit $companionTag --notes-file packaging/RELEASE-NOTES.md
@@ -83,13 +83,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create companion-channel --target (git rev-parse HEAD) --title 'MPlusLogs Companion update service' --notes 'Service channel for Companion updates. The JSON file is read automatically by Companion. For manual installation, download and run the Setup exe.' --latest=false
             if ($LASTEXITCODE -ne 0) { throw 'Update channel creation failed' }
-          } elseif ('companion-update.json' -in ($channelInfo | ConvertFrom-Json).assets.name -and 'MPlusLogs-Companion-Setup.exe' -in ($channelInfo | ConvertFrom-Json).assets.name) {
+          } elseif ('companion-update.json' -in ($channelInfo | ConvertFrom-Json).assets.name -and 'MPlusLogs-Companion-Setup.exe' -in ($channelInfo | ConvertFrom-Json).assets.name -and 'MPlusLogs-Companion-Portable.zip' -in ($channelInfo | ConvertFrom-Json).assets.name) {
             New-Item -ItemType Directory -Force release-output/channel-state | Out-Null
             gh release download companion-channel --pattern companion-update.json --dir release-output/channel-state --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Update channel verification failed' }
             $current = Get-Content release-output/channel-state/companion-update.json -Raw | ConvertFrom-Json
             $next = Get-Content release-output/companion-update.json -Raw | ConvertFrom-Json
-            $refreshChannel = $current.version -ne $next.version -or $current.sha256 -ne $next.sha256
+            $refreshChannel = $current.version -ne $next.version -or $current.sha256 -ne $next.sha256 -or $current.portable.sha256 -ne $next.portable.sha256
           }
           if ($refreshChannel) {
             gh release download $companionTag --pattern "MPlusLogs-Companion-$companionVersion-Setup.exe" --dir release-output --clobber
@@ -97,6 +97,11 @@ jobs:
             Copy-Item "release-output/MPlusLogs-Companion-$companionVersion-Setup.exe" release-output/MPlusLogs-Companion-Setup.exe
             gh release upload companion-channel release-output/MPlusLogs-Companion-Setup.exe --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Channel installer upload failed' }
+            gh release download $companionTag --pattern "MPlusLogs-Companion-$companionVersion-Portable.zip" --dir release-output --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Companion portable download failed' }
+            Copy-Item "release-output/MPlusLogs-Companion-$companionVersion-Portable.zip" release-output/MPlusLogs-Companion-Portable.zip
+            gh release upload companion-channel release-output/MPlusLogs-Companion-Portable.zip --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Channel portable upload failed' }
             gh release upload companion-channel release-output/companion-update.json --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Update channel upload failed' }
           }

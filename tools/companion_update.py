@@ -11,6 +11,7 @@ import sys
 import tempfile
 from urllib.request import Request, urlopen
 import local_settings
+import portable_update
 
 CHANNEL = "https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/companion-update.json"
 MAX_INSTALLER = 250 * 1024 * 1024
@@ -38,6 +39,11 @@ def current_version():
     return companion_version.version()
 
 
+def portable_build():
+    return bool(getattr(sys, 'frozen', False) and
+                json.loads(BUILD.read_text(encoding='utf-8')).get('portable'))
+
+
 def local_preview():
     if getattr(sys,"frozen",False):
         return bool(json.loads(BUILD.read_text(encoding="utf-8")).get("preview"))
@@ -54,7 +60,11 @@ def validate_manifest(data):
     if not isinstance(data, dict) or data.get("schema") != 1:
         raise ValueError("Unsupported update manifest")
     version_tuple(data.get("version"))
-    expected = f"https://github.com/indrih17/MPlusLogs/releases/download/companion-v{data['version']}/MPlusLogs-Companion-{data['version']}-Setup.exe"
+    kind = data.get('kind', 'setup')
+    if kind not in ('setup', 'portable'):
+        raise ValueError('Unknown update format')
+    suffix = 'Portable.zip' if kind == 'portable' else 'Setup.exe'
+    expected = f"https://github.com/indrih17/MPlusLogs/releases/download/companion-v{data['version']}/MPlusLogs-Companion-{data['version']}-{suffix}"
     if data.get("url") != expected or not re.fullmatch(r"[0-9a-f]{64}", data.get("sha256", "")):
         raise ValueError("Invalid update source or checksum")
     if type(data.get("size")) is not int or not 0 < data["size"] <= MAX_INSTALLER:
@@ -68,14 +78,21 @@ def check():
         content = response.read(16385)
     if len(content) > 16384:
         raise ValueError("Update manifest is too large")
-    data = validate_manifest(json.loads(content))
+    data = json.loads(content)
+    if portable_build():
+        if not isinstance(data, dict) or not isinstance(data.get('portable'), dict):
+            return None  # Never turn a portable installation into a Setup installation.
+        data = dict(data['portable'], schema=data.get('schema'), version=data.get('version'), kind='portable')
+    data = validate_manifest(data)
+    if not portable_build() and data.get('kind') == 'portable':
+        raise ValueError('Wrong update format for installed Companion')
     return data if version_tuple(data["version"]) > version_tuple(current_version()) else None
 
 
 def download(data):
     data = validate_manifest(data)
     folder = Path(tempfile.mkdtemp(prefix="MPlusLogs-update-"))
-    target = folder / "Setup.exe"
+    target = folder / ('Portable.zip' if data.get('kind') == 'portable' else 'Setup.exe')
     digest, size = hashlib.sha256(), 0
     try:
         with urlopen(Request(data["url"], headers={"User-Agent": "MPlusLogs-Companion"}), timeout=30) as response, target.open("wb") as output:
@@ -130,8 +147,28 @@ def launch_installer(target, data, result_root=None):
     executable = Path(sys.executable).resolve()
     result_root = local_settings.PATH.parent if result_root is None else Path(result_root)
     result_root.mkdir(parents=True, exist_ok=True)
-    script = installer_script(target, data, executable, os.getpid(), result_root)
-    launch_helper(script)
+    payload = None
+    if data.get('kind') == 'portable':
+        if not portable_build():
+            raise ValueError('Portable update requires a portable build')
+        payload = portable_update.prepare(target, data)
+        try:
+            script = portable_update.script(payload, data, executable, os.getpid(), result_root, archive=target)
+        except Exception:
+            import shutil
+            shutil.rmtree(payload.parent)
+            raise
+    else:
+        if portable_build():
+            raise ValueError('Portable Companion cannot run a Setup update')
+        script = installer_script(target, data, executable, os.getpid(), result_root)
+    try:
+        launch_helper(script)
+    except Exception:
+        if payload is not None:
+            import shutil
+            shutil.rmtree(payload.parent)
+        raise
 
 
 def launch_helper(script):

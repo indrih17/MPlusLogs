@@ -50,6 +50,28 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(report["errors"]), 1)
         self.assertEqual(report["fetched"], 1)
 
+    def test_manual_refresh_fetches_new_run_and_overwrites_cache_with_five_minute_cooldown(self):
+        calls=[]
+        def fetch(_):
+            calls.append(1)
+            raw=api_fixture()
+            if len(calls)>1:
+                raw['data']['characterData']['character']['performance']['rankings'][0]['totalKills'] += 1
+            return raw
+        before,_=self.build(fetcher=fetch,now=100000)
+        cached,_=self.build(fetcher=fetch,now=143200)
+        self.assertEqual(len(calls),1)
+        refreshed,_=self.build(fetcher=fetch,now=143200,refresh=True)
+        self.assertEqual(len(calls),2)
+        self.assertEqual(refreshed[0]['runs'],before[0]['runs']+1)
+        self.assertNotEqual(refreshed[0]['updated'],cached[0]['updated'])
+        self.build(fetcher=fetch,now=143499,refresh=True)
+        self.assertEqual(len(calls),2)
+        self.build(fetcher=fetch,now=143500,refresh=True)
+        self.assertEqual(len(calls),3)
+        self.build(fetcher=fetch,now=143501)
+        self.assertEqual(len(calls),3)
+
     def test_failed_queries_count_towards_limit(self):
         def fail(_):
             raise ValueError("API unavailable")
@@ -57,6 +79,27 @@ class DatabaseTests(unittest.TestCase):
         profiles, report = self.build(entries, fetcher=fail, now=100000, max_fetch=2)
         self.assertFalse(profiles)
         self.assertEqual(report["fetched"], 2)
+
+    def test_refresh_clock_is_per_profile_and_cache_reads_do_not_extend_it(self):
+        calls=[]
+        def fetch(args):
+            calls.append((args.character_id,args.spec))
+            return api_fixture()
+        other=dict(self.entry,character_id=81818679)
+        other_spec=dict(self.entry,spec='Feral')
+        self.build(fetcher=fetch,now=100000,refresh=True)
+        self.build(fetcher=fetch,now=100100,refresh=True)
+        self.assertEqual(len(calls),1)
+        self.build([other],fetcher=fetch,now=100290,refresh=True)
+        self.build([other_spec],fetcher=fetch,now=100295,refresh=True)
+        self.build(fetcher=fetch,now=100299,refresh=True)
+        self.assertEqual(len(calls),3)
+        self.assertEqual(builder.read_cache(builder.cache_path(self.directory,self.entry))['fetched_at'],100000)
+        self.build(fetcher=fetch,now=100300,refresh=True)
+        self.assertEqual(calls,[(81818678,'Guardian'),(81818679,'Guardian'),(81818678,'Feral'),(81818678,'Guardian')])
+        self.assertEqual(builder.read_cache(builder.cache_path(self.directory,self.entry))['fetched_at'],100300)
+        self.assertEqual(builder.read_cache(builder.cache_path(self.directory,other))['fetched_at'],100290)
+        self.assertEqual(builder.read_cache(builder.cache_path(self.directory,other_spec))['fetched_at'],100295)
 
     def test_bundle_loads_other_player_and_safe_quoting(self):
         raw = api_fixture()

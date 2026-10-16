@@ -4,16 +4,16 @@ local sequence = 0
 
 -- Request metadata only when a feature requires it. Existing queries keep the
 -- original envelope, so working older Companions remain compatible.
-local function envelope(id, body,includeSpecs)
-    if includeSpecs then
-        local capabilities={"specprofiles"}
-        for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do
-            if value~="specprofiles" then capabilities[#capabilities+1]=value end
-        end
-        return "MPLS2\n"..id.."\nMPLC1 "..table.concat(capabilities,",").."\n"..body
+local function envelope(id, body,includeSpecs,refresh)
+    local capabilities,seen={},{}
+    local function add(value)
+        if not seen[value] then capabilities[#capabilities+1]=value; seen[value]=true end
     end
-    if MPL.requiredCompanionCapabilities and #MPL.requiredCompanionCapabilities>0 then
-        return "MPLS2\n"..id.."\nMPLC1 "..table.concat(MPL.requiredCompanionCapabilities,",").."\n"..body
+    if includeSpecs then add("specprofiles") end
+    if refresh then add("refresh") end
+    for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do add(value) end
+    if #capabilities>0 then
+        return "MPLS2\n"..id.."\nMPLC1 "..table.concat(capabilities,",").."\n"..body
     end
     return "MPLS1\n"..id.."\n"..body
 end
@@ -23,7 +23,7 @@ function MPL.CompanionSupports(capability)
     return MPL.companionInfo.capabilities[capability] or false
 end
 
-function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs)
+function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
@@ -31,12 +31,12 @@ function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs)
     spec=spec or MPL.SelectedSpec(name,realm,role) or ""
     if spec=="All specs" then spec="" end
     if includeSpecs and spec~="" then role=MPL.ProfileRole({spec=spec}) end
-    local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role),includeSpecs)
-    MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context,includeSpecs=includeSpecs}
+    local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role),includeSpecs,refresh)
+    MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context,includeSpecs=includeSpecs,refresh=refresh}
     return id,request
 end
 
-function MPL.SendBatchRequest(players)
+function MPL.SendBatchRequest(players,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
     if #players==0 then return nil,L["Нет кандидатов для загрузки"] end
     if #players>250 then return nil,L["Слишком много кандидатов (максимум 250)"] end
@@ -53,8 +53,8 @@ function MPL.SendBatchRequest(players)
     end
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
-    MPL.pendingReply={id=id,batch=true,expected=expected,players=players}
-    return id,envelope(id,"MPLQ2\n"..table.concat(rows))
+    MPL.pendingReply={id=id,batch=true,expected=expected,players=players,refresh=refresh}
+    return id,envelope(id,"MPLQ2\n"..table.concat(rows),false,refresh)
 end
 
 function MPL.ReceiveReply(text, strict)
@@ -107,11 +107,12 @@ function MPL.ReceiveReply(text, strict)
             for capability in capabilities:gmatch("[a-z]+") do available[capability]=true end
             MPL.companionInfo={version=version,capabilities=available}
             if pendingReply.includeSpecs and not available.specprofiles then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
+            if pendingReply.refresh and not available.refresh then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             for _,capability in ipairs(MPL.requiredCompanionCapabilities or {}) do
                 if not available[capability] then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             end
             body=payload
-        elseif pendingReply.includeSpecs or (MPL.requiredCompanionCapabilities and #MPL.requiredCompanionCapabilities>0) then
+        elseif pendingReply.includeSpecs or pendingReply.refresh or (MPL.requiredCompanionCapabilities and #MPL.requiredCompanionCapabilities>0) then
             return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."]
         end
         if body:match("^MPLQ[12]") then return nil,L["Ответ ещё не получен. Попробуйте Ctrl+V чуть позже; проверьте, что помощник запущен."] end

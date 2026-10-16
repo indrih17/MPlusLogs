@@ -179,6 +179,12 @@ local function buildPanel()
                     if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
                 end)
             end
+            root:CreateDivider()
+            root:CreateButton(L["Загрузить другие специализации"],function()
+                -- A targeted spec discovery must not expand back into the
+                -- party batch, which only refreshes one profile per member.
+                MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,false,true)
+            end)
         end)
     end)
     f.context:SetWidth(540)
@@ -224,7 +230,7 @@ local function buildPanel()
     f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary,f.filter}
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
-    f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function() MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant) end)
+    f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function() MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,true) end)
     f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
     f.lookup = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
@@ -440,8 +446,10 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
         or state.reason=="retry" and L["Повторный запрос логов отложен. Его можно отправить позже."]
         or L["Для этого персонажа нет доступных логов M+."])
     f.specButton:SetText(MPL.SpecLabel(displayed,f.class))
-    f.specButton.detail:SetText(not profile and L["Профиль не загружен"] or L["Выбрать специализацию логов"])
-    local canSelectSpecs=#MPL.ProfileSpecs(name,server)>1
+    local savedSpecs=MPL.ProfileSpecs(name,server)
+    f.specButton.detail:SetText(not profile and L["Профиль не загружен"]
+        or (#savedSpecs==1 and L["Загружена одна специализация"] or L["Выбрать специализацию логов"]))
+    local canSelectSpecs=profile~=nil or #savedSpecs>1
     f.specButton.canSelectSpecs=canSelectSpecs
     f.specButton:SetEnabled(canSelectSpecs); f.specButton:EnableMouse(canSelectSpecs)
     f.specButton.arrow:SetShown(canSelectSpecs)
@@ -553,7 +561,7 @@ function MPL.ShowCompanionUpdates()
     f.edit:SetFocus(); f.edit:HighlightText()
 end
 
-function MPL.ShowDownload(fullName, realm, profile,context,batch)
+function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     -- Loading from a player tab (including its stale-data notice) must keep
@@ -565,6 +573,12 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
                 batch=players; break
             end
         end
+    end
+    -- A fresh party needs no exchange. Check before clearing a pending reply or
+    -- opening an empty 0/N window; clicking a player must keep existing work.
+    if type(batch)=="table" and #batch>0 then
+        local pending=MPL.FilterFreshProfiles(batch,refresh)
+        if #pending==0 then return end
     end
     if not MPL.downloadWindow then
         local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,382,true)
@@ -618,17 +632,17 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.status:SetText(err); return end
                 total=#players
-                players,skipped=MPL.FilterFreshProfiles(players)
+                players,skipped=MPL.FilterFreshProfiles(players,f.refresh)
                 if total>0 and #players==0 then
                     f.character:SetText(L["Нужно загрузить: "].."0 / "..total)
                     f.status:SetText(L["Все кандидаты уже имеют актуальные логи."])
                     if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
                     return
                 end
-                id,request=MPL.SendBatchRequest(players)
+                id,request=MPL.SendBatchRequest(players,f.refresh)
                 if id and type(f.batch)=="table" then MPL.pendingReply.groupPlayers=f.batch end
                 f.character:SetText(L["Нужно загрузить: "]..#players.." / "..total)
-            else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant,true) end
+            else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant,true,f.refresh) end
             if not id then f.status:SetText(request); return end
             f.phase="copy"; f.request=request
             f.steps:SetText(L["|cffffd1001. Отправка запроса|r    /    |cff8888882. Получение логов|r"])
@@ -689,6 +703,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch)
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
     f.batch=batch or false
+    f.refresh=refresh or false
     f.title:SetText(L["M+ логи / Warcraft Logs"])
     f.applicant=context or false
     f.character:SetText(name.." — "..server)

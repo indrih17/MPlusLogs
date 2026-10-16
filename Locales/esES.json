@@ -259,5 +259,7 @@
   "Основной спек": "Especialización principal",
   "Текущий": "Actual",
   "По логам": "Según registros",
-  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Actual: especialización de los datos de la solicitud o del grupo. Según registros: especialización basada en el historial guardado de WCL; puede diferir de la actual."
+  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Actual: especialización de los datos de la solicitud o del grupo. Según registros: especialización basada en el historial guardado de WCL; puede diferir de la actual.",
+  "Загрузить другие специализации": "Cargar otras especializaciones",
+  "Загружена одна специализация": "Una especialización cargada"
 }

@@ -259,5 +259,7 @@
   "Основной спек": "Hauptspezialisierung",
   "Текущий": "Aktuell",
   "По логам": "Nach Logs",
-  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Aktuell: Spezialisierung aus Bewerber- oder Gruppendaten. Nach Logs: Spezialisierung anhand des gespeicherten WCL-Verlaufs; kann von der aktuellen abweichen."
+  "Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей.": "Aktuell: Spezialisierung aus Bewerber- oder Gruppendaten. Nach Logs: Spezialisierung anhand des gespeicherten WCL-Verlaufs; kann von der aktuellen abweichen.",
+  "Загрузить другие специализации": "Weitere Spezialisierungen laden",
+  "Загружена одна специализация": "Eine Spezialisierung geladen"
 }

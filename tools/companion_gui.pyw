@@ -141,7 +141,7 @@ class App:
             root.after(400, self.hide)
         if "--login" in sys.argv:
             root.after(500, self.sign_in)
-        if getattr(sys, "frozen", False) and not self.preview:
+        if getattr(sys, "frozen", False) and (not self.preview or updates.portable_build()):
             root.after(1500, self.scheduled_update_check)
 
     def scheduled_update_check(self):
@@ -149,7 +149,7 @@ class App:
         self.root.after(24 * 60 * 60 * 1000, self.scheduled_update_check)
 
     def check_updates(self, manual=False):
-        if getattr(self,"preview",False): return
+        if getattr(self,"preview",False) and not updates.portable_build(): return
         if self.installing_update or (self.update_worker and self.update_worker.is_alive()):
             return
         if self.available_update and self.update_installer:

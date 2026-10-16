@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 import companion_version
 
@@ -42,11 +43,35 @@ def addon(output, release_version, source_root=None):
         archive.write(root / "assets/mpluslogs-icon.tga", "MPlusLogs/assets/mpluslogs-icon.tga")
 
 
+def portable(output, runtime, release_version, preview=False):
+    """Archive the same frozen runtime with portable update selection enabled."""
+    with tempfile.TemporaryDirectory(prefix='MPlusLogs-portable-build-') as temporary:
+        folder = Path(temporary) / 'MPlusLogs-Companion'
+        shutil.copytree(runtime, folder)
+        (folder / '_internal/companion-build.json').write_text(json.dumps({
+            'version': release_version, 'portable': True, 'preview': preview
+        }), encoding='utf-8')
+        (folder / 'README.txt').write_text(
+            'Extract the whole folder and run MPlusLogs-Companion.exe. Keep _internal beside it.\n'
+            'Portable updates replace Companion files without running Setup.\n'
+            'Settings and sign-in remain in %LOCALAPPDATA%\\MPlusLogs.\n'
+            'Do not place this folder inside an individual addon folder.\n', encoding='utf-8')
+        smoke = output / 'portable-smoke.json'
+        subprocess.run([str(folder / 'MPlusLogs-Companion.exe'), '--self-test-report', str(smoke)], check=True, timeout=30)
+        if not json.loads(smoke.read_text())['ok']:
+            raise RuntimeError('Portable smoke test failed')
+        archive = Path(shutil.make_archive(str(output / f'MPlusLogs-Companion-{release_version}-Portable'),
+                                          'zip', root_dir=temporary, base_dir=folder.name))
+    return {'url': f'https://github.com/indrih17/MPlusLogs/releases/download/companion-v{release_version}/{archive.name}',
+            'size': archive.stat().st_size, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--addon-only", action="store_true")
     parser.add_argument("--skip-addon", action="store_true")
     parser.add_argument("--iscc", type=Path)
+    parser.add_argument('--portable-preview', action='store_true', help='Mark the local portable ZIP as unpublished')
     args = parser.parse_args()
     output = ROOT / "release-output"
     output.mkdir(exist_ok=True)
@@ -81,10 +106,14 @@ def main():
         subprocess.run([str(internal.parent / "MPlusLogs-Companion.exe"), "--self-test-report", str(smoke)], check=True, timeout=30)
         if not json.loads(smoke.read_text())["ok"]:
             raise RuntimeError("Frozen smoke test failed")
+        portable_asset = portable(output, internal.parent, companion_release, preview=args.portable_preview)
+        (output / 'companion-portable-update.json').write_text(json.dumps({
+            'schema': 1, 'version': companion_release, 'kind': 'portable', **portable_asset
+        }, indent=2), encoding='utf-8')
         if args.iscc:
             subprocess.run([str(args.iscc.resolve()), f"/DAppVersion={companion_release}", str(ROOT / "packaging/companion.iss")], check=True)
             installer = output / f"MPlusLogs-Companion-{companion_release}-Setup.exe"
-            manifest = {"schema": 1, "version": companion_release, "source_hash": companion_version.source_hash(), "size": installer.stat().st_size,
+            manifest = {"schema": 1, "version": companion_release, "portable": portable_asset, "source_hash": companion_version.source_hash(), "size": installer.stat().st_size,
                 "sha256": hashlib.sha256(installer.read_bytes()).hexdigest(),
                 "url": f"https://github.com/indrih17/MPlusLogs/releases/download/companion-v{companion_release}/{installer.name}"}
             (output / "companion-update.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

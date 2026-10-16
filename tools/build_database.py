@@ -138,7 +138,7 @@ def atomic_write(path, text):
     temporary.replace(path)
 
 
-def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher=None, now=None):
+def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher=None, now=None, refresh=False):
     now = time.time() if now is None else now
     cache_dir.mkdir(parents=True, exist_ok=True)
     profiles, errors, fetched = [], [], 0
@@ -150,6 +150,8 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
         path = cache_path(cache_dir, entry)
         cached = read_cache(path)
         ttl = 6 * 3600 if cached and cached.get("negative") else max(3600, ttl_hours * 3600)
+        if refresh:
+            ttl = min(ttl, 300)
         fresh = cached and ("raw" in cached or cached.get("negative")) and 0 <= now - cached["fetched_at"] < ttl
         record = cached
         failure = None
