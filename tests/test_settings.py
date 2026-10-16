@@ -23,6 +23,7 @@ class SettingsTests(unittest.TestCase):
                     {AddInitializer=function(_,initializer) Settings.layout[#Settings.layout+1]=initializer end}
             end
             CreateSettingsListSectionHeaderInitializer=function(name) return {section=name} end
+            Settings.CreateElementInitializer=function(template,data) return {template=template,data=data} end
             Settings.RegisterProxySetting=function(category,key,kind,name,default,get,set)
                 local entry={key=key,get=get,set=set,default=default,kind=kind,name=name}
                 Settings.values[key]=entry; return entry
@@ -49,7 +50,8 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(self.lua.globals().registeredCategory,'MPlusLogs')
         values=settings['values']
         self.assertIsNone(values.MPLUSLOGS_showInMythicPlus)
-        self.assertEqual(settings.layout[7].section,'Где ещё показывать логи М+')
+        self.assertEqual(settings.layout[3].template,'MPlusLogsPercentileDescriptionTemplate')
+        self.assertEqual(settings.layout[8].section,'Где ещё показывать логи М+')
         for index,(key,name) in enumerate([
             ('showInRaids','Показывать логи М+ в рейдах'),
             ('showInPvp','Показывать логи М+ в PvP'),
@@ -138,7 +140,8 @@ class SettingsTests(unittest.TestCase):
         profile.updated='2026-10-01 00:00 UTC'
         self.mpl.ShowProfile('Киндрих','Гордунни')
         self.assertIsNone(self.mpl.staleWindow)
-        self.assertIn('ff888888',self.mpl.panel.rows[1].cells[8].text)
+        self.assertNotIn('ff888888',self.mpl.panel.rows[1].cells[8].text)
+        self.assertTrue(self.mpl.panel.staleBanner.shown)
 
     def test_current_dungeon_options_use_dungeon_values_without_average_fallback(self):
         self.install(); self.mpl.InstallBatchButton()

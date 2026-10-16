@@ -1,7 +1,28 @@
 local _, MPL = ...
 local L = MPL.L
 
+local percentileDescriptions={
+    best=L["Best avg — среднее лучших процентилей по подземельям. Процентиль показывает результат относительно других игроков той же специализации и уровня ключа."],
+    median=L["Median — среднее медианных процентилей по подземельям. Медиана отражает типичный результат, а не лучший забег."],
+    dungeon_dps=L["DPS / HPS — лучший урон или исцеление в секунду в данже вашей группы в поиске. Для хилов HPS зависит от настройки выше. Нет логов — «—»."],
+    dungeon_median=L["Median — медианный процентиль в данже вашей группы в поиске: типичный результат по логам. Нет логов — «—»."],
+    dungeon_best=L["Best — лучший процентиль в данже вашей группы в поиске: самый высокий результат по логам. Нет логов — «—»."],
+}
+
+MPlusLogsPercentileDescriptionMixin={}
+function MPlusLogsPercentileDescriptionMixin:Init()
+    MPL.percentileDescription=self
+    self:Refresh()
+end
+function MPlusLogsPercentileDescriptionMixin:Refresh()
+    self.Text:SetText(percentileDescriptions[MPL.GetOption("percentile")] or percentileDescriptions.best)
+end
+function MPlusLogsPercentileDescriptionMixin:Release()
+    if MPL.percentileDescription==self then MPL.percentileDescription=nil end
+end
+
 function MPL.RefreshSettingsDisplays()
+    if MPL.percentileDescription then MPL.percentileDescription:Refresh() end
     if GameTooltip then GameTooltip.mplKey=nil; GameTooltip:Hide() end
     if not MPL.GetOption("stalePopup") and MPL.staleWindow then MPL.staleWindow:Hide() end
     local f=MPL.panel
@@ -30,6 +51,7 @@ function MPL.RegisterSettings()
         options:Add("dungeon_best",L["Best (текущий данж)"])
         return options:GetData()
     end,L["В заявках показывается выбранный показатель; в сводке и тултипе он идёт первым."].."\n"..L["Текущий данж — подземелье вашей группы в поиске. При отсутствии его логов показывается «—»."])
+    layout:AddInitializer(Settings.CreateElementInitializer("MPlusLogsPercentileDescriptionTemplate",{}))
     Settings.CreateDropdown(category,setting("freshHours",Settings.VarType.Number,L["Срок актуальности логов"],24),function()
         local options=Settings.CreateControlTextContainer()
         for _,hours in ipairs({6,12,24,48}) do options:Add(hours,string.format(L["%d ч."],hours)) end
@@ -38,7 +60,7 @@ function MPL.RegisterSettings()
     Settings.CreateCheckbox(category,setting("tooltips",Settings.VarType.Boolean,L["Показывать логи в тултипах"],true),
         L["Добавлять показатели M+ при наведении на персонажей и заявки."])
     Settings.CreateCheckbox(category,setting("stalePopup",Settings.VarType.Boolean,L["Предупреждать об устаревших логах"],true),
-        L["Показывать окно обновления при открытии устаревшего профиля. Серый цвет данных сохраняется."])
+        L["Показывать окно обновления при открытии устаревшего профиля. Плашка давности отображается всегда."])
     Settings.CreateDropdown(category,setting("mainSpec",Settings.VarType.String,L["Основной спек"],"current"),function()
         local options=Settings.CreateControlTextContainer()
         options:Add("current",L["Текущий"]); options:Add("logs",L["По логам"])

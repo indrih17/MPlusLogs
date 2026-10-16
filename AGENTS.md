@@ -1,10 +1,14 @@
 # MPlusLogs release workflow
 
-The user explicitly authorized ongoing publication of completed changes to
+Ask for explicit user confirmation before each push or publication to
 `indrih17/MPlusLogs` and CurseForge project `1740700`, including the Companion.
+The user revoked the previous standing authorization to publish automatically.
+Approval applies only to the presented changes, not to future releases.
 
-After finishing a functional change, validate and publish without asking the
-user to request an update again. Run `tools/publish_changes.py --summary` with
+After finishing a functional change, validate it, inspect the diff, summarize
+the completed changes and checks, and ask whether to push and publish them.
+Wait for confirmation before running the publisher: its push triggers releases.
+After approval, run `tools/publish_changes.py --summary` with
 a concise English description of the actual behavior change. Repeat --summary
 for multiple changelog bullets. Use `.build-venv/Scripts/python.exe` locally.
 The publisher runs all tests, raises the patch version, snapshots allowlisted

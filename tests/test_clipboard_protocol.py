@@ -44,12 +44,12 @@ class ProtocolTests(unittest.TestCase):
         request = self.request.replace("MPLS1\n12345-1\n", "MPLS2\n12345-1\nMPLC1 updater\n")
         reply = protocol.reply(request, self.mapping, self.path, lambda _: api_fixture())
         self.assertTrue(reply.startswith("MPLS1\n12345-1\nMPLV1 "))
-        self.assertIn(" batch,dual,refresh,specprofiles,updater\nMPLB1\n", reply)
+        self.assertIn(" batch,dual,refresh,specdetails,specprofiles,updater\nMPLB1\n", reply)
         request = request.replace("MPLC1 updater", "MPLC1 unknown")
         error = protocol.reply(request, self.mapping, self.path, lambda _: self.fail("Unsupported feature must not query WCL"))
         self.assertTrue(error.startswith("MPLE1\n12345-1\n"))
 
-    def test_addon_capability_roundtrip_and_legacy_queries(self):
+    def test_addon_capability_roundtrip(self):
         from test_addon import MOCK, LuaRuntime, load_locales
         lua = LuaRuntime(unpack_returned_tuples=True)
         lua.execute(MOCK)
@@ -60,7 +60,7 @@ class ProtocolTests(unittest.TestCase):
             lua.execute("return assert(loadstring(...))", (ROOT / name).read_text(encoding="utf-8"))("MPlusLogs", mpl)
         mpl.ShowProfile = lambda *args: None
         _, legacy = mpl.SendRequest("Киндрих", "Гордунни", "dps", "Guardian")
-        self.assertTrue(legacy.startswith("MPLS1\n"))
+        self.assertTrue(legacy.startswith("MPLS2\n"))
         mpl.requiredCompanionCapabilities = lua.table_from(["updater"])
         _, request = mpl.SendRequest("Киндрих", "Гордунни", "dps", "Guardian")
         self.assertTrue(request.startswith("MPLS2\n"))

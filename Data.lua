@@ -96,6 +96,11 @@ function MPL.IsProfileStale(profile, now)
     return not timestamp or (now or GetServerTime())-timestamp>=MPL.GetOption("freshHours")*3600,display
 end
 
+function MPL.ProfileRefreshRemaining(profile)
+    local timestamp=profile and MPL.ProfileDate(profile)
+    return timestamp and math.max(0,timestamp+5*60-GetServerTime()) or 0
+end
+
 function MPL.FilterFreshProfiles(players,refresh)
     local pending,skipped={},0
     for _,player in ipairs(players) do
@@ -105,7 +110,8 @@ function MPL.FilterFreshProfiles(players,refresh)
         local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
         local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
         local usable=profile and (profile.dual or profile.metric==metric)
-        if not refresh and usable and not MPL.IsProfileStale(profile) then skipped=skipped+1
+        if usable and ((not refresh and not MPL.IsProfileStale(profile))
+            or (refresh and MPL.ProfileRefreshRemaining(profile)>0)) then skipped=skipped+1
         else
             local request={}
             for key,value in pairs(player) do request[key]=value end
@@ -215,10 +221,12 @@ function MPL.SelectSpec(name,realm,spec,role)
     MPlusLogsDB.selectedSpecs[MPL.Key(name,realm)..":"..role]=spec
 end
 
--- Read visible unit identity without starting an inspect request. Applicant
--- metadata remains the fallback for characters not currently available as units.
-function MPL.RefreshCharacterSpec(name,realm)
+-- Background callers only read known data. Opening a profile may request one
+-- inspect; INSPECT_READY refreshes the visible badge when the reply arrives.
+local lastSpecInspect=-math.huge
+function MPL.RefreshCharacterSpec(name,realm,requestInspect)
     local key=MPL.Key(name,realm)
+    local inspectUnit
     local units={"player","target","focus","mouseover"}
     for i=1,4 do units[#units+1]="party"..i end
     for i=1,40 do units[#units+1]="raid"..i end
@@ -242,6 +250,7 @@ function MPL.RefreshCharacterSpec(name,realm)
                 else
                     local getInspect=api.GetInspectSpecialization or GetInspectSpecialization
                     if getInspect then specID=getInspect(unit) end
+                    if not inspectUnit and requestInspect and CanInspect and CanInspect(unit,false) then inspectUnit=unit end
                 end
                 local info=specID and not (issecretvalue and issecretvalue(specID)) and MPL.specInfo[specID]
                 if info then
@@ -251,6 +260,14 @@ function MPL.RefreshCharacterSpec(name,realm)
                 -- for the player token or another token with a known spec.
                 if info then return info end
             end
+        end
+    end
+    if inspectUnit and NotifyInspect and not InCombatLockdown()
+        and not (InspectFrame and InspectFrame:IsShown()) then
+        local now=GetTime and GetTime() or GetServerTime()
+        if now-lastSpecInspect>=3 then
+            lastSpecInspect=now
+            NotifyInspect(inspectUnit)
         end
     end
     return MPL.specs and MPL.specs[key]
@@ -456,14 +473,30 @@ function MPL.Parse(text, batch)
                             current.primarySpec=required(f[#f])
                             if #current.primarySpec>80 then error(L["Некорректная запись профиля"]) end
                         end
+                    elseif f[1] == "R" then
+                        if not current or #f~=3 then error(L["Некорректная запись профиля"]) end
+                        local spec=required(f[2])
+                        local rank=number(f[3],100000000,true)
+                        current.specRanks=current.specRanks or {}
+                        if #spec>80 or not rank or rank<1 or #current.specRanks>=64 then error(L["Некорректная запись профиля"]) end
+                        for _,entry in ipairs(current.specRanks) do
+                            if entry.spec==spec then error(L["Некорректная запись профиля"]) end
+                        end
+                        current.specRanks[#current.specRanks+1]={spec=spec,rank=rank}
                     elseif f[1] == "D" then
-                        if not current or (#f ~= 10 and #f ~= 14) or (#f==14 and not current.dual) then error(L["Некорректная запись данжа"]) end
-                        if current.dual and #f~=14 then error(L["Неполная запись DPS/HPS"]) end
+                        if not current or (#f ~= 10 and #f ~= 11 and #f ~= 14 and #f ~= 15)
+                            or (#f>=14 and not current.dual) then error(L["Некорректная запись данжа"]) end
+                        if current.dual and #f<14 then error(L["Неполная запись DPS/HPS"]) end
                         if #current.dungeons >= 32 then error(L["Слишком много данжей"]) end
                         current.dungeons[#current.dungeons+1] = {name=required(f[2]), level=number(f[3],100,true),
                             time=f[4], runs=number(f[5],10000000,true), amount=number(f[6]), best=number(f[7],100),
                             median=number(f[8],100), points=number(f[9]), rank=number(f[10],100000000,true)}
-                        if #f==14 then
+                        if #f==11 or #f==15 then
+                            local spec=required(f[#f])
+                            if #spec>80 then error(L["Некорректная запись данжа"]) end
+                            current.dungeons[#current.dungeons].scoreSpec=spec
+                        end
+                        if #f>=14 then
                             local row=current.dungeons[#current.dungeons]
                             row.otherLevel=number(f[11],100,true); row.otherAmount=number(f[12])
                             row.otherBest=number(f[13],100); row.otherMedian=number(f[14],100)
@@ -543,6 +576,17 @@ function MPL.ExportCharacterRequest(name, realm, metric, spec, role)
         .. "\t" .. (metric == "hps" and "hps" or "dps") .. "\t" .. field(spec or "")
     if role then text=text.."\t"..field(role) end
     return text.."\n"
+end
+-- WCL encounter IDs for Midnight Season 2; these differ from instance/art IDs.
+local dungeonEncounters={
+    ["Altar of Fangs"]=12993,["Den of Nalorakk"]=12825,["Kings' Rest"]=61762,["Murder Row"]=12813,
+    ["Ruby Life Pools"]=112521,["Temple of Sethraliss"]=61877,["The Blinding Vale"]=12859,["Voidscar Arena"]=12923,
+}
+function MPL.DungeonURL(name,realm,profile,dungeon,metric)
+    local encounter=MPL.zone==55 and dungeonEncounters[dungeon]
+    if not encounter then return nil end
+    return MPL.URL(name,realm,profile).."&boss="..encounter
+        .."&metric="..(metric=="hps" and "points_and_healing" or "points_and_damage")
 end
 function MPL.URL(name, realm, profile)
     if profile and profile.characterID then return "https://www.warcraftlogs.com/character/id/" .. profile.characterID .. "?zone=" .. MPL.zone end

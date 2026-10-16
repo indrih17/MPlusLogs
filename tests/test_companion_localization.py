@@ -37,6 +37,8 @@ class CompanionLocalizationTests(unittest.TestCase):
                     self.assertEqual(key.count("\n"),text.count("\n"),key)
 
     def test_system_mapping_english_alias_and_fallback(self):
+        self.assertEqual(i18n.tr("Follow Windows", "ruRU"), "Как в Windows")
+        self.assertEqual(i18n.tr("Language", "ruRU"), "Язык")
         for name,expected in {"en-GB":"enUS","de-AT":"deDE","pt-PT":"ptBR","zh-HK":"zhTW","fr-CA":"frFR","unsupported":"enUS"}.items():
             self.assertEqual(i18n.normalize(name),expected)
         with patch.object(i18n,"system_language",return_value="deDE"):
@@ -76,6 +78,26 @@ class CompanionLocalizationTests(unittest.TestCase):
                     app.last_heartbeat = time.time()
                     self.assertEqual(app.sound.get(),sound)
                     app.settings()
+                    def descendants(widget):
+                        for child in widget.winfo_children():
+                            yield child
+                            yield from descendants(child)
+                    def control(source):
+                        return next(widget for widget in descendants(app.settings_window)
+                                    if "textvariable" in widget.keys()
+                                    and str(widget.cget("textvariable")) in {
+                                        str(var) for var in app.textvars if var.source == source})
+                    reconnect = control("Переподключить Warcraft Logs")
+                    signout = control("Выйти из Warcraft Logs")
+                    update = control("Check Companion updates")
+                    quit_button = control("Завершить помощник")
+                    self.assertEqual(reconnect.master, signout.master)
+                    self.assertEqual(update.master, quit_button.master)
+                    self.assertNotEqual(reconnect.master, quit_button.master)
+                    for source in ("Диагностика", "Тестовый режим без Warcraft Logs", "Проверить связь с аддоном без WCL"):
+                        with self.assertRaises(StopIteration):
+                            control(source)
+                    self.assertFalse(app.mode_diagnostic)
                     app.status.set("Готов к работе. Ожидаю запрос из WoW.")
                     with patch.object(app,"save_preferences"):
                         app.language.set("enUS")

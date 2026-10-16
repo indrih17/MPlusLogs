@@ -52,6 +52,7 @@ local function newFrame()
     function methods:Enable() self.enabled=true end
     function methods:Disable() self.enabled=false end
     function methods:SetTextColor(r,g,b) self.textColor={r,g,b} end
+    function methods:SetAlpha(value) self.alpha=value end
     function methods:SetScrollChild(child) self.child = child end
     function methods:AddLine(...) self.lines[#self.lines+1] = {...} end
     methods.AddDoubleLine = methods.AddLine
@@ -152,18 +153,28 @@ class AddonTests(unittest.TestCase):
         self.mpl.UpdatePanelScroll(panel)
         self.assertFalse(panel.scroll.ScrollBar.shown)
 
-    def test_stale_notice_and_gray_text_clear_after_refresh(self):
+    def test_stale_banner_preserves_result_colors_and_clears_after_refresh(self):
         self.mpl.Import(self.export())
         profile,_,_=self.mpl.GetProfile("Киндрих-Гордунни",None)
         profile.updated="2026-10-09 00:00 UTC"
         self.mpl.ShowProfile("Киндрих-Гордунни")
         self.assertTrue(self.mpl.staleWindow.shown)
         self.assertIn("09.10.2026",self.mpl.staleWindow.message.text)
-        self.assertIn("ff888888",self.mpl.panel.summary.text)
-        self.assertAlmostEqual(self.mpl.panel.rows[1].cells[1].textColor[1],0.53)
+        panel=self.mpl.panel
+        self.assertTrue(panel.staleBanner.shown)
+        self.assertIn("Данные устарели",panel.staleBanner.message.text)
+        self.assertIn("09.10.2026",panel.staleBanner.message.text)
+        self.assertNotIn("ff888888",panel.summary.text)
+        self.assertAlmostEqual(panel.rows[1].cells[1].textColor[1],0.72)
+        self.assertEqual(panel.height,732)
+        self.assertEqual(panel.tableHeader.points.TOPLEFT[2],-286)
+        self.assertNotIn("Обновите логи",panel.source.text)
         profile.updated="2026-10-12 03:59 UTC"
         self.mpl.ShowProfile("Киндрих-Гордунни")
         self.assertFalse(self.mpl.staleWindow.shown)
+        self.assertFalse(panel.staleBanner.shown)
+        self.assertEqual(panel.height,700)
+        self.assertEqual(panel.tableHeader.points.TOPLEFT[2],-254)
         self.assertNotIn("ff888888",self.mpl.panel.summary.text)
         self.assertEqual(self.mpl.panel.rows[1].cells[1].textColor[1],0.72)
         self.assertEqual(self.mpl.Normalize("Гор Дунни"), "гордунни")

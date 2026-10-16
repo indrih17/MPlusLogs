@@ -165,12 +165,40 @@ class SpecProfileTests(unittest.TestCase):
         self.live_player()
         self.mpl.SelectSpec("Киндрих", "Гордунни", "All specs")
         self.mpl.ShowProfile("Киндрих", "Гордунни")
-        self.assertIn("Текущая специализация: Blood", self.mpl.panel.character.text)
+        self.assertEqual(self.mpl.panel.currentSpec.name.text, "Blood")
         self.assertEqual(self.mpl.panel.selectedSpec, "All specs")
 
     def test_unknown_class_does_not_offer_every_class(self):
         specs=self.mpl.ProfileSpecs("Nobody", "Гордунни")
         self.assertEqual(list(specs.values()), [])
+
+    def test_current_spec_badge_uses_game_data_and_clears_for_unknown_character(self):
+        self.live_player()
+        self.lua.execute('''GetSpecializationInfoByID=function(id)
+            if id==250 then return id,"Blood",nil,135770 end
+        end''')
+        self.mpl.ShowProfile("Киндрих", "Гордунни")
+        badge=self.mpl.panel.currentSpec
+        self.assertEqual(badge.caption.text,"Текущая специализация")
+        self.assertEqual(badge.name.text,"Blood")
+        self.assertTrue(badge.icon.shown)
+        self.assertEqual(self.mpl.panel.character.text,"Киндрих — Гордунни")
+        self.mpl.SelectSpec("Киндрих", "Гордунни", "Feral")
+        self.mpl.ShowProfile("Киндрих", "Гордунни")
+        self.assertEqual(badge.name.text,"Blood")
+        self.mpl.ShowProfile("Nobody", "Гордунни")
+        self.assertEqual(badge.name.text,"—")
+        self.assertFalse(badge.icon.shown)
+
+    def test_current_spec_badge_uses_applicant_spec_without_wcl_profile(self):
+        self.lua.execute('''GetSpecializationInfoByID=function(id)
+            if id==104 then return id,"Страж",nil,132276 end
+        end''')
+        self.mpl.RecordApplicant("Other-Thrall", "TANK", 104, "DRUID")
+        self.mpl.ShowProfile("Other", "Thrall")
+        self.assertEqual(self.mpl.panel.currentSpec.name.text,"Страж")
+        self.assertTrue(self.mpl.panel.currentSpec.icon.shown)
+        self.assertFalse(self.mpl.panel.profile)
 
     def test_live_player_defaults_to_all_specs_across_spec_changes(self):
         self.live_player()
@@ -181,7 +209,7 @@ class SpecProfileTests(unittest.TestCase):
         self.lua.execute('C_SpecializationInfo.GetSpecializationInfo=function() return 252,"Unholy" end')
         self.mpl.ShowProfile("Киндрих", "Гордунни")
         self.assertEqual(self.mpl.panel.selectedSpec, "All specs")
-        self.assertIn("Текущая специализация: Unholy", self.mpl.panel.character.text)
+        self.assertEqual(self.mpl.panel.currentSpec.name.text, "Unholy")
 
     def test_target_class_is_known_without_inspect_and_cached_spec_is_used(self):
         self.lua.execute('''
@@ -198,7 +226,40 @@ class SpecProfileTests(unittest.TestCase):
         self.assertEqual("Other — Thrall", self.mpl.panel.character.text)
         self.lua.execute('C_SpecializationInfo.GetInspectSpecialization=function() return 63 end')
         self.mpl.ShowProfile("Other", "Thrall")
-        self.assertIn("Текущая специализация: Fire", self.mpl.panel.character.text)
+        self.assertEqual(self.mpl.panel.currentSpec.name.text, "Fire")
+
+    def test_target_badge_requests_inspect_and_updates_when_ready(self):
+        self.lua.execute('''
+            inspectCalls=0; specReady=false
+            UnitExists=function(unit) return unit=="target" end
+            UnitFullName=function() return "Other","Thrall" end
+            UnitClass=function() return "Mage","MAGE" end
+            UnitGUID=function() return "Player-Other" end
+            CanInspect=function() return true end
+            NotifyInspect=function(unit) inspectCalls=inspectCalls+1; inspectedUnit=unit end
+            C_SpecializationInfo={GetInspectSpecialization=function() return specReady and 63 or 0 end}
+            GetSpecializationInfoByID=function(id) return id,"Fire",nil,135810 end
+            local create=CreateFrame
+            CreateFrame=function(...) local f=create(...); lastCreated=f; return f end
+        ''')
+        self.lua.execute("return assert(loadstring(...))", (ROOT / "Integration.lua").read_text(encoding="utf-8"))("MPlusLogs", self.mpl)
+        events=self.lua.globals().lastCreated
+        self.mpl.ShowProfile("Other", "Thrall")
+        self.assertEqual(self.lua.globals().inspectCalls,1)
+        self.assertEqual(self.lua.globals().inspectedUnit,"target")
+        self.assertEqual(self.mpl.panel.currentSpec.name.text,"—")
+        self.mpl.ShowProfile("Other", "Thrall")
+        self.assertEqual(self.lua.globals().inspectCalls,1)
+        self.lua.execute('specReady=true')
+        events.scripts.OnEvent(events,"INSPECT_READY","Player-Other")
+        self.assertEqual(self.mpl.panel.currentSpec.name.text,"Fire")
+        self.assertTrue(self.mpl.panel.currentSpec.icon.shown)
+        self.lua.execute('specReady=false; combat=true; GetServerTime=function() return 1791777610 end')
+        self.mpl.ShowProfile("Other", "Thrall")
+        self.assertEqual(self.lua.globals().inspectCalls,1)
+        self.lua.execute('combat=false; CanInspect=function() return false end')
+        self.mpl.ShowProfile("Other", "Thrall")
+        self.assertEqual(self.lua.globals().inspectCalls,1)
 
     def test_applicant_class_can_be_inferred_from_spec_id(self):
         self.mpl.RecordApplicant("Other-Thrall", "DAMAGER", 252, None)
@@ -214,7 +275,7 @@ class SpecProfileTests(unittest.TestCase):
             end
         ''')
         self.mpl.ShowProfile("Киндрих", "Гордунни")
-        self.assertIn("Текущая специализация: Лёд", self.mpl.panel.character.text)
+        self.assertEqual(self.mpl.panel.currentSpec.name.text, "Лёд")
         self.assertEqual(self.mpl.panel.specButton.text,"Все специализации")
         self.assertEqual(self.mpl.SpecLabel("Frost","DEATHKNIGHT"),"Лёд")
         self.assertEqual(self.mpl.SpecLabel("Frost","MAGE"),"Маг: Лёд")
@@ -231,7 +292,7 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.panel.viewMetric="hps"
         self.lua.execute('C_SpecializationInfo.GetSpecializationInfo=function() return 252,"Unholy" end')
         events.scripts.OnEvent(events,"PLAYER_SPECIALIZATION_CHANGED","player")
-        self.assertIn("Текущая специализация: Unholy",self.mpl.panel.character.text)
+        self.assertEqual(self.mpl.panel.currentSpec.name.text,"Unholy")
         self.assertEqual(self.mpl.panel.viewMetric,"hps")
 
     def test_imports_preserve_legacy_and_other_specializations(self):

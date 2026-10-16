@@ -10,6 +10,29 @@ import appearance
 
 
 class AppearanceTests(unittest.TestCase):
+    def test_settings_controls_keep_palette_on_hover_and_press(self):
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            style = ttk.Style(root)
+            radio = ttk.Radiobutton(root, text="Start with Windows")
+            check = ttk.Checkbutton(root, text="Sound")
+            for mode in ("dark", "light", "dark"):
+                appearance.apply(root, mode)
+                palette = appearance.PALETTES[mode]
+                for widget in (radio, check):
+                    for state in (("active",), ("active", "selected"),
+                                  ("active", "pressed"), ("disabled", "active")):
+                        with self.subTest(mode=mode, widget=widget.winfo_class(), state=state):
+                            widget.state(("!active", "!pressed", "!selected", "!disabled"))
+                            widget.state(state)
+                            self.assertEqual(style.lookup(widget.winfo_class(), "background", widget.state()),
+                                             palette["background"])
+                            self.assertEqual(style.lookup(widget.winfo_class(), "foreground", widget.state()),
+                                             palette["muted"] if "disabled" in state else palette["text"])
+        finally:
+            root.destroy()
+
     def tearDown(self):
         # Release destroyed Tcl interpreters on their creating thread before a
         # later GUI test starts the native tray worker and triggers Python GC.

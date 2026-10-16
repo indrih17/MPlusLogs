@@ -290,7 +290,7 @@ class BatchTests(unittest.TestCase):
         ''')
         self.mpl.ShowBatchDownload()
         request=self.mpl.downloadWindow.request
-        parsed=realm_resolver.parse_queue(request.split('\n',2)[2],realm_resolver.load_mappings())
+        parsed=realm_resolver.parse_queue(clipboard_protocol.unwrap_request(request)[1],realm_resolver.load_mappings())
         self.assertEqual(len(parsed),5)
         self.assertEqual({entry['name'] for entry in parsed},{'Player'+str(i) for i in range(31,36)})
         self.assertEqual(len(self.mpl.pendingReply.players),5)

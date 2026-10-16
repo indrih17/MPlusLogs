@@ -111,6 +111,17 @@ end
 local function gridLine(parent,x,y,width,height)
     return panelFill(parent,x,y,width,height,0.20,0.20,0.20)
 end
+local function specTexture(spec,class)
+    if not spec or not GetSpecializationInfoByID then return end
+    class=class or MPL.SpecClass(spec)
+    for id,info in pairs(MPL.specInfo) do
+        if info[1]==spec and class and info[3]==class then
+            local _,_,_,texture=GetSpecializationInfoByID(id)
+            if texture and not (issecretvalue and issecretvalue(texture)) then return texture end
+            return
+        end
+    end
+end
 local function metricTab(f,metric,x)
     local b=CreateFrame("Button",nil,f,"BackdropTemplate")
     b:SetSize(86,28); b:SetPoint("TOPLEFT",x,-112)
@@ -154,7 +165,21 @@ local function buildPanel()
     f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
     panelFill(f,1,-1,938,36,0.105,0.06,0.12)
     f.title:SetTextColor(0.9,0.94,0.96)
-    f.character = label(f,20,-48,900,"","GameFontHighlightLarge")
+    f.character = label(f,20,-48,400,"","GameFontHighlightLarge")
+    f.character:SetWordWrap(false)
+    f.currentSpec=CreateFrame("Frame",nil,f,"BackdropTemplate")
+    f.currentSpec:SetPoint("TOPLEFT",440,-39); f.currentSpec:SetSize(460,32)
+    f.currentSpec:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    f.currentSpec:SetBackdropColor(0.13,0.10,0.035,1)
+    f.currentSpec:SetBackdropBorderColor(0.70,0.53,0.18,1)
+    f.currentSpec.icon=f.currentSpec:CreateTexture(nil,"ARTWORK")
+    f.currentSpec.icon:SetPoint("TOPLEFT",5,-4); f.currentSpec.icon:SetSize(24,24)
+    f.currentSpec.caption=label(f.currentSpec,37,-3,415,L["Текущая специализация"])
+    f.currentSpec.caption:SetTextColor(0.85,0.72,0.42)
+    f.currentSpec.caption:SetWordWrap(false)
+    f.currentSpec.name=label(f.currentSpec,37,-16,415,"","GameFontHighlight")
+    f.currentSpec.name:SetTextColor(1,0.90,0.55)
+    f.currentSpec.name:SetWordWrap(false)
     panelFill(f,20,-80,880,26,0.105,0.06,0.12)
     f.context = label(f,30,-87,860)
     f.specButton=specSelector(f,function()
@@ -201,26 +226,40 @@ local function buildPanel()
     f.summary=label(f,520,-159,370)
     f.medianSummary=label(f,520,-181,370)
     f.runSummary=label(f,520,-203,370)
+    f.specRanks=label(f,20,-233,880); f.specRanks:SetJustifyH("CENTER")
+    f.staleBanner=CreateFrame("Frame",nil,f,"BackdropTemplate")
+    f.staleBanner:SetPoint("TOPLEFT",20,-254); f.staleBanner:SetSize(880,28)
+    f.staleBanner:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    f.staleBanner:SetBackdropColor(0.12,0.075,0.015,1)
+    f.staleBanner:SetBackdropBorderColor(0.65,0.40,0.06,1)
+    f.staleBanner.icon=f.staleBanner:CreateTexture(nil,"ARTWORK")
+    f.staleBanner.icon:SetSize(20,20); f.staleBanner.icon:SetPoint("LEFT",10,0)
+    f.staleBanner.icon:SetTexture("Interface/AddOns/MPlusLogs/assets/stale-clock.tga")
+    f.staleBanner.message=label(f.staleBanner,40,-7,828,"","GameFontHighlight")
+    f.staleBanner.message:SetWordWrap(false)
+    f.staleBanner:Hide()
     f.source = label(f,20,-566,900)
     f.note = label(f,20,-586,900)
     local headings = {L["Подземелье"],L["Уровень"],L["Время"],L["Прохождения"],L["Очки"],L["Место"],L["Лучший DPS"],L["Best %"],L["Median %"]}
     f.columns={0,242,292,358,414,484,554,684,768}
     f.widths={242,50,66,56,70,70,130,84,112}
     f.headings={}
-    f.tableDecor={panelFill(f,20,-254,880,52,34/255,34/255,34/255)}
-    f.primaryGroup=label(f,434,-261,140,L["Рейтинг"]); f.primaryGroup:SetJustifyH("CENTER")
-    f.secondaryGroup=label(f,574,-261,326,"DPS"..L[" / по уровню ключа"]); f.secondaryGroup:SetJustifyH("CENTER")
-    for _,y in ipairs({-254,-280,-306}) do f.tableDecor[#f.tableDecor+1]=gridLine(f,20,y,880,1) end
+    f.tableHeader=CreateFrame("Frame",nil,f)
+    f.tableHeader:SetPoint("TOPLEFT",20,-254); f.tableHeader:SetSize(880,52)
+    f.tableDecor={panelFill(f.tableHeader,0,0,880,52,34/255,34/255,34/255)}
+    f.primaryGroup=label(f.tableHeader,414,-7,140,L["Рейтинг"]); f.primaryGroup:SetJustifyH("CENTER")
+    f.secondaryGroup=label(f.tableHeader,554,-7,326,"DPS"..L[" / по уровню ключа"]); f.secondaryGroup:SetJustifyH("CENTER")
+    for _,y in ipairs({0,-26,-52}) do f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,0,y,880,1) end
     for i, text in ipairs(headings) do
-        local heading=label(f,24+f.columns[i],-282,f.widths[i]-8,text)
+        local heading=label(f.tableHeader,4+f.columns[i],-28,f.widths[i]-8,text)
         heading:SetHeight(22); heading:SetJustifyV("MIDDLE"); heading:SetWordWrap(true); heading:SetNonSpaceWrap(true)
         heading:SetJustifyH("CENTER"); heading:SetTextColor(0.93,0.93,0.93)
         f.headings[i]=heading
-        f.tableDecor[#f.tableDecor+1]=gridLine(f,20+f.columns[i],-280,1,26)
+        f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,f.columns[i],-26,1,26)
     end
-    f.tableDecor[#f.tableDecor+1]=gridLine(f,434,-254,1,26)
-    f.tableDecor[#f.tableDecor+1]=gridLine(f,574,-254,1,26)
-    f.tableDecor[#f.tableDecor+1]=gridLine(f,900,-254,1,52)
+    f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,414,0,1,26)
+    f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,554,0,1,26)
+    f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,880,0,1,52)
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT",20,-306); scroll:SetPoint("BOTTOMRIGHT",-40,145)
     scroll:SetSize(880,249)
@@ -232,7 +271,18 @@ local function buildPanel()
     f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary,f.filter}
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
-    f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function() MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,true) end)
+    f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function()
+        if MPL.UpdateProfileLoadButton() then
+            f.footer:SetText(L["Все данные обновлены. Запрашивать логи можно не чаще раза в 5 минут. Подождите перед новым запросом."])
+            return
+        end
+        MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,true)
+    end)
+    f.loadElapsed=0
+    f.loadButton:SetScript("OnUpdate",function(_,elapsed)
+        f.loadElapsed=(f.loadElapsed or 0)+elapsed
+        if f.loadElapsed>=1 then f.loadElapsed=0; MPL.UpdateProfileLoadButton() end
+    end)
     f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
     f.lookup = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
@@ -255,7 +305,27 @@ local function buildPanel()
         if ok then f.inviteSent=true; MPL.UpdateProfileInvite()
         else f.inviteInfo:SetText(err); f.inviteButton:Disable() end
     end)
+    -- Optional scaling via BlizzMove; keep our existing drag handlers.
+    if BlizzMoveAPI and type(BlizzMoveAPI.RegisterAddOnFrames)=="function" then
+        BlizzMoveAPI:RegisterAddOnFrames({MPlusLogs={
+            MPlusLogsWindow={FrameReference=f,NonDraggable=true},
+        }})
+    end
     return f
+end
+
+function MPL.UpdateProfileLoadButton()
+    local f=MPL.panel
+    if not f then return false end
+    local cooling=MPL.ProfileRefreshRemaining(f.profile or nil)>0
+    if type(f.groupPlayers)=="table" and #f.groupPlayers>1 then
+        local pending=MPL.FilterFreshProfiles(f.groupPlayers,true)
+        cooling=#pending==0
+    end
+    -- Keep mouse clicks so the muted button can explain the cooldown.
+    f.loadButton:SetAlpha(cooling and 0.5 or 1)
+    f.loadButton:SetNormalFontObject(cooling and "GameFontDisable" or "GameFontNormal")
+    return cooling
 end
 
 function MPL.UpdateProfileInvite()
@@ -277,7 +347,22 @@ local dungeonIcons={
     ["Ruby Life Pools"]="12521",["Temple of Sethraliss"]="11877",["The Blinding Vale"]="12859",["Voidscar Arena"]="12923",
 }
 function MPL.RenderProfileStats(f)
-    local profile,stale=type(f.profile)=="table" and f.profile or nil,f.stale
+    local profile=type(f.profile)=="table" and f.profile or nil
+    -- A separate age banner keeps the usual result colors readable.
+    local showStale=profile~=nil and f.stale==true
+    local offset=showStale and 32 or 0
+    f.staleBanner:SetShown(showStale)
+    if showStale then
+        local _,lastDate=MPL.ProfileDate(profile)
+        f.staleBanner.message:SetText("|cffffc440"..L["Данные устарели"].."|r    "..L["Последняя загрузка: "]..lastDate)
+    end
+    f:SetHeight(700+offset)
+    f.tableHeader:ClearAllPoints(); f.tableHeader:SetPoint("TOPLEFT",20,-254-offset)
+    f.scroll:ClearAllPoints()
+    f.scroll:SetPoint("TOPLEFT",20,-306-offset); f.scroll:SetPoint("BOTTOMRIGHT",-40,145)
+    for i,text in ipairs({f.source,f.note,f.footer}) do
+        text:ClearAllPoints(); text:SetPoint("TOPLEFT",20,-546-i*20-offset)
+    end
     local metric=f.viewMetric or "dps"
     for _,heading in ipairs(f.headings) do heading:SetShown(profile~=nil) end
     for _,element in ipairs(f.tableElements) do element:SetShown(profile~=nil) end
@@ -292,18 +377,30 @@ function MPL.RenderProfileStats(f)
     local firstHeading,secondHeading=MPL.OrderPercentiles(L["Best %"],L["Median %"])
     f.headings[8]:SetText(firstHeading); f.headings[9]:SetText(secondHeading)
     f.secondaryGroup:SetText(metric:upper()..L[" / по уровню ключа"])
+    f.specRanks:SetText(""); f.specRanks:Hide()
     if not profile then return end
+    local ranks={}
+    for _,entry in ipairs(profile.specRanks or {}) do
+        local texture=specTexture(entry.spec,f.class)
+        local caption=texture and ("|T"..texture..":18:18|t") or MPL.SpecLabel(entry.spec,f.class)
+        ranks[#ranks+1]=entry.rank.." "..caption
+    end
+    if #ranks>0 then
+        f.specRanks:SetText("Spec Ranks:  "..table.concat(ranks,"    "))
+        f.specRanks:SetTextColor(226/255,104/255,168/255)
+        f.specRanks:Show()
+    end
     f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.SpecLabel(profile.spec,f.class))
     f.scoreValue:SetText(profile.score and string.format("%.0f",profile.score) or "—")
-    f.scoreValue:SetTextColor(stale and 0.53 or 226/255,stale and 0.53 or 104/255,stale and 0.53 or 168/255)
+    f.scoreValue:SetTextColor(226/255,104/255,168/255)
     local _,_,best,median=MPL.MetricValues(profile,nil,metric)
     local first,second=MPL.OrderPercentiles(best,median)
     local firstLabel,secondLabel=MPL.OrderPercentiles(L["Лучший % в среднем:"],L["Медианный % в среднем:"])
-    f.summary:SetText(metric:upper().." "..firstLabel.."  "..tablePercent(first,stale))
+    f.summary:SetText(metric:upper().." "..firstLabel.."  "..tablePercent(first))
     if MPL.UsesDungeonMetric() then
-        f.summary:SetText(MPL.PrimaryPercentileLabel(metric)..": "..MPL.PrimaryStatistic(profile,metric,nil,stale))
+        f.summary:SetText(MPL.PrimaryPercentileLabel(metric)..": "..MPL.PrimaryStatistic(profile,metric))
     end
-    f.medianSummary:SetText(metric:upper().." "..secondLabel.."  "..tablePercent(second,stale))
+    f.medianSummary:SetText(metric:upper().." "..secondLabel.."  "..tablePercent(second))
     f.runSummary:SetText(L["Прохождения"]..":  "..(profile.runs or "—"))
     for index,dungeon in ipairs(profile.dungeons) do
         local row=f.rows[index]
@@ -312,8 +409,25 @@ function MPL.RenderProfileStats(f)
             row.background=panelFill(row,0,0,880,30,index%2==0 and 0.018 or 0,index%2==0 and 0.018 or 0,index%2==0 and 0.018 or 0)
             row.shade=index%2==0 and 0.018 or 0
             row:EnableMouse(true)
-            row:SetScript("OnEnter",function(self) self.background:SetColorTexture(0.055,0.055,0.055,1) end)
-            row:SetScript("OnLeave",function(self) self.background:SetColorTexture(self.shade,self.shade,self.shade,1) end)
+            row:SetScript("OnEnter",function(self)
+                self.background:SetColorTexture(0.055,0.055,0.055,1)
+                if self.url then
+                    GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
+                    GameTooltip:AddLine(L["Ссылка WCL"].." — "..self.dungeonName,1,1,1)
+                    GameTooltip:Show()
+                end
+            end)
+            row:SetScript("OnLeave",function(self)
+                self.background:SetColorTexture(self.shade,self.shade,self.shade,1)
+                GameTooltip:Hide()
+            end)
+            local function copyDungeonURL(_,mouseButton)
+                if mouseButton=="LeftButton" and row.url then
+                    GameTooltip:Hide()
+                    MPL.CopyURL(f.name,f.realm,f.profile,row.url)
+                end
+            end
+            row:SetScript("OnMouseUp",copyDungeonURL)
             row.cells={}
             for i=1,9 do
                 row.cells[i]=label(row,f.columns[i]+6,-8,f.widths[i]-12)
@@ -322,14 +436,36 @@ function MPL.RenderProfileStats(f)
             end
             gridLine(row,880,0,1,30); gridLine(row,0,-29,880,1)
             row.icon=row:CreateTexture(nil,"ARTWORK"); row.icon:SetPoint("TOPLEFT",6,-4); row.icon:SetSize(22,22)
+            row.scoreSpecIcon=CreateFrame("Frame",nil,row)
+            row.scoreSpecIcon:SetSize(18,18)
+            row.scoreSpecIcon:SetPoint("LEFT",row.cells[5],"RIGHT",4,0)
+            row.scoreSpecIcon.texture=row.scoreSpecIcon:CreateTexture(nil,"ARTWORK")
+            row.scoreSpecIcon.texture:SetAllPoints()
+            row.scoreSpecIcon:EnableMouse(true)
+            row.scoreSpecIcon:SetScript("OnMouseUp",copyDungeonURL)
+            row.scoreSpecIcon:SetScript("OnEnter",function(self)
+                GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
+                GameTooltip:AddLine(MPL.SpecLabel(self.spec,f.class),1,1,1)
+                GameTooltip:Show()
+            end)
+            row.scoreSpecIcon:SetScript("OnLeave",function() GameTooltip:Hide() end)
             row.cells[1]:ClearAllPoints(); row.cells[1]:SetPoint("TOPLEFT",34,-8); row.cells[1]:SetWidth(f.widths[1]-40)
             f.rows[index]=row
         end
+        row.dungeonName=dungeon.name
+        row.url=MPL.DungeonURL(f.name,f.realm,profile,dungeon.name,metric)
         local icon=dungeonIcons[dungeon.name]
         row.icon:SetTexture(icon and ("Interface\\AddOns\\MPlusLogs\\assets\\dungeons\\"..icon..".tga") or "Interface\\Icons\\INV_Misc_Map_01")
         local level,amount,best,median=MPL.MetricValues(profile,dungeon,metric)
-        local first,second=MPL.OrderPercentiles(tablePercent(best,stale)..(dungeon.flagged and profile.metric==metric and "*" or ""),tablePercent(median,stale))
+        local first,second=MPL.OrderPercentiles(tablePercent(best)..(dungeon.flagged and profile.metric==metric and "*" or ""),tablePercent(median))
         local metadata=profile.metric==metric
+        local scoreSpec=metadata and dungeon.points and (dungeon.scoreSpec or (profile.spec~="All specs" and profile.spec))
+        local scoreTexture=specTexture(scoreSpec,f.class)
+        row.scoreSpecIcon.spec=scoreSpec
+        row.scoreSpecIcon.texture:SetTexture(scoreTexture)
+        row.scoreSpecIcon:SetShown(scoreTexture~=nil)
+        row.scoreSpecIcon:SetAlpha(1)
+        row.cells[5]:SetWidth(f.widths[5]-(scoreTexture and 34 or 12))
         local time=metadata and dungeon.time or nil
         local values={dungeon.name,level or "—",time and time~="" and time or "—",dungeon.runs or "—",
             metadata and dungeon.points and string.format("%.0f",dungeon.points) or "—",
@@ -340,7 +476,7 @@ function MPL.RenderProfileStats(f)
             if i==1 then r,g,b=0.72,0.78,1 end
             if i==5 or i==6 then r,g,b=226/255,104/255,168/255 end
             if i==7 then r,g,b=0.82,0.96,0.65 end
-            row.cells[i]:SetTextColor(stale and 0.53 or r,stale and 0.53 or g,stale and 0.53 or b)
+            row.cells[i]:SetTextColor(r,g,b)
         end
         row:Show()
     end
@@ -358,24 +494,47 @@ function MPL.RenderPlayerTabs(f)
     for i,player in ipairs(players) do
         local tab=f.playerTabs[i]
         if not tab then
-            tab=button(f,"",0,0,width-4,function() end)
+            tab=CreateFrame("Button",nil,f,"BackdropTemplate")
+            tab:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+            local caption=tab:CreateFontString(nil,"OVERLAY","GameFontNormal")
+            caption:SetPoint("LEFT",10,0); caption:SetPoint("RIGHT",-10,0)
+            caption:SetJustifyH("CENTER"); caption:SetWordWrap(false)
+            tab:SetFontString(caption)
+            -- Cover the panel border beneath the active tab to join it to the window.
+            tab.join=tab:CreateTexture(nil,"OVERLAY")
+            tab.join:SetColorTexture(0,0,0,1)
+            tab.join:SetPoint("BOTTOMLEFT",1,-1); tab.join:SetPoint("BOTTOMRIGHT",-1,-1)
+            tab.join:SetHeight(3)
             tab:SetScript("OnClick",function()
                 local p=tab.player
                 MPL.ShowProfile(p.name,p.realm,p.applicantID and p or nil,true,true)
             end)
             tab:SetScript("OnEnter",function(self)
+                if not self.selected then self:SetBackdropColor(0.40,0.07,0.07,1) end
                 GameTooltip:SetOwner(self,"ANCHOR_TOP")
                 GameTooltip:AddLine(self.player.name.."-"..self.player.realm)
                 GameTooltip:Show()
             end)
-            tab:SetScript("OnLeave",function() GameTooltip:Hide() end)
+            tab:SetScript("OnLeave",function(self)
+                if not self.selected then self:SetBackdropColor(0.27,0.035,0.035,1) end
+                GameTooltip:Hide()
+            end)
             f.playerTabs[i]=tab
         end
         tab.player=player; tab:ClearAllPoints()
-        tab:SetPoint("BOTTOMLEFT",f,"TOPLEFT",20+(i-1)*width,-2)
-        tab:SetSize(width-4,26)
         local selected=MPL.Key(player.name,player.realm)==MPL.Key(f.name,f.realm)
-        tab:SetText((selected and "|cffffd100" or "|cffffffff")..player.name.."|r")
+        tab.selected=selected
+        tab:SetPoint("BOTTOMLEFT",f,"TOPLEFT",20+(i-1)*width,selected and 0 or 3)
+        tab:SetSize(width-4,selected and 32 or 26)
+        if selected then
+            tab:SetBackdropColor(0,0,0,1)
+            tab:SetBackdropBorderColor(0.83,0.66,0.25,1)
+        else
+            tab:SetBackdropColor(0.27,0.035,0.035,1)
+            tab:SetBackdropBorderColor(0.35,0.25,0.25,1)
+        end
+        tab.join:SetShown(selected)
+        tab:SetText((selected and "|cffffd100▼ " or "|cffffffff")..player.name.."|r")
         tab:Show()
     end
 end
@@ -409,7 +568,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     end
     if not MPL.SafeString(fullName) then fullName, realm = UnitFullName("player") end
     local unitName,unitRealm=MPL.Identity(fullName,realm)
-    if unitName then MPL.RefreshCharacterSpec(unitName,unitRealm) end
+    if unitName then MPL.RefreshCharacterSpec(unitName,unitRealm,true) end
     local profile, name, server = MPL.GetProfile(fullName, realm)
     if not name then return end
     local stateKey=MPL.Key(name,server)
@@ -470,7 +629,12 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     end
     f.specButton.icon:SetTexture(icon)
     local current=MPL.specs and MPL.specs[MPL.Key(name,server)]
-    f.character:SetText(name .. " — " .. server..(current and ("  /  "..L["Текущая специализация"]..": "..MPL.SpecLabel(current[1],current[3])) or ""))
+    f.character:SetText(name .. " — " .. server)
+    f.currentSpec.name:SetText(current and MPL.SpecLabel(current[1],current[3]) or "—")
+    local currentTexture=current and specTexture(current[1],current[3])
+    f.currentSpec.icon:SetTexture(currentTexture or nil)
+    f.currentSpec.icon:SetShown(currentTexture~=nil and currentTexture~=false)
+    f.currentSpec:SetAlpha(current and 1 or 0.55)
     f.lookup:SetText(name .. "-" .. server)
     f.scroll:SetVerticalScroll(0)
     for _, row in ipairs(f.rows) do row:Hide() end
@@ -481,7 +645,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
         f.scroll:Show(); f.emptyMessage:Hide()
         f.loadButton:SetPoint("BOTTOMLEFT",730,53); f.loadButton:SetSize(170,24)
         f.loadButton:SetText(L["Обновить M+ логи"])
-        f.source:SetText(MPL.T(profile.source)..L["  /  Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or ""))
+        f.source:SetText(MPL.T(profile.source)..L["  /  Последняя загрузка: "]..lastDate)
         f.note:SetText(L["Процентиль урона/исцеления не оценивает выживание, прерывания и механику."])
         f.footer:SetText(profile.characterID == 81818678 and profile.source == "Снимок со скриншота пользователя" and L["* Пометка WCL сохранена со скриншота. Общие 162 лога и строки показаны как в источнике."] or L["Логи: только прохождения, доступные WCL; отсутствие данных не означает плохую игру."])
     else
@@ -508,12 +672,13 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     if failure then f.footer:SetText(companionError(MPL.T(failure.error))) end
     MPL.RenderProfileStats(f)
     for _,text in ipairs({f.character,f.context,f.source,f.note,f.footer}) do
-        text:SetTextColor(stale and 0.53 or 0.88,stale and 0.53 or 0.95,stale and 0.53 or 0.96)
+        text:SetTextColor(0.88,0.95,0.96)
     end
     f:Show()
     MPL.UpdateProfileInvite()
     MPL.UpdatePanelScroll(f)
     MPL.RenderPlayerTabs(f)
+    MPL.UpdateProfileLoadButton()
     if stale and not suppressNotice then MPL.ShowStaleNotice(name,server,profile,lastDate) end
 end
 
@@ -592,12 +757,30 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
         divider:SetPoint("TOPLEFT",24,-108); divider:SetSize(472,1)
         f.status=label(f,24,-126,472,"","GameFontHighlight")
         f.status:SetHeight(144); f.status:SetJustifyV("TOP")
-        label(f,24,-276,472,L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"],"GameFontDisableSmall")
+        f.requestLabel=label(f,24,-276,472,L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"],"GameFontDisableSmall")
+        f.errorIcon=f:CreateTexture(nil,"ARTWORK")
+        f.errorIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+        f.errorIcon:SetSize(28,28); f.errorIcon:SetPoint("TOPLEFT",24,-124); f.errorIcon:Hide()
         local inputClip=CreateFrame("Frame",nil,f,"BackdropTemplate")
         inputClip:SetPoint("TOPLEFT",24,-294); inputClip:SetSize(472,64)
         inputClip:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Tooltips/UI-Tooltip-Border",edgeSize=8,insets={left=2,right=2,top=2,bottom=2}})
         inputClip:SetBackdropColor(0.08,0.08,0.09,1)
         inputClip:SetClipsChildren(true); inputClip:EnableMouse(true)
+        f.setStatus=function(text,isError)
+            f.errorIcon:SetShown(isError==true)
+            f.status:SetFontObject(isError and "GameFontHighlightLarge" or "GameFontHighlight")
+            f.status:SetTextColor(1,isError and 0.4 or 1,isError and 0.35 or 1)
+            f.status:ClearAllPoints(); f.status:SetPoint("TOPLEFT",isError and 62 or 24,-126)
+            f.status:SetWidth(isError and 434 or 472)
+            f.status:SetText(text)
+            -- Long translated guidance must fit above the request field even
+            -- with the larger error font.
+            local height=f.status:GetStringHeight()
+            local extra=type(height)=="number" and math.max(0,math.ceil(height)-144) or 0
+            f.status:SetHeight(144+extra); f:SetHeight(382+extra)
+            f.requestLabel:ClearAllPoints(); f.requestLabel:SetPoint("TOPLEFT",24,-276-extra)
+            inputClip:ClearAllPoints(); inputClip:SetPoint("TOPLEFT",24,-294-extra)
+        end
         f.edit=CreateFrame("EditBox",nil,inputClip)
         local edit=f.edit
         edit:SetPoint("TOPLEFT",inputClip,"TOPLEFT",6,-5); edit:SetSize(460,54)
@@ -612,7 +795,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
                 if f:IsShown() and revision==f.revision and (f.phase=="copy" or f.phase=="waiting") then
                     edit:SetFocus(); edit:HighlightText()
                     if not edit:HasFocus() then
-                        f.status:SetText(L["Не удалось активировать ввод. Щёлкните в поле запроса, затем Ctrl+C или Ctrl+V."])
+                        f.setStatus(L["Не удалось активировать ввод. Щёлкните в поле запроса, затем Ctrl+C или Ctrl+V."],true)
                     end
                 end
             end)
@@ -632,7 +815,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
             if f.batch then
                 local players,err
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
-                if err then f.status:SetText(err); return end
+                if err then f.setStatus(err,true); return end
                 total=#players
                 players,skipped=MPL.FilterFreshProfiles(players,f.refresh)
                 if total>0 and #players==0 then
@@ -645,10 +828,10 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
                 if id and type(f.batch)=="table" then MPL.pendingReply.groupPlayers=f.batch end
                 f.character:SetText(L["Нужно загрузить: "]..#players.." / "..total)
             else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant,true,f.refresh) end
-            if not id then f.status:SetText(request); return end
+            if not id then f.setStatus(request,true); return end
             f.phase="copy"; f.request=request
             f.steps:SetText(L["|cffffd1001. Отправка запроса|r    /    |cff8888882. Получение логов|r"])
-            f.status:SetText(L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"]
+            f.setStatus(L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"]
                 ..(skipped and skipped>0 and ("\n"..L["Актуальные данные: "]..skipped..L[" из "]..total) or ""))
             setText(request)
         end
@@ -659,14 +842,14 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
             f.quotaElapsed=(f.quotaElapsed or 0)+elapsed
             if f.quotaElapsed>=1 then
                 f.quotaElapsed=0
-                f.status:SetText(companionError(f.quotaError))
+                f.setStatus(companionError(f.quotaError),true)
             end
         end)
         local function copied(key)
             if key=="C" and f.phase=="copy" then
                 f.phase="waiting"
                 f.steps:SetText(L["|cff8888881. Отправка запроса|r    /    |cffffd1002. Получение логов|r"])
-                f.status:SetText(L["Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload."])
+                f.setStatus(L["Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload."])
                 edit:HighlightText()
             end
         end
@@ -693,7 +876,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
                     f:Hide()
                 else
                     f.quotaError=err and err:find("API reset at ",1,true) and err or nil
-                    f.status:SetText(companionError(err or L["Ответ ещё не получен. Нажмите Ctrl+V позже."]))
+                    f.setStatus(companionError(err or L["Ответ ещё не получен. Нажмите Ctrl+V позже."]),true)
                     setText(f.request)
                 end
             end)
@@ -710,7 +893,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
     f.applicant=context or false
     f.character:SetText(name.." — "..server)
     f.steps:SetText(L["|cff8888881. Отправка запроса    /    2. Получение логов|r"])
-    f.status:SetText(L["Подготовка запроса…"])
+    f.setStatus(L["Подготовка запроса…"])
     f.programmatic=true; f.edit:SetText(""); f.programmatic=false; f.edit:ClearFocus()
     if MPL.importWindow then MPL.importWindow:Hide() end
     f:Show()
@@ -970,7 +1153,7 @@ function MPL.ShowRequests()
     f:Show(); f.edit:SetText(text); f.edit:SetFocus(); f.edit:HighlightText()
 end
 
-function MPL.CopyURL(name, realm, profile)
+function MPL.CopyURL(name, realm, profile, url)
     MPL.copy = MPL.copy or window("MPlusLogsCopyWindow",L["Ссылка Warcraft Logs"],650,150,true)
     local f = MPL.copy
     if not f.edit then
@@ -989,7 +1172,7 @@ function MPL.CopyURL(name, realm, profile)
         end)
     end
     f.revision=f.revision+1
-    f:Show(); f.edit:SetText(MPL.URL(name,realm,profile)); f.edit:SetFocus(); f.edit:HighlightText()
+    f:Show(); f.edit:SetText(url or MPL.URL(name,realm,profile)); f.edit:SetFocus(); f.edit:HighlightText()
 end
 
 function MPL.ShowImport()

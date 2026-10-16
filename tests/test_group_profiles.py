@@ -146,6 +146,42 @@ class GroupProfileTests(unittest.TestCase):
         self.assertTrue(self.mpl.pendingReply.batch)
         self.assertEqual(len(self.mpl.pendingReply.players), 2)
 
+    def test_loaded_profile_explains_cooldown_then_allows_refresh_at_five_minutes(self):
+        self.party()
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, self.fetch)
+        self.mpl.ReceiveReply(response, True)
+        self.lua.execute('''
+            refreshNow=MPlusLogs.ProfileDate(MPlusLogs.panel.profile)
+            GetServerTime=function() return refreshNow end
+        ''')
+        self.mpl.ShowProfile('Alice', 'Гордунни', None, True)
+        f = self.mpl.panel
+        self.assertEqual(f.loadButton.alpha, 0.5)
+        f.loadButton.scripts.OnClick()
+        self.assertIsNone(self.mpl.pendingReply)
+        self.assertIn('5 минут', f.footer.text)
+        self.lua.execute('refreshNow=refreshNow+299')
+        f.loadButton.scripts.OnUpdate(f.loadButton, 1)
+        self.assertEqual(f.loadButton.alpha, 0.5)
+        self.lua.execute('refreshNow=refreshNow+1')
+        f.loadButton.scripts.OnUpdate(f.loadButton, 1)
+        self.assertEqual(f.loadButton.alpha, 1)
+        f.loadButton.scripts.OnClick()
+        self.assertTrue(self.mpl.pendingReply.refresh)
+
+    def test_group_refresh_skips_recent_profiles_but_loads_missing_members(self):
+        self.lua.execute('''
+            MPlusLogs.StoreProfiles({{name="Alice",realm="Гордунни",region="eu",spec="All specs",
+                role="HEALER",metric="hps",dual=true,updated="2026-10-12 04:00 UTC",dungeons={}}})
+            local now=MPlusLogs.ProfileDate(MPlusLogs.GetProfile("Alice","Гордунни"))
+            GetServerTime=function() return now end
+        ''')
+        pending, skipped = self.mpl.FilterFreshProfiles(self.players(), True)
+        self.assertEqual(skipped, 1)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[1].name, 'Bob')
+
     def test_batch_reply_refreshes_selected_tab_and_keeps_hidden_member(self):
         self.mpl.ShowProfile("Alice", "Гордунни", self.players()[1])
         f = self.mpl.panel
@@ -283,7 +319,7 @@ class GroupProfileTests(unittest.TestCase):
         for stamp in (143200,143201,143500):
             self.mpl.panel.loadButton.scripts.OnClick()
             self.assertTrue(self.mpl.pendingReply.refresh)
-            self.assertIn('MPLC1 refresh\n',self.mpl.downloadWindow.request)
+            self.assertIn('MPLC1 refresh,specdetails\n',self.mpl.downloadWindow.request)
             with patch('build_database.time.time',return_value=stamp):
                 response=clipboard_protocol.reply(self.mpl.downloadWindow.request,realm_resolver.load_mappings(),self.cache,fetch)
             self.assertEqual(self.mpl.ReceiveReply(response,True),5)

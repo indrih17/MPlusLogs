@@ -200,7 +200,10 @@ def normalize(raw, args):
         level = numeric(t.get("best_level"),100,True)
         second=other.get(str(encounter.get("id")),{})
         if not isinstance(second,dict): raise ValueError("Unknown secondary M+ throughput row")
-        dungeons.append({"name": encounter["name"], "level": level, "time": "",
+        score_spec = r.get("bestSpec") or args.spec
+        if not isinstance(score_spec, str) or not 0 < len(score_spec) <= 80:
+            score_spec = None
+        dungeons.append({"name": encounter["name"], "level": level, "time": "", "scoreSpec": score_spec,
                          "runs": numeric(r.get("totalKills"), 10000000, True),
                          "amount": numeric(t.get("best_per_second_amount")),
                          "best": numeric(t.get("best_historical_percentile"), 100),
@@ -211,6 +214,12 @@ def normalize(raw, args):
                          "otherBest":numeric(second.get("best_historical_percentile"),100),
                          "otherMedian":numeric(second.get("median_historical_percentile"),100)})
     stars = performance.get("allStars", [])
+    spec_ranks = []
+    for star in stars if isinstance(stars, list) else []:
+        if not isinstance(star, dict): continue
+        spec, rank = star.get("spec"), numeric(star.get("rank"), 100000000, True)
+        if isinstance(spec, str) and 0 < len(spec) <= 80 and rank and rank > 0:
+            spec_ranks.append({"spec": spec, "rank": rank})
     points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 else None
     runs = sum(d["runs"] for d in dungeons) if dungeons and all(d["runs"] is not None for d in dungeons) else None
     return {"region": region, "realm": args.realm, "name": character["name"], "zone": args.zone,
@@ -221,14 +230,14 @@ def normalize(raw, args):
             "median": numeric(performance.get("medianPerformanceAverage"), 100), "runs": runs,
             "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "source": "WCL API: M+ по уровню ключа", "characterID": numeric(character.get("id"), 1000000000, True),
-            "realmSlug": server.get("slug", args.server_slug or ""), "dungeons": dungeons}
+            "realmSlug": server.get("slug", args.server_slug or ""), "dungeons": dungeons, "specRanks": spec_ranks}
 
 
 def line(*values):
     return "\t".join(quote("" if v is None else str(v), safe="-._~") for v in values)
 
 
-def export(profile):
+def export(profile, spec_details=True):
     p = profile
     rows = ["MPL1", line("P", *(p.get(k) for k in ("region", "realm", "name", "zone", "season", "spec", "metric",
                                                   "score", "best", "median", "runs", "updated", "source", "characterID", "realmSlug")))]
@@ -236,9 +245,13 @@ def export(profile):
         rows[1]+= "\t"+"\t".join(quote("" if p.get(k) is None else str(p[k]),safe="-._~") for k in ("role","otherBest","otherMedian"))
     if p.get("primarySpec"):
         rows[1]+="\t"+quote(p["primarySpec"],safe="-._~")
+    if spec_details:
+        for entry in p.get("specRanks", []):
+            rows.append(line("R", entry["spec"], entry["rank"]))
     for d in p["dungeons"]:
         keys=("name", "level", "time", "runs", "amount", "best", "median", "points", "rank")
         if p.get("dual"): keys+=("otherLevel","otherAmount","otherBest","otherMedian")
+        if spec_details and d.get("scoreSpec"): keys+=("scoreSpec",)
         rows.append(line("D", *(d.get(k) for k in keys)))
     rows.append("E")
     return "\n".join(rows) + "\n"

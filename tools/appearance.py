@@ -94,11 +94,17 @@ def apply(root, mode, settings=None):
     style.configure("TMenubutton", background=palette["control"], foreground=palette["text"], padding=(12,8),
                     bordercolor=palette["border"], lightcolor=palette["border"], darkcolor=palette["border"], arrowcolor=palette["text"], borderwidth=1)
     style.map("TMenubutton", background=[("active",palette["hover"])])
-    style.configure("TCheckbutton", background=palette["background"], foreground=palette["text"],
-                    indicatorbackground=palette["control"], indicatorforeground="#ffffff",
-                    indicatorbordercolor=palette["border"], indicatormargin=(0,0,8,0), indicatorsize=16)
-    style.map("TCheckbutton", background=[("active",palette["background"])],
-              indicatorbackground=[("selected",palette["accent"])], indicatorforeground=[("selected","#ffffff")])
+    # Clam's default radio hover is nearly white, even with a dark base palette.
+    # Set both styles explicitly so hover/press/disabled never inherit system colors.
+    for control in ("TCheckbutton", "TRadiobutton"):
+        style.configure(control, background=palette["background"], foreground=palette["text"],
+                        indicatorbackground=palette["control"], indicatorforeground="#ffffff",
+                        indicatorbordercolor=palette["border"], indicatormargin=(0,0,8,0), indicatorsize=16)
+        style.map(control, background=[("disabled",palette["background"]),("active",palette["background"])],
+                  foreground=[("disabled",palette["muted"]),("active",palette["text"])],
+                  indicatorbackground=[("selected",palette["accent"]),("pressed",palette["hover"]),
+                                       ("active",palette["hover"])],
+                  indicatorforeground=[("selected","#ffffff")])
     style.layout("Theme.TRadiobutton", [("Button.border", {"sticky":"nswe", "children":[
         ("Button.focus", {"sticky":"nswe", "children":[("Button.padding", {"sticky":"nswe", "children":[
             ("Button.label", {"sticky":"nswe"})]})]})]})])

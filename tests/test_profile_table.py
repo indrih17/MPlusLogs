@@ -7,6 +7,19 @@ ROOT=test_addon.ROOT
 class ProfileTableTests(unittest.TestCase):
     setUp=test_addon.AddonTests.setUp
 
+    def test_stale_banner_survives_metric_switch_and_popup_setting_then_hides_without_profile(self):
+        self.mpl.SetOption("stalePopup",False)
+        self.mpl.ShowProfile("Киндрих-Гордунни")
+        panel=self.mpl.panel
+        self.assertTrue(panel.staleBanner.shown)
+        self.assertIn("дата неизвестна",panel.staleBanner.message.text)
+        panel.metricTabs.hps.scripts.OnClick()
+        self.assertTrue(panel.staleBanner.shown)
+        self.assertEqual(panel.height,732)
+        self.mpl.ShowProfile("Missing-Silvermoon")
+        self.assertFalse(panel.staleBanner.shown)
+        self.assertEqual(panel.height,700)
+
     def test_wcl_column_order_and_snapshot_metadata(self):
         self.mpl.ShowProfile("Киндрих-Гордунни")
         panel=self.mpl.panel

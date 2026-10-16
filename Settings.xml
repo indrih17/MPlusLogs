@@ -1,0 +1,16 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="MPlusLogsPercentileDescriptionTemplate" mixin="MPlusLogsPercentileDescriptionMixin" virtual="true">
+        <Size y="42"/>
+        <Layers>
+            <Layer level="ARTWORK">
+                <FontString parentKey="Text" inherits="GameFontHighlightSmall" justifyH="LEFT" justifyV="TOP" wordwrap="true">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="37"/>
+                        <Anchor point="TOPRIGHT" x="-40"/>
+                    </Anchors>
+                    <Color r="0.7" g="0.7" b="0.7"/>
+                </FontString>
+            </Layer>
+        </Layers>
+    </Frame>
+</Ui>

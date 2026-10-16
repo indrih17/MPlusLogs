@@ -37,7 +37,9 @@ class App:
         self.want_running = self.exiting = False
         self.clipboard_sequence, self.clipboard_events = None, []
         self.last_heartbeat = 0
-        self.mode_diagnostic = "--diagnostic" in sys.argv
+        # The no-WCL transport test is available only through an explicit
+        # development launch from source, never in the packaged application.
+        self.mode_diagnostic = not getattr(sys, "frozen", False) and "--diagnostic" in sys.argv
         self.settings_window = None
         self.personal_setup = None
         self.update_worker = None
@@ -333,15 +335,19 @@ class App:
                             variable=self.startup_mode, command=self.save_preferences).pack(anchor="w", pady=3)
         ttk.Label(frame, textvariable=self.textvar('Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник.'), style="Muted.TLabel").pack(anchor="w", pady=(0,8))
         ttk.Checkbutton(frame, textvariable=self.textvar('Звук готовности ответа'), variable=self.sound, command=self.save_preferences).pack(anchor="w", pady=6)
-        ttk.Label(frame, textvariable=self.textvar('Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.')).pack(anchor="w", pady=12)
-        ttk.Button(frame, textvariable=self.textvar('Переподключить Warcraft Logs'), command=self.sign_in).pack(anchor="w", pady=4)
-        ttk.Button(frame, textvariable=self.textvar('Check Companion updates'), command=lambda: self.check_updates(manual=True)).pack(anchor="w", pady=4)
+        account_actions = ttk.Frame(frame)
+        account_actions.pack(fill="x", pady=(12, 0))
+        ttk.Label(account_actions, text="Warcraft Logs", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        ttk.Button(account_actions, textvariable=self.textvar('Переподключить Warcraft Logs'), command=self.sign_in).pack(fill="x", pady=4)
+        ttk.Button(account_actions, textvariable=self.textvar('Выйти из Warcraft Logs'), command=self.sign_out).pack(fill="x", pady=4)
+        companion_actions = ttk.Frame(frame)
+        companion_actions.pack(fill="x", pady=(12, 0))
+        ttk.Label(companion_actions, text="Companion", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        ttk.Button(companion_actions, textvariable=self.textvar('Check Companion updates'), command=lambda: self.check_updates(manual=True)).pack(fill="x", pady=4)
         if self.failed_update_version:
-            ttk.Button(frame, textvariable=self.textvar('Open update installation log'), command=self.open_update_log).pack(anchor="w", pady=4)
-        ttk.Button(frame, textvariable=self.textvar('Выйти из Warcraft Logs'), command=self.sign_out).pack(anchor="w", pady=4)
-        ttk.Label(frame, textvariable=self.textvar('Диагностика'), font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(20, 4))
-        ttk.Button(frame, textvariable=self.textvar('Проверить связь с аддоном без WCL'), command=self.toggle_diagnostic).pack(anchor="w", pady=4)
-        ttk.Button(frame, textvariable=self.textvar('Завершить помощник'), command=self.exit).pack(anchor="w", pady=8)
+            ttk.Button(companion_actions, textvariable=self.textvar('Open update installation log'), command=self.open_update_log).pack(fill="x", pady=4)
+        ttk.Button(companion_actions, textvariable=self.textvar('Завершить помощник'), command=self.exit).pack(fill="x", pady=4)
+        ttk.Label(companion_actions, textvariable=self.textvar('Закрытие окна оставляет помощник в трее.\nДля завершения: ПКМ по значку → Выйти.'), style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
         window.update_idletasks()
         self.refresh_theme(force=True)
 
@@ -377,12 +383,6 @@ class App:
         if windows.autostart_enabled():
             return "windows"
         return "manual"
-
-    def toggle_diagnostic(self):
-        self.mode_diagnostic = not self.mode_diagnostic
-        self.stop.set()
-        self.want_running = True
-        self.status.set("Проверка связи включена: WCL не запрашивается." if self.mode_diagnostic else "Проверка связи выключена.")
 
     def toggle(self):
         if self.installing_update:

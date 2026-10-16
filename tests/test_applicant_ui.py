@@ -80,6 +80,42 @@ class ApplicantUITests(unittest.TestCase):
         self.assertTrue(f.shown)
         self.assertIn("/Bob?zone=55", f.edit.text)
 
+    def test_dungeon_row_links_follow_current_player_dungeon_and_metric(self):
+        self.mpl.ShowProfile("Киндрих-Гордунни")
+        f = self.mpl.panel
+        row = f.rows[1]
+        row.scripts.OnMouseUp(row, "RightButton")
+        self.assertIsNone(self.mpl.copy)
+        row.scripts.OnMouseUp(row, "LeftButton")
+        self.assertEqual(self.mpl.copy.edit.text,
+                         "https://www.warcraftlogs.com/character/id/81818678?zone=55"
+                         "&boss=12993&metric=points_and_damage")
+        row.scoreSpecIcon.scripts.OnMouseUp(row.scoreSpecIcon, "LeftButton")
+        self.assertIn("&boss=12993&", self.mpl.copy.edit.text)
+        # Reuse the rendered rows for a different character and dungeon.
+        f.name = "Alice"
+        f.realm = "Area 52"
+        f.profile = self.lua.table_from({
+            "spec": "All specs", "metric": "dps", "realmSlug": "area-52",
+            "dungeons": self.lua.table_from([
+                self.lua.table_from({"name": "Ruby Life Pools"})])})
+        f.viewMetric = "hps"
+        self.mpl.RenderProfileStats(f)
+        row.scripts.OnMouseUp(row, "LeftButton")
+        self.assertIn("/area-52/Alice?zone=55&boss=112521&metric=points_and_healing",
+                      self.mpl.copy.edit.text)
+        # The generic profile button still produces the unfiltered profile URL.
+        self.mpl.CopyURL(f.name, f.realm, f.profile)
+        self.assertNotIn("&boss=", self.mpl.copy.edit.text)
+
+    def test_dungeon_links_use_wcl_encounter_ids_and_ignore_unknown_dungeons(self):
+        for name, encounter in (("Kings' Rest", 61762), ("Temple of Sethraliss", 61877),
+                                ("Den of Nalorakk", 12825), ("Murder Row", 12813),
+                                ("The Blinding Vale", 12859), ("Voidscar Arena", 12923)):
+            self.assertIn(f"&boss={encounter}&", self.mpl.DungeonURL(
+                "Alice", "Area 52", None, name, "dps"))
+        self.assertIsNone(self.mpl.DungeonURL("Alice", "Area 52", None, "Unknown", "dps"))
+
     def test_invite_visible_only_with_applicant_origin_and_group_label(self):
         self.authorize()
         self.mpl.ShowProfile("Alice", "Гордунни", self.players()[1])

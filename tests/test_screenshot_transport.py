@@ -62,7 +62,7 @@ class ReplyTests(unittest.TestCase):
     def test_send_never_captures_screen_or_changes_settings(self):
         id,request=self.mpl.SendRequest("Киндрих","Гордунни","dps","Guardian")
         self.assertEqual(id,"12345-1")
-        self.assertTrue(request.startswith("MPLS1\n12345-1\nMPLQ1\n"))
+        self.assertTrue(request.startswith("MPLS2\n12345-1\nMPLC1 specdetails\nMPLQ1\n"))
         self.assertEqual(len(self.lua.globals().timers),0)
         self.assertIsNone(self.lua.globals().shots)
         self.assertEqual(self.lua.globals().cvars.screenshotQuality,"3")
@@ -89,7 +89,7 @@ class ReplyTests(unittest.TestCase):
         window=self.mpl.downloadWindow
         edit=window.edit
         request=edit.GetText(edit)
-        self.assertTrue(request.startswith("MPLS2\n12345-1\nMPLC1 specprofiles\nMPLQ1\n"))
+        self.assertTrue(request.startswith("MPLS2\n12345-1\nMPLC1 specprofiles,specdetails\nMPLQ1\n"))
         # Real client notifications can arrive after SetText's guard is reset.
         for flag in (False,True):
             edit.scripts.OnTextChanged(edit,flag)

@@ -2,8 +2,8 @@ local _, MPL = ...
 local L = MPL.L
 local sequence = 0
 
--- Request metadata only when a feature requires it. Existing queries keep the
--- original envelope, so working older Companions remain compatible.
+-- Negotiate specialization details so older addons still receive legacy rows
+-- from the updated Companion, while new requests can include ranks and icons.
 local function envelope(id, body,includeSpecs,refresh)
     local capabilities,seen={},{}
     local function add(value)
@@ -11,6 +11,7 @@ local function envelope(id, body,includeSpecs,refresh)
     end
     if includeSpecs then add("specprofiles") end
     if refresh then add("refresh") end
+    add("specdetails")
     for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do add(value) end
     if #capabilities>0 then
         return "MPLS2\n"..id.."\nMPLC1 "..table.concat(capabilities,",").."\n"..body

@@ -165,7 +165,7 @@ class Client:
         return result
 
 
-def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False, spec_profiles=False, refresh=False):
+def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False, spec_profiles=False, refresh=False, spec_details=True):
     if not text.startswith(("MPLQ1\n","MPLQ1\r\n","MPLQ2\n","MPLQ2\r\n")):
         raise ValueError("Copy a MPlusLogs request in WoW first")
     batch=batch or text.startswith(("MPLQ2\n","MPLQ2\r\n"))
@@ -217,7 +217,7 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
         raise ValueError("No usable profile: " + "; ".join(reasons))
     # Check duplicate identities and the addon's import size bound before export.
     if profiles: builder.bundle(profiles)
-    response = ("MPL2\n" if batch else "MPL1\n") + "".join(wcl.export(p).removeprefix("MPL1\n") for p in profiles)
+    response = ("MPL2\n" if batch else "MPL1\n") + "".join(wcl.export(p, spec_details=spec_details).removeprefix("MPL1\n") for p in profiles)
     if batch:
         errors={}
         for item in report['errors']:
