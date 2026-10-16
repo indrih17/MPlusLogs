@@ -10,7 +10,11 @@ WoW addons cannot fetch data from websites directly. **MPlusLogs Companion** is 
 
 WITHOUT COMPANION INSTALLED AND RUNNING, THE ADDON CANNOT LOAD NEW LOG DATA.
 
-1. Install the addon with CurseForge and [download Companion for Windows 10/11 x64](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe). Run **MPlusLogs-Companion-Setup.exe**.
+1. Install the addon with CurseForge and [download the recommended Companion installer for Windows 10/11 x64](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe). Run **MPlusLogs-Companion-Setup.exe**.
+
+    Alternatively, download the [portable version in ZIP](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Portable.zip), extract the entire folder and run **MPlusLogs-Companion.exe**. Keep the **_internal** folder beside the EXE. Both links always provide the current release.
+
+    Do not put Companion inside an individual addon folder such as **AddOns\\MPlusLogs**: updating that addon can remove Companion's files. The **AddOns** folder itself or a separate Companion folder is fine. The installer recommends **%LOCALAPPDATA%\\Programs\\MPlusLogs Companion** and lets you choose a folder again when reinstalling.
 2. Start Companion and choose **Set up personal API**. The built-in guide will help you:
     - create your Warcraft Logs API client;
     - paste its **Client ID**;
@@ -29,6 +33,9 @@ You can also use `/mpl`: in a party it opens your group's logs; outside a party 
 
 ## A few things to know
 
+- Both Companion versions support updates from the app: the installed version uses Setup; the portable version downloads a ZIP and replaces its files automatically, restoring the previous version if replacement or the new version's self-test fails. Keep Companion updated so it supports new addon requests.
+- Both versions keep login and settings in AppData and support optional startup with Windows or WoW Retail. After manually moving the portable folder, enable startup again from its new location.
+- **Update M+ logs** requests fresh Warcraft Logs data once five minutes have passed since the last successful fetch for that character and specialization. Reading cached data or loading other players does not restart this timer.
 - Saved data stays between sessions. **Last loaded** is the date the data was fetched, not the date a key was completed. Stale data is shown in grey.
 - Only runs available to Warcraft Logs are included. Missing logs are shown as unavailable; percentiles do not measure survival, interrupts or mechanics.
 - Companion processes only MPlusLogs clipboard requests. Other clipboard text is not sent to Warcraft Logs.
@@ -53,7 +60,11 @@ Questions or ideas? Join us on [Discord](https://discord.gg/URUukHCUW).
 
 БЕЗ УСТАНОВЛЕННОГО И ЗАПУЩЕННОГО COMPANION АДДОН НЕ СМОЖЕТ ЗАГРУЗИТЬ НОВЫЕ ЛОГИ.
 
-1. Установите аддон через CurseForge и [скачайте Companion для Windows 10/11 x64](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe). Запустите **MPlusLogs-Companion-Setup.exe**.
+1. Установите аддон через CurseForge и [скачайте рекомендуемый установщик Companion для Windows 10/11 x64](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe). Запустите **MPlusLogs-Companion-Setup.exe**.
+
+    Также доступна [portable версия в ZIP](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Portable.zip): распакуйте папку целиком и запустите **MPlusLogs-Companion.exe**, оставив папку **_internal** рядом с EXE. Обе ссылки всегда ведут на текущую версию.
+
+    Не размещайте Companion внутри папки отдельного аддона, например **AddOns\\MPlusLogs**: обновление этого аддона может удалить файлы Companion. Сама папка **AddOns** или отдельная папка Companion подходят. Установщик рекомендует **%LOCALAPPDATA%\\Programs\\MPlusLogs Companion** и позволяет заново выбрать папку при переустановке.
 2. Запустите Companion и выберите **«Подключить личный API»**. Встроенная инструкция поможет:
     - создать API-клиент Warcraft Logs;
     - вставить его **Client ID**;
@@ -72,6 +83,9 @@ Questions or ideas? Join us on [Discord](https://discord.gg/URUukHCUW).
 
 ### Полезно знать
 
+- Оба варианта Companion поддерживают обновление из программы: установленная версия обновляется через Setup; portable версия скачивает ZIP и автоматически заменяет свои файлы. При ошибке замены или самопроверки новой версии восстанавливается предыдущая. Обновляйте Companion, чтобы он поддерживал новые запросы аддона.
+- Оба варианта сохраняют вход и настройки в AppData и поддерживают автозапуск с Windows или WoW Retail. После ручного переноса папки portable включите автозапуск заново из нового расположения.
+- Кнопка **«Обновить М+ логи»** запрашивает свежие данные Warcraft Logs, если с последней успешной загрузки для этого персонажа и специализации прошло пять минут. Чтение кэша и загрузка других игроков не запускают этот таймер заново.
 - Загруженные данные сохраняются между сессиями. **«Последняя загрузка»** — дата получения данных, а не прохождения ключа. Устаревшие данные показаны серым.
 - В статистику попадают только прохождения, доступные Warcraft Logs. Если логов нет, это видно в окне. Проценты не оценивают выживание, прерывания и выполнение механик.
 - Companion обрабатывает только запросы MPlusLogs из буфера обмена. Другой текст не отправляется в Warcraft Logs.

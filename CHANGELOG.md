@@ -1,5 +1,9 @@
 # Changelog
 
+## Release tooling
+
+- Update the bilingual CurseForge description with portable downloads, Companion updates, installation folders and manual log refresh timing.
+
 ## Companion 1.0.16
 
 - Refresh explicitly requested M+ profiles from Warcraft Logs after a five-minute per-profile cache interval; retain cached data and its original date on API failures.
