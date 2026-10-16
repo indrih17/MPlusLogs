@@ -205,9 +205,7 @@ function MPL.SelectedSpec(name,realm,role)
     local choices=MPlusLogsDB and MPlusLogsDB.selectedSpecs
     local selected=choices and choices[key..":"..role]
     if selected then return selected end
-    local main=MPL.DefaultProfileSpec and MPL.DefaultProfileSpec(name,realm,role~="" and role or nil)
-    if main then return main end
-    if role~="" then return "All specs" end
+    return "All specs"
 end
 
 function MPL.SelectSpec(name,realm,spec,role)

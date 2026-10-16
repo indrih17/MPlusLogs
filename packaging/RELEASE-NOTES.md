@@ -1,3 +1,4 @@
-## Release tooling
+## MPlusLogs 0.5.24
 
-- Update the bilingual CurseForge description with portable downloads, Companion updates, installation folders and manual log refresh timing.
+- Add All Specs to the profile selector and use it by default, preserving explicit specialization choices.
+- Keep the aggregate Warcraft Logs profile selected after loading specialization history.

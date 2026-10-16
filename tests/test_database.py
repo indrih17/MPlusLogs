@@ -109,7 +109,7 @@ class DatabaseTests(unittest.TestCase):
         code = builder.bundle(profiles)
         self.lua.execute("return assert(loadstring(...))",code)("MPlusLogs",self.mpl)
         self.mpl.LoadBundle()
-        p, _, _ = self.mpl.GetProfile("Друг-Гордунни")
+        p, _, _ = self.mpl.GetProfile("Друг-Гордунни",None,"Guardian")
         self.assertEqual(p.name, "Друг")
         self.assertEqual(p.source, profiles[0]["source"])
         self.assertEqual(p.best, 62)
@@ -121,7 +121,7 @@ class DatabaseTests(unittest.TestCase):
         self.mpl.Import(wcl_sync.export(older))
         self.lua.execute("return assert(loadstring(...))",builder.bundle(profiles))("MPlusLogs",self.mpl)
         self.mpl.LoadBundle()
-        self.assertEqual(self.mpl.GetProfile("Киндрих-Гордунни")[0].best,62)
+        self.assertEqual(self.mpl.GetProfile("Киндрих-Гордунни",None,"Guardian")[0].best,62)
 
     def test_queue_cyrillic_and_realm_resolution(self):
         self.mpl.Remember("Друг","Гордунни")

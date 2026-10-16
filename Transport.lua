@@ -172,10 +172,6 @@ function MPL.ReceiveReply(text, strict)
         if count then
             if MPL.profileStates then MPL.profileStates[expected]=nil end
             if MPlusLogsDB.profileStates then MPlusLogsDB.profileStates[expected]=nil end
-            if pendingReply.includeSpecs and pendingReply.spec=="" then
-                local main=MPL.DefaultProfileSpec(pendingReply.name,pendingReply.realm,pendingReply.role)
-                if main then MPL.SelectSpec(pendingReply.name,pendingReply.realm,main,pendingReply.role) end
-            end
             MPL.pendingReply=nil; MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context,true)
             if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
         end

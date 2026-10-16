@@ -176,7 +176,7 @@ class AddonTests(unittest.TestCase):
 
     def test_export_import_round_trip_and_precedence(self):
         self.assertEqual(self.mpl.Import(self.export()), 1)
-        profile, _, _ = self.mpl.GetProfile("Киндрих-Гордунни")
+        profile, _, _ = self.mpl.GetProfile("Киндрих-Гордунни",None,"Guardian")
         self.assertEqual(profile.spec, "Guardian")
         self.assertEqual(profile.best, 62)
         self.assertEqual(profile.dungeons[1].amount, 168110)
@@ -191,7 +191,7 @@ class AddonTests(unittest.TestCase):
             result, error = self.mpl.Import(bad)
             self.assertIsNone(result)
             self.assertTrue(error)
-            self.assertEqual(self.mpl.GetProfile("Киндрих-Гордунни")[0].best, 62)
+            self.assertEqual(self.mpl.GetProfile("Киндрих-Гордунни",None,"Guardian")[0].best, 62)
 
     def test_no_data_is_distinct_from_zero(self):
         self.assertIsNone(self.mpl.GetProfile("Nobody-Гордунни")[0])
@@ -210,6 +210,7 @@ class AddonTests(unittest.TestCase):
         self.assertFalse(self.mpl.panel.scroll.shown)
         self.assertFalse(self.mpl.panel.rows[1].shown)
         self.mpl.Import(self.export().replace("\tdps\t", "\thps\t"))
+        self.mpl.SelectSpec("Киндрих","Гордунни","Guardian")
         self.mpl.ShowProfile("Киндрих-Гордунни")
         self.assertEqual(self.mpl.panel.metricHeading.text, "Лучший DPS")
         self.assertEqual(self.mpl.panel.headings[8].text,"Best %")

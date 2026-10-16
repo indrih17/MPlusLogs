@@ -61,9 +61,9 @@ class SpecProfileTests(unittest.TestCase):
             count,error=self.mpl.ReceiveReply(response,True)
         self.assertIsNotNone(count,msg=error)
         self.assertEqual(set(calls),{None,'Elemental','Enhancement'})
-        self.assertEqual(self.mpl.panel.specButton.text,'Elemental')
-        self.assertEqual(self.mpl.panel.profile.spec,'Elemental')
-        self.assertEqual(self.mpl.panel.profile.dungeons[1].amount,111111)
+        self.assertEqual(self.mpl.panel.specButton.text,'Все специализации')
+        self.assertEqual(self.mpl.panel.profile.spec,'All specs')
+        self.assertEqual(self.mpl.panel.profile.dungeons[1].amount,168110)
         self.assertEqual(set(self.mpl.ProfileSpecs('Киндрих','Гордунни').values()),{'Elemental','Enhancement'})
         self.mpl.SelectSpec('Киндрих','Гордунни','Enhancement')
         self.mpl.ShowProfile('Киндрих','Гордунни')
@@ -172,15 +172,15 @@ class SpecProfileTests(unittest.TestCase):
         specs=self.mpl.ProfileSpecs("Nobody", "Гордунни")
         self.assertEqual(list(specs.values()), [])
 
-    def test_live_player_auto_selection_tracks_spec_changes(self):
+    def test_live_player_defaults_to_all_specs_across_spec_changes(self):
         self.live_player()
         self.mpl.Import(self.export(None))
         self.mpl.ShowProfile("Киндрих", "Гордунни")
-        self.assertEqual(self.mpl.panel.selectedSpec, "Blood")
-        self.assertFalse(self.mpl.panel.profile)  # Do not mislabel aggregate logs.
+        self.assertEqual(self.mpl.panel.selectedSpec, "All specs")
+        self.assertEqual(self.mpl.panel.profile.spec, "All specs")
         self.lua.execute('C_SpecializationInfo.GetSpecializationInfo=function() return 252,"Unholy" end')
         self.mpl.ShowProfile("Киндрих", "Гордунни")
-        self.assertEqual(self.mpl.panel.selectedSpec, "Unholy")
+        self.assertEqual(self.mpl.panel.selectedSpec, "All specs")
         self.assertIn("Текущая специализация: Unholy", self.mpl.panel.character.text)
 
     def test_target_class_is_known_without_inspect_and_cached_spec_is_used(self):
@@ -215,7 +215,8 @@ class SpecProfileTests(unittest.TestCase):
         ''')
         self.mpl.ShowProfile("Киндрих", "Гордунни")
         self.assertIn("Текущая специализация: Лёд", self.mpl.panel.character.text)
-        self.assertEqual(self.mpl.panel.specButton.text,"Лёд")
+        self.assertEqual(self.mpl.panel.specButton.text,"Все специализации")
+        self.assertEqual(self.mpl.SpecLabel("Frost","DEATHKNIGHT"),"Лёд")
         self.assertEqual(self.mpl.SpecLabel("Frost","MAGE"),"Маг: Лёд")
 
     def test_spec_change_event_refreshes_open_profile_and_preserves_metric(self):
@@ -266,20 +267,24 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.Import(self.export("Feral"))
         self.assertEqual(self.profile("Guardian").spec, "Guardian")
 
-    def test_spec_auto_selection_follows_candidate_and_applied_role(self):
+    def test_all_specs_default_is_independent_of_candidate_spec_and_role(self):
         self.mpl.Import(self.export()); self.mpl.Import(self.export("Feral"))
-        self.mpl.RecordApplicant("Киндрих-Гордунни", "TANK", 104, "DRUID")
-        self.assertEqual(self.profile().spec, "Guardian")
-        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 103, "DRUID")
-        self.assertEqual(self.profile().spec, "Feral")
-        self.mpl.RecordApplicant("Киндрих-Гордунни", "TANK", 103, "DRUID")
-        self.assertEqual(self.profile().spec, "Guardian")  # Use saved tank logs, not Feral damage logs.
-        self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", None, "DRUID")
-        self.assertEqual(self.mpl.SelectedSpec("Киндрих", "Гордунни"), "Feral")
+        raw=api_fixture(); char=raw["data"]["characterData"]["character"]
+        char["damage"]=char.pop("performance"); char["healing"]=copy.deepcopy(char["damage"])
+        for role in ("TANK", "DAMAGER"):
+            args=SimpleNamespace(realm="Гордунни",region="eu",zone=55,season="test",
+                                 spec=None,role=role,metric="dps",server_slug=None)
+            self.mpl.Import(wcl.export(wcl.normalize(raw,args)))
+        for role,spec_id in [("TANK",104),("DAMAGER",103),("TANK",103),("DAMAGER",None)]:
+            self.mpl.RecordApplicant("Киндрих-Гордунни", role, spec_id, "DRUID")
+            self.assertEqual(self.mpl.SelectedSpec("Киндрих", "Гордунни"), "All specs")
+            self.assertEqual(self.profile().spec, "All specs")
+            self.assertEqual(self.profile().role, role)
 
     def test_known_spec_missing_is_requested_instead_of_using_fresh_all_specs(self):
         self.mpl.Import(self.export(None))
         self.mpl.RecordApplicant("Киндрих-Гордунни", "TANK", 104, "DRUID")
+        self.mpl.SelectSpec("Киндрих", "Гордунни", "Guardian", "TANK")
         players = self.lua.table_from([self.lua.table_from({"name":"Киндрих", "realm":"Гордунни", "spec":"Guardian", "role":"TANK"})])
         pending, skipped = self.mpl.FilterFreshProfiles(players)
         self.assertEqual(len(pending), 1); self.assertEqual(skipped, 0)
@@ -315,7 +320,7 @@ class SpecProfileTests(unittest.TestCase):
     def test_missing_dungeon_does_not_show_other_dungeon_numbers(self):
         self.mpl.Import(self.export())
         tooltip = self.lua.globals().GameTooltip
-        self.mpl.AddDungeonTooltip(tooltip, self.profile(), "dps", False, "Murder Row")
+        self.mpl.AddDungeonTooltip(tooltip, self.profile("Guardian"), "dps", False, "Murder Row")
         self.assertEqual(tooltip.lines[1][1], "[MR] Нет загруженных логов этого подземелья")
         self.assertEqual(len(tooltip.lines), 1)
 
@@ -334,8 +339,9 @@ class SpecProfileTests(unittest.TestCase):
         self.lua.execute("combat=true")
         self.assertIsNone(self.mpl.ListedDungeon())
 
-    def test_selector_keeps_saved_profiles_and_restores_automatic_selection(self):
+    def test_selector_keeps_saved_profiles_and_restores_all_specs(self):
         self.transport()
+        self.mpl.snapshots=None
         self.mpl.Import(self.export()); self.mpl.Import(self.export("Feral"))
         self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 103, "DRUID")
         self.lua.execute('''
@@ -350,9 +356,10 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.ShowProfile("Киндрих", "Гордунни")
         self.mpl.panel.specButton.scripts.OnClick()
         choices=self.lua.globals().radioOptions
-        self.assertTrue(choices["Feral — основной — загружено"].checked())
+        self.assertFalse(choices["Feral — основной — загружено"].checked())
         self.assertIsNotNone(choices["Guardian — загружено"])  # Saved logs from other roles remain selectable.
         self.assertIsNone(choices.Balance)  # No Balance logs have been loaded.
+        self.assertTrue(choices["Все специализации"].checked())
         choices["Guardian — загружено"].select()
         self.assertEqual(self.mpl.panel.profile.spec, "Guardian")
         self.assertEqual(self.profile("Feral").best, 62)
@@ -361,6 +368,14 @@ class SpecProfileTests(unittest.TestCase):
         self.assertTrue(choices["Guardian — загружено"].checked())
         choices["Feral — основной — загружено"].select()
         self.assertEqual(self.mpl.panel.profile.spec, "Feral")
+        self.mpl.panel.specButton.scripts.OnClick()
+        choices=self.lua.globals().radioOptions
+        choices["Все специализации"].select()
+        self.assertEqual(self.mpl.panel.selectedSpec, "All specs")
+        self.assertFalse(self.mpl.panel.profile)
+        self.assertTrue(self.mpl.panel.specButton.canSelectSpecs)
+        self.mpl.ShowDownload("Киндрих", "Гордунни", None)
+        self.assertEqual(self.mpl.pendingReply.spec, "")
 
     def test_all_specs_profiles_for_different_roles_do_not_overwrite_each_other(self):
         raw=api_fixture(); char=raw["data"]["characterData"]["character"]
@@ -401,7 +416,7 @@ class SpecProfileTests(unittest.TestCase):
 
     def test_selector_shows_current_log_spec_and_switches_to_another(self):
         self.mpl.Import(self.export("Feral")); self.mpl.Import(self.export("Balance"))
-        self.mpl.SelectSpec("Киндрих","Гордунни","Feral")
+        self.mpl.SelectSpec("Киндрих","Гордунни","Feral","DAMAGER")
         self.mpl.RecordApplicant("Киндрих-Гордунни","DAMAGER",103,"DRUID")
         self.mpl.ShowProfile("Киндрих","Гордунни")
         self.assertEqual(self.mpl.panel.specButton.text,"Feral")
@@ -422,15 +437,15 @@ class SpecProfileTests(unittest.TestCase):
         self.assertEqual(self.mpl.panel.specButton.text,"Balance")
         self.assertEqual(self.mpl.panel.profile.spec,"Balance")
 
-    def test_main_log_spec_is_default_even_when_newest_profile_is_aggregate(self):
+    def test_aggregate_is_default_even_with_saved_main_spec(self):
         self.mpl.Import(self.export("Feral"))
         raw=api_fixture(); raw["data"]["characterData"]["character"]["performance"]["rankings"][0]["bestSpec"]="Feral"
         args=SimpleNamespace(realm="Гордунни",region="eu",zone=55,season="test",spec=None,metric="dps",server_slug=None)
         profile=wcl.normalize(raw,args); profile["updated"]="2026-10-13 00:00 UTC"
         self.mpl.Import(wcl.export(profile))
         self.mpl.ShowProfile("Киндрих","Гордунни")
-        self.assertEqual(self.mpl.panel.specButton.text,"Feral")
-        self.assertEqual(self.mpl.panel.profile.spec,"Feral")
+        self.assertEqual(self.mpl.panel.specButton.text,"Все специализации")
+        self.assertEqual(self.mpl.panel.profile.spec,"All specs")
 
     def test_main_spec_comes_from_applicant_even_without_its_logs(self):
         self.mpl.Import(self.export("Feral"))
@@ -457,7 +472,7 @@ class SpecProfileTests(unittest.TestCase):
         self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Feral")
         self.mpl.SetOption("mainSpec", "logs")
         self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Balance")
-        self.assertEqual(self.mpl.SelectedSpec("Киндрих", "Гордунни"), "Balance")
+        self.assertEqual(self.mpl.SelectedSpec("Киндрих", "Гордунни"), "All specs")
         self.mpl.SelectSpec("Киндрих", "Гордунни", "Feral")
         self.assertEqual(self.mpl.MainProfileSpec("Киндрих", "Гордунни"), "Balance")
         self.mpl.SetOption("mainSpec", "current")

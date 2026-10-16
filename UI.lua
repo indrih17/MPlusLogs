@@ -164,7 +164,9 @@ local function buildPanel()
         MenuUtil.CreateContextMenu(f.specButton,function(_,root)
             root:CreateTitle(L["Выбрать специализацию логов"])
             local main=MPL.MainProfileSpec(f.name,f.realm,role)
-            for _,spec in ipairs(MPL.ProfileSpecs(f.name,f.realm)) do
+            local specs={"All specs"}
+            for _,spec in ipairs(MPL.ProfileSpecs(f.name,f.realm)) do specs[#specs+1]=spec end
+            for _,spec in ipairs(specs) do
                 local caption=MPL.SpecLabel(spec,f.class)
                 if spec==main then caption=caption..L[" — основной"] end
                 local stored=MPL.GetProfile(f.name,f.realm,spec)
@@ -449,7 +451,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     local savedSpecs=MPL.ProfileSpecs(name,server)
     f.specButton.detail:SetText(not profile and L["Профиль не загружен"]
         or (#savedSpecs==1 and L["Загружена одна специализация"] or L["Выбрать специализацию логов"]))
-    local canSelectSpecs=profile~=nil or #savedSpecs>1
+    local canSelectSpecs=profile~=nil or #savedSpecs>0
     f.specButton.canSelectSpecs=canSelectSpecs
     f.specButton:SetEnabled(canSelectSpecs); f.specButton:EnableMouse(canSelectSpecs)
     f.specButton.arrow:SetShown(canSelectSpecs)
