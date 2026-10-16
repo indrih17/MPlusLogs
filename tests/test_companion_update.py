@@ -65,7 +65,7 @@ class UpdateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT) as folder:
             target = Path(folder) / "Setup.exe"
             target.write_bytes(b"installer")
-            with patch.object(sys, "frozen", True, create=True), patch.object(updates.subprocess, "Popen") as launch:
+            with patch.object(sys, "frozen", True, create=True), patch.object(updates, 'portable_build', return_value=False), patch.object(updates.subprocess, "Popen") as launch:
                 updates.launch_installer(target, manifest(), result_root=Path(folder) / "results")
                 args = launch.call_args.args[0]
                 script = base64.b64decode(args[-1]).decode("utf-16-le")

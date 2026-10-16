@@ -109,14 +109,34 @@ function RemoveOwned([string]$root, [string]$name) {
     $path = CheckedChild $root $name
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
 }
+Add-Type -TypeDefinition 'using System; using System.Text; using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles; public static class MPlusLogsPortablePaths {
+[DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+public static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder buffer, uint size, uint flags); }'
+function CanonicalPath([string]$path) {
+    try {
+        $file = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]7)
+        try {
+            $buffer = New-Object Text.StringBuilder 32768
+            $size = [MPlusLogsPortablePaths]::GetFinalPathNameByHandle($file.SafeFileHandle, $buffer, 32768, 0)
+            if ($size -gt 0 -and $size -lt 32768) { return $buffer.ToString() }
+        } finally { $file.Dispose() }
+    } catch {}
+    return ''
+}
 try {
     New-Item -ItemType Directory -Path $backup | Out-Null
     Wait-Process -Id $c.pid -Timeout 60 -ErrorAction SilentlyContinue
     # The Retail watcher can hold the same runtime open after the main UI exits.
     $session = (Get-Process -Id $PID).SessionId
-    Get-Process -Name 'MPlusLogs-Companion' -ErrorAction SilentlyContinue |
-        Where-Object { $_.SessionId -eq $session -and $_.Path -eq $c.executable } |
-        Stop-Process -Force
+    $canonicalExecutable = CanonicalPath $c.executable
+    if (!$canonicalExecutable) { throw 'Cannot resolve the running portable executable' }
+    $running = @(Get-Process -Name 'MPlusLogs-Companion' -ErrorAction SilentlyContinue |
+        Where-Object { $_.SessionId -eq $session -and (CanonicalPath $_.Path) -eq $canonicalExecutable })
+    foreach ($process in $running) {
+        Stop-Process -InputObject $process -Force
+        if (!$process.WaitForExit(10000)) { throw 'Portable runtime did not exit' }
+    }
     Add-Content -LiteralPath $log -Value 'Portable update: replacing Companion runtime'
     foreach ($name in $c.owned) {
         $old = CheckedChild $app $name
