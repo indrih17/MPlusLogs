@@ -19,7 +19,7 @@ class BatchTests(unittest.TestCase):
         self.cache=Path(self.temp.name)
         self.lua=LuaRuntime(unpack_returned_tuples=True); self.lua.execute(MOCK)
         self.lua.execute('''
-            MPlusLogsDB={profiles={}}
+            MPlusLogsDB={profiles={},companionIntroDismissed=true}
             timers={}; C_Timer={After=function(_,fn) timers[#timers+1]=fn end}
             LFGListFrame={ApplicationViewer=CreateFrame("Frame")}
             LFGListPVEStub=CreateFrame("Frame"); LFGListPVEStub:SetWidth(338)
@@ -248,7 +248,7 @@ class BatchTests(unittest.TestCase):
         response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,empty)
         self.assertEqual(self.mpl.ReceiveReply(response,True),0)
         self.mpl.OpenBatchResults()
-        self.assertIn("Публичные логи M+ не найдены",self.mpl.batchResultsWindow.rows[1].status.text)
+        self.assertIn("не найдены открытые логи M+",self.mpl.batchResultsWindow.rows[1].status.text)
 
     def test_counter_tracks_current_candidates_and_expired_profiles(self):
         self.mpl.InstallBatchButton()

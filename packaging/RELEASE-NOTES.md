@@ -1,8 +1,7 @@
-## MPlusLogs 0.5.25 / Companion 1.0.17
+## MPlusLogs 0.5.26 / Companion 1.0.18
 
-- Show current specialization, WCL specialization ranks and dungeon score specialization icons in player profiles.
-- Add dungeon-specific WCL links and BlizzMove profile window scaling support.
-- Keep result colors for stale profiles and show a separate warning with the last download date; improve player tabs and download error messages.
-- Respect the five-minute profile refresh interval in the addon and refresh only eligible group profiles.
-- Explain primary statistic choices in settings and update interface translations.
-- Organize Companion settings, fix dark-theme control colors and restrict no-WCL diagnostics to development launches.
+- Rewrite log-loading errors with clear recovery steps, preserve technical details, and show the remaining five-minute refresh cooldown.
+- Guide first-time users through Companion setup and downloading without repeating installation prompts for previously loaded WCL profiles.
+- Keep popup windows above all controls beneath them and remove the unsupported arrow glyph from selected player tabs.
+- Exclude Companion replies from Windows clipboard history and cloud sync, including manually copied replies; remove only exact processed requests from clipboard history when Windows permits access.
+- Use MPlusLogs Companion consistently in interface labels and update translations and clipboard privacy documentation.

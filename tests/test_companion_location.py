@@ -141,6 +141,7 @@ class LocationTests(unittest.TestCase):
             parent = subprocess.Popen([str(old), 'hold'])
             watcher = subprocess.Popen([str(old), 'hold'])
             helper = None
+            new = None
             try:
                 time.sleep(0.2)
                 with self.assertRaises(PermissionError):
@@ -200,6 +201,18 @@ class LocationTests(unittest.TestCase):
                     if process is not None and process.poll() is None:
                         process.kill()
                         process.wait(timeout=10)
+                # The relocated fixture is started by PowerShell, not Popen.
+                # Its marker can exist before Windows releases the executable.
+                if new is not None:
+                    deadline = time.monotonic() + 5
+                    while True:
+                        try:
+                            new.unlink(missing_ok=True)
+                            break
+                        except PermissionError:
+                            if time.monotonic() >= deadline:
+                                raise
+                            time.sleep(0.1)
                 try:
                     winreg.DeleteKey(winreg.HKEY_CURRENT_USER, registry)
                 except FileNotFoundError:

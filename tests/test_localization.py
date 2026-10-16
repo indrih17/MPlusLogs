@@ -10,7 +10,7 @@ PROTECTED=re.compile(r'\|c[0-9a-fA-F]{8}|\|r|Ctrl\+[ACV]|/reload|/mpl|MPlusLogs|
 class LocalizationTests(unittest.TestCase):
     def runtime(self,locale):
         lua=LuaRuntime(unpack_returned_tuples=True); lua.execute(MOCK)
-        lua.execute('MPlusLogsDB={profiles={}}; C_Timer={After=function(_,fn) fn() end}')
+        lua.execute('MPlusLogsDB={profiles={},companionIntroDismissed=true}; C_Timer={After=function(_,fn) fn() end}')
         mpl=lua.table(); load_locales(lua,mpl,locale)
         for file in ['Data.lua','Snapshot.lua','Transport.lua','UI.lua','Integration.lua']:
             lua.execute('return assert(loadstring(...))',(ROOT/file).read_text(encoding='utf-8'))('MPlusLogs',mpl)
@@ -18,6 +18,7 @@ class LocalizationTests(unittest.TestCase):
 
     def test_all_locale_dictionaries_are_complete_and_preserve_controls(self):
         keys=json.loads((ROOT/'Locales/catalog.json').read_text(encoding='utf-8'))
+        authored=json.loads((ROOT/'Locales/ruRU.json').read_text(encoding='utf-8'))
         for locale in LOCALES:
             with self.subTest(locale=locale):
                 _,mpl=self.runtime(locale)
@@ -28,9 +29,18 @@ class LocalizationTests(unittest.TestCase):
                     self.assertIsInstance(translated,str)
                     self.assertTrue(translated.strip())
                     self.assertNotRegex(translated,r'ZX(?:START|END|PH|NEWLINE)')
-                    self.assertEqual(sorted(PROTECTED.findall(translated)),sorted(PROTECTED.findall(key)),msg=(locale,key))
+                    self.assertEqual(sorted(PROTECTED.findall(translated)),sorted(PROTECTED.findall(authored[key])),msg=(locale,key))
                     colors=r'\|c[0-9a-fA-F]{8}|\|r'
-                    self.assertEqual(re.findall(colors,translated),re.findall(colors,key),msg=(locale,key))
+                    self.assertEqual(re.findall(colors,translated),re.findall(colors,authored[key]),msg=(locale,key))
+
+    def test_authored_copy_uses_product_name_and_localized_action_labels(self):
+        for directory in (ROOT/'Locales',ROOT/'tools/companion_locales'):
+            authored=json.loads((directory/'ruRU.json').read_text(encoding='utf-8'))
+            for key,text in authored.items():
+                self.assertNotRegex(text,r"[Пп]омощник",key)
+        _,mpl=self.runtime('enUS')
+        self.assertIn('Check Companion updates',mpl.L['Для загрузки этих логов обновите MPlusLogs Companion.'])
+        self.assertNotIn('/reload',mpl.L['\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку.'])
 
     def test_profile_download_and_wire_identity_in_every_locale(self):
         for locale in LOCALES:

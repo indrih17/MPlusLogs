@@ -124,7 +124,7 @@ class AddonTests(unittest.TestCase):
         for path in ("Data.lua", "Snapshot.lua", "UI.lua", "Integration.lua"):
             code = (ROOT / path).read_text(encoding="utf-8")
             self.lua.execute("return assert(loadstring(...))", code)("MPlusLogs", self.mpl)
-        self.lua.execute("MPlusLogsDB = {profiles={}}")
+        self.lua.execute("MPlusLogsDB = {profiles={},companionIntroDismissed=true}")
 
     def test_identity_cyrillic_realm_spaces_and_snapshot(self):
         profile, name, realm = self.mpl.GetProfile("киндрих-гордунни")

@@ -24,6 +24,31 @@ function MPL.CompanionSupports(capability)
     return MPL.companionInfo.capabilities[capability] or false
 end
 
+function MPL.CompanionHasReplied()
+    return MPlusLogsDB and MPlusLogsDB.companionReplySeen==true
+end
+
+function MPL.CompanionHasHistory()
+    if MPL.CompanionHasReplied() then return true end
+    -- Older saved profiles predate the reply marker. They justify skipping
+    -- onboarding, but do not establish that Companion is running now.
+    for _,profile in pairs(MPlusLogsDB and MPlusLogsDB.profiles or {}) do
+        if type(profile)=="table" and type(profile.source)=="string" and profile.source:find("^WCL API:") then
+            return true
+        end
+    end
+    return false
+end
+
+function MPL.NeedsCompanionIntro()
+    return not MPL.CompanionHasHistory() and not (MPlusLogsDB and MPlusLogsDB.companionIntroDismissed)
+end
+
+local function companionReplied()
+    MPlusLogsDB=MPlusLogsDB or {}
+    MPlusLogsDB.companionReplySeen=true
+end
+
 function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
     sequence=sequence+1
@@ -69,11 +94,14 @@ function MPL.ReceiveReply(text, strict)
         local id,message=text:match("^MPLE1\r?\n([^\r\n]+)\r?\n(.*)")
         if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос"] end
         message=message:gsub("%%(%x%x)",function(hex) return string.char(tonumber(hex,16)) end)
+        if message=="" then return nil,L["Неверный формат ответа логов"] end
+        companionReplied()
         if not pendingReply.batch then
             local lower=string.lower(message)
             local reason
             if lower:find("rankings hidden",1,true) then reason="hidden"
-            elseif lower:find("no public logs",1,true) or lower:find("character not found",1,true)
+            elseif lower:find("character not found",1,true) then reason="missing"
+            elseif lower:find("no public logs",1,true)
                 or message:find(string.char(208,159,209,131,208,177,208,187,208,184,209,135,208,189,209,139,208,181,32,208,187,208,190,208,179,208,184),1,true) then reason="empty"
             elseif lower:find("profile refresh is cooling down",1,true) then reason="retry" end
             if reason then
@@ -145,6 +173,7 @@ function MPL.ReceiveReply(text, strict)
                 end
             end
             local count=MPL.StoreProfiles(result.profiles)
+            companionReplied()
             MPL.pendingReply=nil
             MPL.ShowBatchResults(pendingReply.players,result.profiles,result.failures,count)
             local f=MPL.panel
@@ -171,6 +200,7 @@ function MPL.ReceiveReply(text, strict)
         end
         local count,importError=MPL.Import(body)
         if count then
+            companionReplied()
             if MPL.profileStates then MPL.profileStates[expected]=nil end
             if MPlusLogsDB.profileStates then MPlusLogsDB.profileStates[expected]=nil end
             MPL.pendingReply=nil; MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context,true)

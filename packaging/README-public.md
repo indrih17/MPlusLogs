@@ -84,6 +84,11 @@ with Windows DPAPI. Startup with Windows or WoW Retail is optional. Response sou
 Settings, tokens, cache and recent results are stored in `%LOCALAPPDATA%\MPlusLogs`.
 Sign out to remove saved tokens; uninstall preserves local data.
 
+Replies are marked to stay out of Windows clipboard history and cloud sync.
+When Windows permits history access, Companion removes only exact copies of
+requests it has processed. Other history entries are preserved; history text
+is not logged or transmitted. This does not clear older, unprocessed requests.
+
 Companion contacts Warcraft Logs for browser authorization, token refresh and
 the character/profile requests explicitly initiated through MPlusLogs. It sends
 the requested character name, realm, region and filters, with the WCL access

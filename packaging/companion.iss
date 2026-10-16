@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.17"
+  #define AppVersion "1.0.18"
 #endif
 
 [Setup]
@@ -41,7 +41,7 @@ english.StartupManual=Do not start automatically; I will open it myself
 english.StartupRegistryWarning=Windows could not save the automatic start setting. Open MPlusLogs Companion settings to choose it manually.
 english.UnsafeInstallDirectory=Do not install Companion inside an individual addon folder (for example AddOns\MPlusLogs). Choose AddOns itself, a separate Companion folder, or %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 russian.StartupPageTitle=Когда запускать MPlusLogs Companion
-russian.StartupPageDescription=Выберите, когда помощник должен быть готов к загрузке логов.
+russian.StartupPageDescription=Выберите, когда MPlusLogs Companion должен быть готов к загрузке логов.
 russian.StartupPageNote=Позже это можно изменить в настройках Companion. В конце установки также будет предложено открыть программу.
 russian.StartupWindows=Запускать автоматически при входе в Windows
 russian.StartupRetail=Запускать автоматически вместе с WoW Retail

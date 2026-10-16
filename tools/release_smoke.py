@@ -8,6 +8,8 @@ import windows_integration as windows
 
 
 def run(report_path):
+    import clipboard_history
+    assert clipboard_history.valid_request("unrelated text") is False
     import clipboard_protocol
     import wcl_sync
     assert 'specprofiles' in clipboard_protocol.CAPABILITIES
@@ -49,4 +51,4 @@ def run(report_path):
     finally:
         root.destroy()
     Path(report_path).write_text(json.dumps({"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
-        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide"]}, indent=2), encoding="utf-8")
+        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide", "clipboard-privacy"]}, indent=2), encoding="utf-8")

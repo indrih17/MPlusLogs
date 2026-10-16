@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import time
 from api_budget import Budget
+import clipboard_history
 
 import build_database as builder
 import realm_resolver
@@ -39,6 +40,12 @@ class WindowsClipboard:
         self.user.GetClipboardData.restype = wintypes.HANDLE
         self.user.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
         self.user.SetClipboardData.restype = wintypes.HANDLE
+        self.user.RegisterClipboardFormatW.argtypes = [wintypes.LPCWSTR]
+        self.user.RegisterClipboardFormatW.restype = wintypes.UINT
+        self.private_formats = [self.user.RegisterClipboardFormatW(name) for name in (
+            "ExcludeClipboardContentFromMonitorProcessing", "CanIncludeInClipboardHistory", "CanUploadToCloudClipboard")]
+        if not all(self.private_formats):
+            raise OSError("Could not register private clipboard formats")
         self.user.GetClipboardSequenceNumber.restype = wintypes.DWORD
         self.user.CreateWindowExW.argtypes = [wintypes.DWORD,wintypes.LPCWSTR,wintypes.LPCWSTR,wintypes.DWORD,
                                              ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,
@@ -86,34 +93,53 @@ class WindowsClipboard:
         finally:
             self.user.CloseClipboard()
 
-    def reply_if_unchanged(self, expected, response):
-        # Holding OpenClipboard makes comparison/replacement one operation.
-        # Preserve unrelated text copied while the WCL request was running.
-        data = (response + "\0").encode("utf-16-le")
+    def _allocate(self, data):
         handle = self.kernel.GlobalAlloc(0x0002, len(data))
         if not handle:
             raise OSError("Clipboard allocation failed")
-        transferred = False
+        pointer = self.kernel.GlobalLock(handle)
+        if not pointer:
+            self.kernel.GlobalFree(handle)
+            raise OSError("Clipboard allocation lock failed")
+        try:
+            ctypes.memmove(pointer, data, len(data))
+        finally:
+            self.kernel.GlobalUnlock(handle)
+        return handle
+
+    def write_private(self, response):
+        """An explicit user copy may replace the current clipboard, without history."""
+        return self._replace(response)
+
+    def reply_if_unchanged(self, expected, response):
+        clipboard_history.forget_request(expected)
+        return self._replace(response, expected)
+
+    def _replace(self, response, expected=None):
+        # Preallocate before clearing anything; Windows owns each transferred handle.
+        allocations = {}
         opened = False
         try:
-            pointer = self.kernel.GlobalLock(handle)
-            if not pointer:
-                raise OSError("Clipboard allocation lock failed")
-            ctypes.memmove(pointer,data,len(data))
-            self.kernel.GlobalUnlock(handle)
+            for format_id in self.private_formats:
+                allocations[format_id] = self._allocate(b"\0" * 4)
+            allocations[self.CF_UNICODETEXT] = self._allocate((response + "\0").encode("utf-16-le"))
             if not self.user.OpenClipboard(self.owner):
                 raise OSError("Clipboard is busy; response saved to file")
             opened = True
-            if self._read_open() != expected:
+            if expected is not None and self._read_open() != expected:
                 return False
-            if not self.user.EmptyClipboard() or not self.user.SetClipboardData(self.CF_UNICODETEXT,handle):
+            if not self.user.EmptyClipboard():
                 raise OSError("Clipboard write failed; response saved to file")
-            transferred = True
+            # Publish exclusions before the text, in the same clipboard transaction.
+            for format_id, handle in list(allocations.items()):
+                if not self.user.SetClipboardData(format_id, handle):
+                    raise OSError("Clipboard write failed; response saved to file")
+                del allocations[format_id]
             return True
         finally:
             if opened:
                 self.user.CloseClipboard()
-            if not transferred:
+            for handle in allocations.values():
                 self.kernel.GlobalFree(handle)
 
 

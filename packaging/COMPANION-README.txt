@@ -1,4 +1,4 @@
-MPlusLogs Companion 1.0.17 for Windows 10/11 x64
+MPlusLogs Companion 1.0.18 for Windows 10/11 x64
 
 Install using the Setup exe, or extract the entire portable ZIP to a permanent
 folder and run MPlusLogs-Companion.exe. Python is included; no separate install
@@ -23,6 +23,11 @@ with Ctrl+V. Choose the interface language in Settings > Language. The default f
 Only MPlusLogs request envelopes are sent to Warcraft Logs. Other clipboard
 contents are not sent. The Companion does not read game memory or automate
 gameplay. Optional startup settings are disabled by default.
+
+Replies are marked to stay out of Windows clipboard history and cloud sync.
+When Windows permits history access, Companion removes only exact copies of
+requests it has processed. Other history entries are preserved; history text
+is not logged or transmitted. This does not clear older, unprocessed requests.
 
 Settings and DPAPI-protected login tokens are stored in:
 %LOCALAPPDATA%\MPlusLogs\settings.json

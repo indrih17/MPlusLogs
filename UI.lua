@@ -7,19 +7,23 @@ local ruApiAccess=string.char(208,180,208,190,209,129,209,130,209,131,208,191,32
 local ruNoPublicLogs=string.char(208,159,209,131,208,177,208,187,208,184,209,135,208,189,209,139,208,181,32,208,187,208,190,208,179,208,184,32,77,43,32,208,189,208,181,32,208,189,208,176,208,185,208,180,208,181,208,189,209,139)
 local function companionError(errorText)
     if not errorText then return "" end
+    errorText=errorText:match("^%s*(.-)%s*$")
     local personal=errorText:find("Personal API; ",1,true)
     local reset=tonumber(errorText:match("API reset at (%d+); "))
     errorText=errorText:gsub("Personal API; ",""):gsub("Shared API; ","")
     errorText=errorText:gsub("API reset at %d+; ","")
     local lower=string.lower(errorText)
+    local function details(message)
+        return message.."\n"..L["Подробности: "]..errorText
+    end
     if lower:find("http 401",1,true) or lower:find("unauthor",1,true)
         or lower:find("authentication",1,true) or lower:find("authorization",1,true)
         or lower:find("access token",1,true) or lower:find("session expired",1,true)
         or errorText:find(ruSessionExpired,1,true) then
-        return errorText..L["\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку."]
+        return details(L["\nОткройте MPlusLogs Companion, войдите в Warcraft Logs, затем введите /reload и повторите загрузку."])
     elseif lower:find("http 403",1,true) or lower:find("forbidden",1,true)
         or lower:find("permission",1,true) or errorText:find(ruApiAccess,1,true) then
-        return errorText..L["\nПроверьте вход в Warcraft Logs и доступ к API в Companion, затем повторите загрузку."]
+        return details(L["\nПроверьте вход в Warcraft Logs и доступ к API в Companion, затем повторите загрузку."])
     elseif lower:find("http 429",1,true) or lower:find("rate limit",1,true)
         or lower:find("hourly query limit",1,true) or lower:find("api budget is low",1,true) then
         local hint=L["\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова."]
@@ -33,36 +37,39 @@ local function companionError(errorText)
         if not personal then
             hint=hint..L["\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs."]
         end
-        return errorText..hint
+        return details(hint)
     elseif lower:find("rankings hidden",1,true) then
         return L["Логи этого персонажа скрыты в Warcraft Logs. Доступ к ним не разрешён для текущего аккаунта."]
-    elseif lower:find("no public logs",1,true) or lower:find("character not found",1,true)
-        or lower:find("rankings hidden",1,true) or errorText:find(ruNoPublicLogs,1,true) then
-        return errorText..L["\nПроверьте имя персонажа и игровой мир. Возможно, у него нет открытых логов M+; отсутствие данных не означает нулевой результат."]
+    elseif lower:find("character not found",1,true) then
+        return details(L["Персонаж не найден"])
+    elseif lower:find("no public logs",1,true) or errorText:find(ruNoPublicLogs,1,true) then
+        return L["Для этого персонажа нет доступных логов M+."]
     elseif lower:find("unknown ",1,true) and lower:find(" shape",1,true)
         or lower:find("throughputrankings missing",1,true)
         or lower:find("graphql error",1,true) then
-        return errorText..L["\nCompanion не распознал формат ответа Warcraft Logs. Обновите MPlusLogs Companion; если ошибка повторится, сообщите об этой ошибке."]
+        return details(L["\nCompanion не распознал формат ответа Warcraft Logs. Обновите MPlusLogs Companion; если ошибка повторится, сообщите об этой ошибке."])
     elseif lower:find("could not connect",1,true) or lower:find("timed out",1,true)
         or lower:find("name resolution",1,true) or lower:find("getaddrinfo",1,true)
         or lower:find("http 5",1,true) then
-        return errorText..L["\nПроверьте подключение к интернету и попробуйте снова."]
+        return details(L["\nПроверьте подключение к интернету и попробуйте снова."])
     elseif lower:find("clipboard is busy",1,true) or lower:find("clipboard write failed",1,true) then
-        return errorText..L["\nОсвободите буфер обмена, снова скопируйте запрос через Ctrl+C, дождитесь Companion и нажмите Ctrl+V."]
+        return details(L["\nОсвободите буфер обмена, снова скопируйте запрос через Ctrl+C, дождитесь Companion и нажмите Ctrl+V."])
     elseif lower:find("unknown/ambiguous realm",1,true) or lower:find("unknown realm",1,true) then
-        return errorText..L["\nПроверьте регион и название игрового мира персонажа, затем повторите запрос."]
+        return details(L["\nПроверьте регион и название игрового мира персонажа, затем повторите запрос."])
     elseif lower:find("too many",1,true) or lower:find("queue is too large",1,true) then
-        return errorText..L["\nУменьшите число персонажей в запросе и повторите загрузку."]
-    elseif errorText==L["Это ответ на другой запрос; повторите загрузку нужного игрока"]
-        or errorText==L["В буфере нет ответа MPlusLogs для этого запроса. Нажмите Ctrl+V позже; проверьте помощник."]
-        or errorText==L["Ответ ещё не получен. Попробуйте Ctrl+V чуть позже; проверьте, что помощник запущен."]
-        or errorText==L["Ответ не содержит выбранного персонажа"]
-        or errorText==L["Ответ содержит данные другого персонажа"]
-        or errorText==L["Ответ содержит другую метрику логов"]
-        or errorText==L["Ответ содержит другую роль персонажа"]
-        or errorText==L["Ответ содержит другую специализацию"]
-        or errorText==L["Не получен результат для всех кандидатов"] then
-        return errorText..L["\nСкопируйте текущий запрос заново (Ctrl+C), дождитесь Companion и вставьте ответ (Ctrl+V). Если ошибка повторится, сообщите о ней."]
+        return details(L["\nУменьшите число персонажей в запросе и повторите загрузку."])
+    end
+    for _,key in ipairs({"Неверный формат ответа логов","Пустой или незавершённый импорт",
+        "Отсутствует обязательное поле","Некорректное число","Некорректная запись профиля",
+        "Некорректная запись данжа","Некорректное завершение профиля","Некорректный результат загрузки",
+        "Некорректное описание ошибки","Неполная запись DPS/HPS","Неизвестный регион",
+        "Неизвестная метрика","Неизвестная роль","Метрика не соответствует роли",
+        "Дублирующийся профиль","Повторный результат загрузки","Слишком большой импорт (максимум 500 КБ)",
+        "Слишком много профилей","Слишком много данжей","Ошибка импорта","Не удалось обработать ответ"}) do
+        if errorText==L[key] then return details(L["Ошибка чтения данных"]) end
+    end
+    if errorText:find(L["Неизвестная строка импорта; строка "],1,true) then
+        return details(L["Ошибка чтения данных"])
     end
     return errorText
 end
@@ -76,12 +83,39 @@ local function button(parent, text, x, y, width, callback)
     b:SetSize(width, 24); b:SetPoint("BOTTOMLEFT", x, y); b:SetText(text); b:SetScript("OnClick", callback)
     return b
 end
-local function window(name, title, width, height, opaque)
+local windowStack={}
+local function highestWindowLevel(frame)
+    local highest=frame:GetFrameLevel()
+    for _,child in ipairs({frame:GetChildren()}) do
+        highest=math.max(highest,highestWindowLevel(child))
+    end
+    return highest
+end
+local function bringWindowForward(frame)
+    for i,other in ipairs(windowStack) do
+        if other==frame then table.remove(windowStack,i); break end
+    end
+    -- The profile stays below dialogs even when refreshed or clicked.
+    if frame.mplBaseWindow then table.insert(windowStack,1,frame)
+    else windowStack[#windowStack+1]=frame end
+    -- Rebuild compact ranges instead of increasing levels on every reopen.
+    -- Reserve the complete child subtree, including scroll frames and edit boxes.
+    local level=100
+    for _,other in ipairs(windowStack) do
+        if other:IsShown() then
+            other:SetFrameLevel(level)
+            level=highestWindowLevel(other)+10
+        end
+    end
+end
+local function window(name, title, width, height)
     local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
     f:SetSize(width, height); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
-    f:SetBackdrop({bgFile=opaque and "Interface/Buttons/WHITE8X8" or "Interface/Tooltips/UI-Tooltip-Background", edgeFile="Interface/Tooltips/UI-Tooltip-Border", tile=true, tileSize=16, edgeSize=16, insets={left=4,right=4,top=4,bottom=4}})
-    f:SetBackdropColor(0.035,0.035,0.05,opaque and 1 or 0.98)
-    if opaque then f:SetFrameLevel(100) end
+    f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8", edgeFile="Interface/Tooltips/UI-Tooltip-Border", tile=true, tileSize=16, edgeSize=16, insets={left=4,right=4,top=4,bottom=4}})
+    f:SetBackdropColor(0.035,0.035,0.05,1)
+    f.mplBaseWindow=name=="MPlusLogsWindow"
+    f:HookScript("OnShow",bringWindowForward)
+    f:HookScript("OnMouseDown",bringWindowForward)
     f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
     f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f.title=label(f, 20, -16, width-60, title, "GameFontNormalLarge")
@@ -272,8 +306,12 @@ local function buildPanel()
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function()
-        if MPL.UpdateProfileLoadButton() then
-            f.footer:SetText(L["Все данные обновлены. Запрашивать логи можно не чаще раза в 5 минут. Подождите перед новым запросом."])
+        local cooling,remaining=MPL.UpdateProfileLoadButton()
+        if cooling then
+            f.cooldownNotice=true
+            local grouped=type(f.groupPlayers)=="table" and #f.groupPlayers>1
+            local key=grouped and "Обновить логи группы можно через %d мин. %d сек." or "Обновить логи можно через %d мин. %d сек."
+            f.footer:SetText(string.format(L[key],math.floor(remaining/60),remaining%60))
             return
         end
         MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,true)
@@ -281,7 +319,19 @@ local function buildPanel()
     f.loadElapsed=0
     f.loadButton:SetScript("OnUpdate",function(_,elapsed)
         f.loadElapsed=(f.loadElapsed or 0)+elapsed
-        if f.loadElapsed>=1 then f.loadElapsed=0; MPL.UpdateProfileLoadButton() end
+        if f.loadElapsed>=1 then
+            f.loadElapsed=0
+            local cooling,remaining=MPL.UpdateProfileLoadButton()
+            if f.cooldownNotice then
+                if cooling then
+                    local grouped=type(f.groupPlayers)=="table" and #f.groupPlayers>1
+                    local key=grouped and "Обновить логи группы можно через %d мин. %d сек." or "Обновить логи можно через %d мин. %d сек."
+                    f.footer:SetText(string.format(L[key],math.floor(remaining/60),remaining%60))
+                else
+                    f.cooldownNotice=false; f.footer:SetText("")
+                end
+            end
+        end
     end)
     f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
@@ -317,15 +367,24 @@ end
 function MPL.UpdateProfileLoadButton()
     local f=MPL.panel
     if not f then return false end
-    local cooling=MPL.ProfileRefreshRemaining(f.profile or nil)>0
+    local remaining=math.ceil(MPL.ProfileRefreshRemaining(f.profile or nil))
+    local cooling=remaining>0
     if type(f.groupPlayers)=="table" and #f.groupPlayers>1 then
         local pending=MPL.FilterFreshProfiles(f.groupPlayers,true)
         cooling=#pending==0
+        if cooling then
+            remaining=math.huge
+            for _,player in ipairs(f.groupPlayers) do
+                local spec=MPL.SelectedSpec(player.name,player.realm,player.role) or player.spec
+                local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
+                remaining=math.min(remaining,math.ceil(MPL.ProfileRefreshRemaining(profile)))
+            end
+        end
     end
     -- Keep mouse clicks so the muted button can explain the cooldown.
     f.loadButton:SetAlpha(cooling and 0.5 or 1)
     f.loadButton:SetNormalFontObject(cooling and "GameFontDisable" or "GameFontNormal")
-    return cooling
+    return cooling,remaining
 end
 
 function MPL.UpdateProfileInvite()
@@ -534,7 +593,7 @@ function MPL.RenderPlayerTabs(f)
             tab:SetBackdropBorderColor(0.35,0.25,0.25,1)
         end
         tab.join:SetShown(selected)
-        tab:SetText((selected and "|cffffd100▼ " or "|cffffffff")..player.name.."|r")
+        tab:SetText((selected and "|cffffd100" or "|cffffffff")..player.name.."|r")
         tab:Show()
     end
 end
@@ -580,7 +639,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     end
     local requestedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
     if state and state.spec and state.spec~="" and state.spec~=requestedSpec then state=nil end
-    if state and (state.reason=="hidden" or state.reason=="empty") then profile=nil end
+    if state and (state.reason=="hidden" or state.reason=="empty" or state.reason=="missing") then profile=nil end
     MPL.Remember(name,server)
     MPL.panel = MPL.panel or buildPanel()
     local f = MPL.panel
@@ -592,6 +651,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     if profile then stale,lastDate=MPL.IsProfileStale(profile) end
     local primary=profile and MPL.PrimaryMetric(profile,name,server) or "dps"
     local secondary=primary=="hps" and "dps" or "hps"
+    f.cooldownNotice=false
     f.name, f.realm, f.profile = name, server, profile or false
     f.selectedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
     local main=MPL.MainProfileSpec(name,server,MPL.roles and MPL.roles[MPL.Key(name,server)])
@@ -604,6 +664,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     end
     local displayed=profile and profile.spec or f.selectedSpec
     local stateText=state and (state.reason=="hidden" and L["Логи скрыты в Warcraft Logs."]
+        or state.reason=="missing" and L["Персонаж не найден"]
         or state.reason=="retry" and L["Повторный запрос логов отложен. Его можно отправить позже."]
         or L["Для этого персонажа нет доступных логов M+."])
     f.specButton:SetText(MPL.SpecLabel(displayed,f.class))
@@ -650,7 +711,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
         f.footer:SetText(profile.characterID == 81818678 and profile.source == "Снимок со скриншота пользователя" and L["* Пометка WCL сохранена со скриншота. Общие 162 лога и строки показаны как в источнике."] or L["Логи: только прохождения, доступные WCL; отсутствие данных не означает плохую игру."])
     else
         f.scroll:Hide(); f.emptyMessage:Show()
-        f.emptyMessage:SetText(f.selectedSpec~="All specs" and (L["Профиль не загружен"]..": "..MPL.SpecLabel(f.selectedSpec,f.class))
+        f.emptyMessage:SetText(f.selectedSpec~="All specs" and (string.format(L["Профиль не загружен: %s"],MPL.SpecLabel(f.selectedSpec,f.class)))
             or L["Данные этого персонажа ещё не загружены."])
         if stateText then f.emptyMessage:SetText(stateText) end
         f.emptyMessage:SetHeight(72)
@@ -671,6 +732,12 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     local failure=type(f.groupFailures)=="table" and f.groupFailures[stateKey]
     if failure then f.footer:SetText(companionError(MPL.T(failure.error))) end
     MPL.RenderProfileStats(f)
+    local footerHeight=f.footer:GetStringHeight()
+    local extra=type(footerHeight)=="number" and math.max(0,math.ceil(footerHeight)-20) or 0
+    if extra>0 then
+        f:SetHeight(f:GetHeight()+extra)
+        f.scroll:SetPoint("BOTTOMRIGHT",-40,145+extra)
+    end
     for _,text in ipairs({f.character,f.context,f.source,f.note,f.footer}) do
         text:SetTextColor(0.88,0.95,0.96)
     end
@@ -689,7 +756,7 @@ function MPL.ShowStaleNotice(name,realm,profile,lastDate)
     if MPL.staleWarnings[key] then return end
     MPL.staleWarnings[key]=true
     if not MPL.staleWindow then
-        local f=window("MPlusLogsStaleWindow",L["Обновите логи персонажа"],480,205,true)
+        local f=window("MPlusLogsStaleWindow",L["Обновите логи персонажа"],480,205)
         f.message=label(f,24,-57,432,"","GameFontHighlight")
         f.message:SetHeight(88); f.message:SetJustifyV("TOP")
         button(f,L["Обновить логи"],24,24,205,function()
@@ -707,7 +774,7 @@ end
 
 function MPL.ShowCompanionUpdates()
     if not MPL.companionUpdateWindow then
-        local f=window("MPlusLogsCompanionUpdates",L["Обновления Companion"],600,290,true)
+        local f=window("MPlusLogsCompanionUpdates",L["Обновления Companion"],600,290)
         local message=label(f,24,-48,552,L["Один раз установите Companion с проверкой обновлений. Дальше он сам предложит обновление; читать changelog аддона не нужно. Если Companion уже проверяет обновления, повторная установка не нужна."])
         message:SetHeight(76); message:SetJustifyV("TOP")
         label(f,24,-130,552,L["Скопируйте ссылку (Ctrl+C) и откройте её в браузере:"])
@@ -726,6 +793,35 @@ function MPL.ShowCompanionUpdates()
     f:Show()
     f.edit:SetText("https://github.com/indrih17/MPlusLogs/releases/tag/companion-channel")
     f.edit:SetFocus(); f.edit:HighlightText()
+end
+
+function MPL.ShowCompanionDownload()
+    MPL.CopyURL(nil,nil,nil,"https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe",L["Скачать MPlusLogs Companion"])
+end
+
+function MPL.ShowCompanionIntro(continueLoading)
+    if not MPL.companionIntroWindow then
+        local f=window("MPlusLogsCompanionIntro",L["Для загрузки логов нужна программа MPlusLogs Companion"],700,260)
+        f.message=label(f,24,-55,652,L["Она получает данные из Warcraft Logs и передаёт их в игру.\nУстановите программу, запустите её и войдите в Warcraft Logs."],"GameFontHighlightLarge")
+        f.message:SetJustifyV("TOP")
+        f.download=button(f,L["Скачать MPlusLogs Companion"],24,24,270,MPL.ShowCompanionDownload)
+        f.continue=button(f,L["Уже установлен"],310,24,180,function()
+            local callback=f.continueLoading
+            MPlusLogsDB=MPlusLogsDB or {}
+            MPlusLogsDB.companionIntroDismissed=true
+            f.continueLoading=nil; f:Hide()
+            if callback then callback() end
+        end)
+        f.close=button(f,L["Закрыть"],506,24,170,function() f:Hide() end)
+        f:SetScript("OnHide",function() f.continueLoading=nil end)
+        MPL.companionIntroWindow=f
+    end
+    local f=MPL.companionIntroWindow
+    f.continueLoading=continueLoading
+    local measured=f.message:GetStringHeight()
+    local height=type(measured)=="number" and math.max(110,math.ceil(measured)) or 110
+    f.message:SetHeight(height); f:SetHeight(150+height)
+    f:Show()
 end
 
 function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
@@ -747,8 +843,12 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
         local pending=MPL.FilterFreshProfiles(batch,refresh)
         if #pending==0 then return end
     end
+    if not InCombatLockdown() and MPL.NeedsCompanionIntro() then
+        MPL.ShowCompanionIntro(function() MPL.ShowDownload(fullName,realm,profile,context,batch,refresh) end)
+        return
+    end
     if not MPL.downloadWindow then
-        local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,382,true)
+        local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,382)
         f.programmatic=false; f.revision=0; f.phase="idle"; f.request=""; f.quotaElapsed=0
         f.character=label(f,24,-53,472,"","GameFontHighlightLarge")
         f.steps=label(f,24,-84,472,L["1. Отправка запроса    /    2. Получение логов"],"GameFontNormal")
@@ -766,20 +866,31 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
         inputClip:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Tooltips/UI-Tooltip-Border",edgeSize=8,insets={left=2,right=2,top=2,bottom=2}})
         inputClip:SetBackdropColor(0.08,0.08,0.09,1)
         inputClip:SetClipsChildren(true); inputClip:EnableMouse(true)
+        f.companionHint=CreateFrame("Frame",nil,f)
+        f.companionHint:SetPoint("TOPLEFT",24,-126); f.companionHint:SetSize(472,80)
+        f.companionHint.text=label(f.companionHint,0,0,240,L["Первый раз загружаете логи? Сначала установите и запустите MPlusLogs Companion."])
+        f.companionHint.text:SetJustifyV("TOP")
+        f.companionHint.download=button(f.companionHint,L["Скачать MPlusLogs Companion"],252,25,220,MPL.ShowCompanionDownload)
         f.setStatus=function(text,isError)
+            local showHint=not MPL.CompanionHasHistory()
+            f.companionHint:SetShown(showHint)
+            local measured=f.companionHint.text:GetStringHeight()
+            local introOffset=showHint and math.max(80,type(measured)=="number" and math.ceil(measured)+12 or 80) or 0
+            f.companionHint:SetHeight(introOffset)
+            f.errorIcon:ClearAllPoints(); f.errorIcon:SetPoint("TOPLEFT",24,-124-introOffset)
             f.errorIcon:SetShown(isError==true)
             f.status:SetFontObject(isError and "GameFontHighlightLarge" or "GameFontHighlight")
             f.status:SetTextColor(1,isError and 0.4 or 1,isError and 0.35 or 1)
-            f.status:ClearAllPoints(); f.status:SetPoint("TOPLEFT",isError and 62 or 24,-126)
+            f.status:ClearAllPoints(); f.status:SetPoint("TOPLEFT",isError and 62 or 24,-126-introOffset)
             f.status:SetWidth(isError and 434 or 472)
             f.status:SetText(text)
             -- Long translated guidance must fit above the request field even
             -- with the larger error font.
             local height=f.status:GetStringHeight()
             local extra=type(height)=="number" and math.max(0,math.ceil(height)-144) or 0
-            f.status:SetHeight(144+extra); f:SetHeight(382+extra)
-            f.requestLabel:ClearAllPoints(); f.requestLabel:SetPoint("TOPLEFT",24,-276-extra)
-            inputClip:ClearAllPoints(); inputClip:SetPoint("TOPLEFT",24,-294-extra)
+            f.status:SetHeight(144+extra); f:SetHeight(382+extra+introOffset)
+            f.requestLabel:ClearAllPoints(); f.requestLabel:SetPoint("TOPLEFT",24,-276-extra-introOffset)
+            inputClip:ClearAllPoints(); inputClip:SetPoint("TOPLEFT",24,-294-extra-introOffset)
         end
         f.edit=CreateFrame("EditBox",nil,inputClip)
         local edit=f.edit
@@ -846,6 +957,15 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
             end
         end)
         local function copied(key)
+            if key=="V" and f.phase=="waiting" and not MPL.CompanionHasHistory() then
+                local revision=f.revision
+                C_Timer.After(0.15,function()
+                    if f:IsShown() and revision==f.revision and edit:GetText()==f.request
+                        and not MPL.CompanionHasHistory() then
+                        f.setStatus(L["MPlusLogs Companion пока не ответил.\nЕсли программа ещё не установлена — скачайте её. Если установлена — откройте её и проверьте вход в Warcraft Logs."],true)
+                    end
+                end)
+            end
             if key=="C" and f.phase=="copy" then
                 f.phase="waiting"
                 f.steps:SetText(L["|cff8888881. Отправка запроса|r    /    |cffffd1002. Получение логов|r"])
@@ -868,7 +988,12 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
             C_Timer.After(0.15,function()
                 if revision~=f.revision or f.programmatic or not f:IsShown() then return end
                 local text=edit:GetText()
-                if text==f.request then return end
+                if text==f.request then
+                    if f.phase=="waiting" and not MPL.CompanionHasHistory() then
+                        f.setStatus(L["MPlusLogs Companion пока не ответил.\nЕсли программа ещё не установлена — скачайте её. Если установлена — откройте её и проверьте вход в Warcraft Logs."],true)
+                    end
+                    return
+                end
                 local count,err=MPL.ReceiveReply(text,true)
                 if count then
                     f.phase="done"; f.status:SetText(L["Логи получены."])
@@ -914,7 +1039,7 @@ function MPL.ShowBatchResults(players,profiles,failures,count,open)
         return
     end
     if not MPL.batchResultsWindow then
-        local f=window("MPlusLogsBatchResults",L["Логи кандидатов"],660,420,true)
+        local f=window("MPlusLogsBatchResults",L["Логи кандидатов"],660,420)
         f.summary=label(f,24,-52,610,"","GameFontHighlight")
         f.scroll=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
         f.scroll:SetPoint("TOPLEFT",24,-94); f.scroll:SetPoint("BOTTOMRIGHT",-42,58)
@@ -927,6 +1052,7 @@ function MPL.ShowBatchResults(players,profiles,failures,count,open)
     local f=MPL.batchResultsWindow
     for _,row in ipairs(f.rows) do row:Hide() end
     f.summary:SetText(L["Загружено: "]..count..L[" из "]..#players..L[". Ошибки обновления: "]..errorCount)
+    local rowOffset=0
     for index,player in ipairs(players) do
         local key=MPL.Key(player.name,player.realm)
         local row=f.rows[index]
@@ -937,14 +1063,19 @@ function MPL.ShowBatchResults(players,profiles,failures,count,open)
             row.open=button(row,L["Показать"],450,20,135,function() MPL.ShowProfile(row.player.name,row.player.realm,row.player) end)
             f.rows[index]=row
         end
+        row:ClearAllPoints(); row:SetPoint("TOPLEFT",0,-rowOffset)
         row.player=player
         row.name:SetText(player.name.." — "..player.realm)
         local failure=failures[key]
         row.status:SetText(failure and ((profiles[key] and L["Сохранён кеш. "] or L["Не загружено. "])..companionError(MPL.T(failure.error))) or L["Логи загружены: доступны DPS и HPS"])
+        local measured=row.status:GetStringHeight()
+        local height=type(measured)=="number" and math.max(64,math.ceil(measured)) or 64
+        row.status:SetHeight(height); row:SetHeight(height+24)
+        rowOffset=rowOffset+height+26
         if MPL.GetProfile(player.name,player.realm) then row.open:Enable() else row.open:Disable() end
         row:Show()
     end
-    f.content:SetHeight(math.max(1,#players*90)); f:Show(); MPL.UpdatePanelScroll(f)
+    f.content:SetHeight(math.max(1,rowOffset)); f:Show(); MPL.UpdatePanelScroll(f)
 end
 
 function MPL.OpenBatchResults()
@@ -1153,11 +1284,11 @@ function MPL.ShowRequests()
     f:Show(); f.edit:SetText(text); f.edit:SetFocus(); f.edit:HighlightText()
 end
 
-function MPL.CopyURL(name, realm, profile, url)
-    MPL.copy = MPL.copy or window("MPlusLogsCopyWindow",L["Ссылка Warcraft Logs"],650,150,true)
+function MPL.CopyURL(name, realm, profile, url, title)
+    MPL.copy = MPL.copy or window("MPlusLogsCopyWindow",L["Ссылка Warcraft Logs"],650,150)
     local f = MPL.copy
     if not f.edit then
-        label(f,20,-48,610,L["Ctrl+C — скопировать и закрыть, Esc — закрыть"])
+        f.copyHint=label(f,20,-48,610,L["Ctrl+C — скопировать и закрыть, Esc — закрыть"])
         f.edit = CreateFrame("EditBox",nil,f,"InputBoxTemplate"); f.edit:SetSize(600,28); f.edit:SetPoint("TOPLEFT",25,-80); f.edit:SetAutoFocus(false)
         f.edit:SetScript("OnEscapePressed",function() f:Hide() end)
         f.revision=0
@@ -1171,13 +1302,15 @@ function MPL.CopyURL(name, realm, profile, url)
             end)
         end)
     end
+    f.title:SetText(title or L["Ссылка Warcraft Logs"])
+    f.copyHint:SetText(title and L["Скопируйте ссылку (Ctrl+C) и откройте её в браузере:"] or L["Ctrl+C — скопировать и закрыть, Esc — закрыть"])
     f.revision=f.revision+1
     f:Show(); f.edit:SetText(url or MPL.URL(name,realm,profile)); f.edit:SetFocus(); f.edit:HighlightText()
 end
 
 function MPL.ShowImport()
     if not MPL.importWindow then
-        local f = window("MPlusLogsImportWindow",L["Импорт данных MPlusLogs"],700,430,true)
+        local f = window("MPlusLogsImportWindow",L["Импорт данных MPlusLogs"],700,430)
         f.programmatic=false; f.handling=false; f.textRevision=0
         f.prompt=label(f,20,-48,650,L["Вставьте ответ помощника (Ctrl+V). Он будет обработан автоматически."])
         local scroll = CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
@@ -1193,6 +1326,13 @@ function MPL.ShowImport()
         end)
         scroll:SetScript("OnMouseDown",function() edit:SetFocus() end)
         f.status = label(f,20,-355,660)
+        local function setImportStatus(text)
+            f.status:SetText(text)
+            local measured=f.status:GetStringHeight()
+            local extra=type(measured)=="number" and math.max(0,math.ceil(measured)-40) or 0
+            f:SetHeight(430+extra)
+            scroll:SetPoint("BOTTOMRIGHT",-42,85+extra)
+        end
         local function receive()
             if f.handling then return end
             f.handling=true
@@ -1201,13 +1341,13 @@ function MPL.ShowImport()
             -- returned. A request is outgoing text, never an importable reply.
             -- Keep it selected so a premature paste cannot destroy the request.
             if text:match("^MPLS1\r?\n[^\r\n]+\r?\nMPLQ1") then
-                f.status:SetText(L["Запрос в поле. Ctrl+C: отправить помощнику. Затем Ctrl+V: вставить ответ."])
+                setImportStatus(L["Запрос в поле. Ctrl+C: отправить помощнику. Затем Ctrl+V: вставить ответ."])
                 edit:HighlightText()
                 f.handling=false
                 return
             end
             local count, err = MPL.ReceiveReply(text)
-            f.status:SetText(count and (L["Загружено профилей: "]..count) or (err or L["Ошибка"]))
+            setImportStatus(count and (L["Загружено профилей: "]..count) or companionError(err or L["Ошибка импорта"]))
             f.programmatic=true
             if count then
                 edit:SetText(""); edit:ClearFocus()
@@ -1217,7 +1357,7 @@ function MPL.ShowImport()
                 -- Display readable feedback in the main field, not an encoded
                 -- transport envelope. Ctrl+V can replace it on another attempt.
                 if not text:match("^MPLS1\r?\n[^\r\n]+\r?\nMPL[1B]") and not text:match("^MPL1\r?\n") then
-                    edit:SetText(err or L["Не удалось обработать ответ"])
+                    edit:SetText(companionError(err or L["Не удалось обработать ответ"]))
                 end
                 edit:SetFocus(); edit:HighlightText()
             end

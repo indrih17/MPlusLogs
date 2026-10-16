@@ -82,7 +82,7 @@ class SpecProfileTests(unittest.TestCase):
         response='MPLS1\n'+request_id+'\nMPLV1 1.0.6 specprofiles\n'+self.export()+wcl.export(wcl.normalize(raw,args)).removeprefix('MPL1\n')
         count,error=self.mpl.ReceiveReply(response,True)
         self.assertIsNone(count)
-        self.assertIn('другого персонажа',error)
+        self.assertIn('не подходит выбранному персонажу',error)
 
     def test_leaderboard_only_reply_opens_normal_no_logs_profile(self):
         self.transport()
@@ -134,16 +134,16 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.ReceiveReply('MPLE1\n'+self.mpl.pendingReply.id+'\n'+quote('Rankings hidden: access denied',safe=''),True)
         self.mpl.profileStates=None  # Only SavedVariables survive an addon reload.
         self.mpl.ShowProfile('Other','Thrall')
-        self.assertEqual(self.mpl.panel.emptyMessage.text,'Логи скрыты в Warcraft Logs.')
+        self.assertEqual(self.mpl.panel.emptyMessage.text,self.mpl.L['Логи скрыты в Warcraft Logs.'])
         self.mpl.ShowDownload('Other','Thrall',None)
         self.mpl.ReceiveReply('MPLE1\n'+self.mpl.pendingReply.id+'\n'+quote('Profile refresh is cooling down; retry after 300 seconds',safe=''),True)
-        self.assertEqual(self.mpl.panel.emptyMessage.text,'Логи скрыты в Warcraft Logs.')
+        self.assertEqual(self.mpl.panel.emptyMessage.text,self.mpl.L['Логи скрыты в Warcraft Logs.'])
 
     def test_unknown_cooldown_describes_request_instead_of_log_access(self):
         self.transport()
         self.mpl.ShowDownload('Other','Thrall',None)
         self.mpl.ReceiveReply('MPLE1\n'+self.mpl.pendingReply.id+'\n'+quote('Profile refresh is cooling down; retry after 300 seconds',safe=''),True)
-        self.assertEqual(self.mpl.panel.emptyMessage.text,'Повторный запрос логов отложен. Его можно отправить позже.')
+        self.assertEqual(self.mpl.panel.emptyMessage.text,self.mpl.L['Повторный запрос логов отложен. Его можно отправить позже.'])
         self.assertEqual(self.mpl.panel.specButton.detail.text,'Повторный запрос отложен')
 
     def live_player(self):
@@ -361,7 +361,7 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.ShowDownload("Киндрих", "Гордунни", None)
         self.assertEqual(self.mpl.pendingReply.spec, "Feral")
         count, error = self.mpl.ReceiveReply("MPLS1\n" + self.mpl.pendingReply.id + "\nMPLV1 1.0.6 specprofiles\n" + self.export(), True)
-        self.assertIsNone(count); self.assertIn("специализац", error)
+        self.assertIsNone(count); self.assertIn("не соответствует запрошенным данным", error)
         count, _ = self.mpl.ReceiveReply("MPLS1\n" + self.mpl.pendingReply.id + "\nMPLV1 1.0.6 specprofiles\n" + self.export("Feral"), True)
         self.assertEqual(count, 1); self.assertEqual(self.mpl.panel.profile.spec, "Feral")
 

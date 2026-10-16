@@ -617,9 +617,11 @@ class App:
 
     def copy(self):
         if self.result:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(self.result)
-            self.status.set("Ответ скопирован. В WoW нажмите Ctrl+V.")
+            try:
+                bridge.WindowsClipboard(owner=self.root.winfo_id()).write_private(self.result)
+                self.status.set("Ответ скопирован. В WoW нажмите Ctrl+V.")
+            except OSError as exc:
+                self.status.set(str(exc))
 
     def minimized(self, event):
         if event.widget is self.root and self.root.state() == "iconic" and self.tray:

@@ -43,7 +43,7 @@ class ReplyTests(unittest.TestCase):
         self.lua=LuaRuntime(unpack_returned_tuples=True)
         self.lua.execute(MOCK)
         self.lua.execute('''
-            MPlusLogsDB={profiles={}}
+            MPlusLogsDB={profiles={},companionIntroDismissed=true}
             function GetServerTime() return 12345 end
             cvars={screenshotQuality="3"}
             function GetCVar(k) return cvars[k] end
@@ -71,7 +71,7 @@ class ReplyTests(unittest.TestCase):
         self.mpl.SendRequest("Киндрих","Гордунни","dps","Guardian")
         result,error=self.mpl.ReceiveReply("MPLS1\nold-id\n"+self.body)
         self.assertIsNone(result)
-        self.assertIn("другой",error)
+        self.assertIn("предыдущий",error)
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
 
     def test_paste_automatically_imports_and_opens_profile(self):
@@ -114,11 +114,11 @@ class ReplyTests(unittest.TestCase):
 
     def test_companion_errors_show_actionable_guidance(self):
         cases=(
-            ("No usable profile: WCL HTTP 401; check credentials", "/reload", "Warcraft Logs"),
-            ("WCL HTTP 403; API permissions", "доступ к API", "Companion"),
-            ("WCL HTTP 429; rate limit", "лимит запросов", "Подождите"),
-            ("No usable profile: Unknown secondary throughputRankings shape", "формат ответа", "Обновите MPlusLogs Companion"),
-            ("Could not connect to Warcraft Logs", "интернет", "попробуйте снова"),
+            ("No usable profile: WCL HTTP 401; check credentials", "Переподключить Warcraft Logs", "Warcraft Logs"),
+            ("WCL HTTP 403; API permissions", "не разрешил загрузить", "MPlusLogs Companion"),
+            ("WCL HTTP 429; rate limit", "лимит запросов", "Повторите"),
+            ("No usable profile: Unknown secondary throughputRankings shape", "не удалось обработать", "Проверьте обновления"),
+            ("Could not connect to Warcraft Logs", "интернет", "попробуйте позже"),
             ("Clipboard is busy; retry copying the request", "буфер обмена", "Ctrl+C"),
         )
         for message, hint, also in cases:
@@ -132,6 +132,35 @@ class ReplyTests(unittest.TestCase):
                 self.assertIn(hint,window.status.text)
                 self.assertIn(also,window.status.text)
 
+    def test_friendly_error_precedes_technical_details_without_reload(self):
+        self.mpl.ShowDownload("Киндрих","Гордунни",None)
+        window=self.mpl.downloadWindow
+        message="WCL HTTP 401; check credentials"
+        request_id=window.request.split("\n")[1]
+        window.edit.SetText(window.edit,"MPLE1\n"+request_id+"\n"+quote(message,safe=""))
+        window.edit.scripts.OnTextChanged(window.edit,True)
+        self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
+        self.assertTrue(window.status.text.startswith("Нужно заново войти"))
+        self.assertIn("Подробности: "+message,window.status.text)
+        self.assertNotIn("/reload",window.status.text)
+
+    def test_missing_character_is_distinct_from_missing_logs(self):
+        self.mpl.SendRequest("Missing","Гордунни","dps","")
+        self.assertEqual(self.mpl.ReceiveReply("MPLE1\n12345-1\nCharacter%20not%20found"),0)
+        self.assertIn("Проверьте имя, сервер и регион",self.mpl.panel.emptyMessage.text)
+        self.assertNotIn("не проходил подземелья",self.mpl.panel.emptyMessage.text)
+
+    def test_invalid_import_shows_recovery_and_preserves_parse_reason(self):
+        self.mpl.ShowDownload("Киндрих","Гордунни",None)
+        window=self.mpl.downloadWindow
+        request_id=window.request.split("\n")[1]
+        # Valid transport envelope containing an invalid profile record.
+        window.edit.SetText(window.edit,"MPLS1\n"+request_id+"\nMPLV1 1.0.17 specprofiles,refresh,specdetails\nMPL1\nP\teu\n")
+        window.edit.scripts.OnTextChanged(window.edit,True)
+        self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
+        self.assertIn("Полученные данные не удалось прочитать",window.status.text)
+        self.assertIn("Подробности: Некорректная запись профиля",window.status.text)
+
     def test_quota_timer_uses_reply_reset_and_only_shared_recommends_switching(self):
         for mode,label in (("Shared","общего"),("Personal","личного")):
             with self.subTest(mode=mode):
@@ -143,7 +172,7 @@ class ReplyTests(unittest.TestCase):
                 window.edit.SetText(window.edit,"MPLE1\n"+request_id+"\n"+quote(message,safe=""))
                 window.edit.scripts.OnTextChanged(window.edit,True)
                 self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
-                self.assertIn("Сброс "+label+" API через 5 мин. 5 сек.",window.status.text)
+                self.assertIn("Повторить загрузку можно через 5 мин. 5 сек.",window.status.text)
                 self.assertEqual("Перейти на личный API" in window.status.text,mode=="Shared")
                 self.assertNotIn("API reset at",window.status.text)
                 self.assertNotIn(mode+" API;",window.status.text)
@@ -225,7 +254,7 @@ class ReplyTests(unittest.TestCase):
         self.assertEqual(self.mpl.pendingReply.id,"12345-2")
         count,err=self.mpl.ReceiveReply("MPLS1\n12345-1\n"+self.metadata+self.body,True)
         self.assertIsNone(count)
-        self.assertIn("другой",err)
+        self.assertIn("предыдущий",err)
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
 
     def test_paste_import_does_not_depend_on_copy_key_events(self):
@@ -257,7 +286,7 @@ class ReplyTests(unittest.TestCase):
         self.lua.execute("local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end")
         self.assertIsNotNone(self.mpl.pendingReply)
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
-        self.assertIn("другой",f.status.text)
+        self.assertIn("предыдущий",f.status.text)
 
 
 if __name__=="__main__": unittest.main()
