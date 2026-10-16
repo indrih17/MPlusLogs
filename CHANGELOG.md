@@ -1,5 +1,9 @@
 # Changelog
 
+## Companion 1.0.19
+
+- Fix installer updates blocked by the windowless Retail autostart watcher; allow forced closure only for processes holding this installation's Companion executable.
+
 ## MPlusLogs 0.5.26 / Companion 1.0.18
 
 - Rewrite log-loading errors with clear recovery steps, preserve technical details, and show the remaining five-minute refresh cooldown.

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.18"
+  #define AppVersion "1.0.19"
 #endif
 
 [Setup]
@@ -24,7 +24,10 @@ UninstallDisplayIcon={app}\MPlusLogs-Companion.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=yes
+; The opt-in Retail watcher has no window and cannot answer a graceful close.
+; Limit forced closure to processes holding this installation's executable.
+CloseApplications=force
+CloseApplicationsFilter=MPlusLogs-Companion.exe
 SetupLogging=yes
 
 [Languages]

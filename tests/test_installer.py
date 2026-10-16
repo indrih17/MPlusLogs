@@ -21,6 +21,58 @@ def compiler():
 
 @unittest.skipUnless(sys.platform == "win32" and compiler(), "Requires Windows and Inno Setup compiler")
 class InstallerTests(unittest.TestCase):
+    def test_upgrade_closes_background_process_holding_companion_executable(self):
+        compiler_cs=Path(os.environ['WINDIR'])/'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+        if not compiler_cs.is_file(): self.skipTest('Requires .NET Framework compiler')
+        with tempfile.TemporaryDirectory(prefix='MPlusLogs-background-upgrade-') as temporary:
+            base=Path(temporary);target=base/'installed';target.mkdir()
+            old=target/'MPlusLogs-Companion.exe'
+            code=base/'Fixture.cs'
+            code.write_text('using System.Reflection; [assembly: AssemblyVersion("1.0.0.0")] '
+                            'class Fixture { static void Main() { System.Threading.Thread.Sleep(60000); } }')
+            subprocess.run([str(compiler_cs),'/nologo','/target:winexe','/out:'+str(old),str(code)],check=True,capture_output=True)
+            replacement=base/'MPlusLogs-Companion.exe'
+            code.write_text('using System.Reflection; [assembly: AssemblyVersion("2.0.0.0")] '
+                            'class Fixture { static void Main() {} }')
+            subprocess.run([str(compiler_cs),'/nologo','/target:winexe','/out:'+str(replacement),str(code)],check=True,capture_output=True)
+            source=(ROOT/'packaging/companion.iss').read_text(encoding='utf-8')
+            app_id='MPlusLogs-Background-Upgrade-Test-'+uuid.uuid4().hex
+            replacements={'AppId':app_id,'AppName':'MPlusLogs background upgrade fixture',
+                          'DefaultDirName':str(target),'OutputDir':str(base),'OutputBaseFilename':'TestSetup',
+                          'Uninstallable':'no'}
+            for name,value in replacements.items():
+                if re.search(r'^'+name+'=',source,re.M):
+                    source=re.sub(r'^'+name+r'=.*$',lambda m:name+'='+value,source,flags=re.M)
+                else: source=source.replace('[Setup]','[Setup]\n'+name+'='+value,1)
+            source=re.sub(r'^SetupIconFile=.*\n','',source,flags=re.M)
+            source=re.sub(r'\[Files\].*?\[Code\]',lambda m:'[Files]\nSource: "'+str(replacement)+'"; DestDir: "{app}"; Flags: ignoreversion\n[Code]',source,flags=re.S)
+            source=source.replace('Software\\Microsoft\\Windows\\CurrentVersion\\Run','Software\\'+app_id)
+            script=base/'fixture.iss';script.write_text(source,encoding='utf-8')
+            compiled=subprocess.run([compiler(),'/Q',str(script)],capture_output=True,text=True,timeout=60)
+            self.assertEqual(compiled.returncode,0,compiled.stdout+compiled.stderr)
+            other_directory=base/'unrelated';other_directory.mkdir()
+            other_executable=other_directory/old.name
+            shutil.copy2(old,other_executable)
+            other_process=subprocess.Popen([str(other_executable)],creationflags=subprocess.CREATE_NO_WINDOW)
+            process=subprocess.Popen([str(old)],creationflags=subprocess.CREATE_NO_WINDOW)
+            try:
+                import time
+                time.sleep(0.2)
+                with self.assertRaises(PermissionError): old.unlink()
+                log=base/'upgrade.log'
+                result=subprocess.run([str(base/'TestSetup.exe'),'/VERYSILENT','/SUPPRESSMSGBOXES',
+                    '/NORESTART','/NORESTARTAPPLICATIONS','/CLOSEAPPLICATIONS','/UPDATECOMPANION=1',
+                    '/DIR='+str(target),'/LOG='+str(log)],capture_output=True,timeout=30)
+                details=log.read_text(encoding='utf-8-sig',errors='replace')
+                self.assertEqual(result.returncode,0,details)
+                self.assertIsNotNone(process.poll(),'Background watcher still owns the installed executable')
+                self.assertEqual(old.read_bytes(),replacement.read_bytes())
+                self.assertIsNone(other_process.poll(),'Unrelated installation must keep running')
+            finally:
+                for child in (process,other_process):
+                    if child.poll() is None:
+                        child.kill();child.wait(timeout=10)
+
     def test_reinstall_can_change_directory_with_stale_uninstall_record(self):
         import winreg
         source = (ROOT / "packaging/companion.iss").read_text(encoding="utf-8")
