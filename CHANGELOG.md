@@ -1,5 +1,10 @@
 # Changelog
 
+## Release tooling
+
+- Add 48 offline end-to-end clipboard scenarios for repeated specialization ranks across single and group DPS/HPS imports, including older Companion replies.
+- Document the profile import incident, its originating assumption, verification gaps and prevention measures; shipped component versions are unchanged.
+
 ## MPlusLogs 0.5.27 / Companion 1.0.20
 
 - Handle duplicate Warcraft Logs specialization ranks without rejecting valid dungeon profiles; merge identical ranks and omit conflicting positions.

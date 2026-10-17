@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 import test_addon
 import sys
 sys.path.insert(0, str(test_addon.ROOT / 'tools'))
@@ -89,6 +89,66 @@ class SpecDetailsTests(unittest.TestCase):
         self.assertEqual(len(profile.specRanks),1)
         self.assertEqual(profile.specRanks[1].spec,'Outlaw')
         self.assertEqual(profile.specRanks[1].rank,1221)
+
+    def rank_reply_contract(self, legacy_rows=False):
+        # Exercise both sides of the real clipboard boundary, including a
+        # healthy neighbour in a batch. No network or personal cache is used.
+        patterns = [[], [3637], [3637,3637], [3637,4239],
+                    [3637,4239,3637], [4239,3637,4239]]
+        for ranks in patterns:
+            for batch in (False,True):
+                for role in ('DAMAGER','HEALER'):
+                    with self.subTest(ranks=ranks,batch=batch,role=role,legacy=legacy_rows):
+                        self.setUp()
+                        self.lua.execute('return assert(loadstring(...))',
+                            (test_addon.ROOT/'Transport.lua').read_text(encoding='utf-8'))('MPlusLogs',self.mpl)
+                        if batch:
+                            players=self.lua.table_from([
+                                dict(name=name,realm='Гордунни',role=role)
+                                for name in ('Affected','Unaffected')],recursive=True)
+                            _,request=self.mpl.SendBatchRequest(players)
+                        else:
+                            _,request=self.mpl.SendRequest('Affected','Гордунни',
+                                'hps' if role=='HEALER' else 'dps','All specs')
+                        def fetch(args):
+                            raw=self.raw()
+                            char=raw['data']['characterData']['character']
+                            char['name']=args.name
+                            for metric in ('damage','healing'):
+                                char[metric]['allStars']=[
+                                    {'spec':'Holy','rank':rank,'partition':1}
+                                    for rank in (ranks if args.name=='Affected' and not legacy_rows else [1221])]
+                            return raw
+                        with tempfile.TemporaryDirectory(dir=test_addon.ROOT,prefix='.test-work-') as directory:
+                            reply=clipboard_protocol.reply(request,realm_resolver.load_mappings(),Path(directory),fetch)
+                        if legacy_rows:
+                            head,body=reply.split('MPLB1\n',1)
+                            # An old Companion forwarded allStars rows unchanged.
+                            body=unquote(body).replace('R\tHoly\t1221\n',
+                                ''.join('R\tHoly\t'+str(rank)+'\n' for rank in ranks),1)
+                            reply=head+'MPLB1\n'+quote(body,safe='')
+                        result=self.mpl.ReceiveReply(reply,True)
+                        count=result[0] if isinstance(result,tuple) else result
+                        self.assertEqual(count,2 if batch else 1,msg=str(result))
+                        self.assertIsNone(self.mpl.pendingReply)
+                        for name in ('Affected','Unaffected') if batch else ('Affected',):
+                            profile=self.mpl.GetProfile(name,'Гордунни')[0]
+                            self.assertEqual(len(profile.dungeons),2)
+                            self.assertEqual(profile.dungeons[1].amount,168110)
+                            self.assertEqual(profile.metric,'hps' if role=='HEALER' else 'dps')
+                            expected=[dict(spec='Holy',rank=1221)]
+                            if name=='Affected':
+                                expected=([dict(spec='Holy',rank=ranks[0])]
+                                    if ranks and len(set(ranks))==1 else [])
+                            actual=([dict(spec=row.spec,rank=row.rank) for row in profile.specRanks.values()]
+                                if profile.specRanks is not None else [])
+                            self.assertEqual(actual,expected)
+
+    def test_wcl_rank_variations_survive_single_and_group_clipboard_exchange(self):
+        self.rank_reply_contract()
+
+    def test_legacy_rank_variations_survive_single_and_group_clipboard_exchange(self):
+        self.rank_reply_contract(legacy_rows=True)
 
     def test_legacy_export_and_missing_result_spec(self):
         profile = self.normalize(self.raw())
