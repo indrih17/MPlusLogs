@@ -442,6 +442,7 @@ function MPL.Parse(text, batch)
     local ok, result = pcall(function()
         local profiles, current, header, failures = {}, nil, false, {}
         local count, lineNumber, variants = 0, 0, {}
+        local rankStates, rankRows = {}, 0
         for line in (text .. "\n"):gmatch("([^\n]*)\n") do
             lineNumber=lineNumber+1
             line = line:gsub("\r$", "")
@@ -453,6 +454,7 @@ function MPL.Parse(text, batch)
                     local f = fields(line)
                     if f[1] == "P" then
                         if current or (#f ~= 16 and #f ~= 17 and #f ~= 19 and #f ~= 20) then error(L["Некорректная запись профиля"]) end
+                        rankStates, rankRows = {}, 0
                         if not ({eu=true,us=true,kr=true,tw=true,cn=true})[f[2]] then error(L["Неизвестный регион"]) end
                         if number(f[5], 10000, true) ~= MPL.zone then error(L["Этот импорт относится к другому сезону/zoneID"]) end
                         if f[8] ~= "dps" and f[8] ~= "hps" then error(L["Неизвестная метрика"]) end
@@ -478,11 +480,21 @@ function MPL.Parse(text, batch)
                         local spec=required(f[2])
                         local rank=number(f[3],100000000,true)
                         current.specRanks=current.specRanks or {}
-                        if #spec>80 or not rank or rank<1 or #current.specRanks>=64 then error(L["Некорректная запись профиля"]) end
-                        for _,entry in ipairs(current.specRanks) do
-                            if entry.spec==spec then error(L["Некорректная запись профиля"]) end
+                        rankRows=rankRows+1
+                        if #spec>80 or not rank or rank<1 or rankRows>64 then error(L["Некорректная запись профиля"]) end
+                        local previous=rankStates[spec]
+                        if previous==nil then
+                            local entry={spec=spec,rank=rank}
+                            rankStates[spec]=entry
+                            current.specRanks[#current.specRanks+1]=entry
+                        elseif previous and previous.rank~=rank then
+                            -- Accept older Companions' repeated rows without
+                            -- discarding the profile or choosing an uncertain rank.
+                            rankStates[spec]=false
+                            for i,entry in ipairs(current.specRanks) do
+                                if entry==previous then table.remove(current.specRanks,i); break end
+                            end
                         end
-                        current.specRanks[#current.specRanks+1]={spec=spec,rank=rank}
                     elseif f[1] == "D" then
                         if not current or (#f ~= 10 and #f ~= 11 and #f ~= 14 and #f ~= 15)
                             or (#f>=14 and not current.dual) then error(L["Некорректная запись данжа"]) end

@@ -66,6 +66,30 @@ class SpecDetailsTests(unittest.TestCase):
         self.mpl.ShowProfile('Nobody','Гордунни')
         self.assertFalse(panel.specRanks.shown)
 
+    def test_duplicate_wcl_spec_ranks_do_not_block_profile_import(self):
+        raw=self.raw()
+        for metric in ('damage','healing'):
+            raw['data']['characterData']['character'][metric]['allStars']=[
+                {'spec':'Holy','rank':3637,'partition':1},
+                {'spec':'Holy','rank':4239,'partition':1},
+                {'spec':'Outlaw','rank':1221},
+                {'spec':'Outlaw','rank':1221}]
+        profile=self.normalize(raw)
+        self.assertEqual(profile['specRanks'],[{'spec':'Outlaw','rank':1221}])
+        self.assertEqual(self.mpl.Import(wcl.export(profile)),1)
+        self.assertEqual(len(self.mpl.GetProfile('Киндрих','Гордунни')[0].dungeons),2)
+
+    def test_old_companion_duplicate_rank_rows_preserve_logs_and_omit_conflicts(self):
+        text=wcl.export(self.normalize(self.raw()),spec_details=False)
+        text=text.replace('E\n','R\tHoly\t3637\nR\tHoly\t4239\nR\tHoly\t3637\n'
+                          'R\tOutlaw\t1221\nR\tOutlaw\t1221\nE\n')
+        self.assertEqual(self.mpl.Import(text),1)
+        profile=self.mpl.GetProfile('Киндрих','Гордунни')[0]
+        self.assertEqual(len(profile.dungeons),2)
+        self.assertEqual(len(profile.specRanks),1)
+        self.assertEqual(profile.specRanks[1].spec,'Outlaw')
+        self.assertEqual(profile.specRanks[1].rank,1221)
+
     def test_legacy_export_and_missing_result_spec(self):
         profile = self.normalize(self.raw())
         legacy = wcl.export(profile,spec_details=False)
@@ -99,7 +123,7 @@ class SpecDetailsTests(unittest.TestCase):
         self.assertEqual(self.mpl.Import(text),1)
         profile=self.mpl.GetProfile('Киндрих','Гордунни')[0]
         self.assertEqual(profile.dungeons[1].scoreSpec,'Outlaw')
-        for record in ['R\tOutlaw\t0\n','R\tOutlaw\t1.5\n','R\tOutlaw\t1\nR\tOutlaw\t2\n']:
+        for record in ['R\tOutlaw\t0\n','R\tOutlaw\t1.5\n','R\tOutlaw\t1\n'*65]:
             count,error=self.mpl.Import(text.replace('E\n',record+'E\n'))
             self.assertIsNone(count)
             self.assertTrue(error)

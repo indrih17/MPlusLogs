@@ -214,12 +214,19 @@ def normalize(raw, args):
                          "otherBest":numeric(second.get("best_historical_percentile"),100),
                          "otherMedian":numeric(second.get("median_historical_percentile"),100)})
     stars = performance.get("allStars", [])
-    spec_ranks = []
+    ranks_by_spec = {}
     for star in stars if isinstance(stars, list) else []:
         if not isinstance(star, dict): continue
         spec, rank = star.get("spec"), numeric(star.get("rank"), 100000000, True)
         if isinstance(spec, str) and 0 < len(spec) <= 80 and rank and rank > 0:
-            spec_ranks.append({"spec": spec, "rank": rank})
+            if spec not in ranks_by_spec:
+                ranks_by_spec[spec] = rank
+            elif ranks_by_spec[spec] != rank:
+                # WCL can return conflicting allStars rows for the same spec.
+                # Omit the ambiguous rank, rather than inventing a best position
+                # or making otherwise usable dungeon logs fail import.
+                ranks_by_spec[spec] = None
+    spec_ranks = [{"spec": spec, "rank": rank} for spec, rank in ranks_by_spec.items() if rank is not None]
     points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 else None
     runs = sum(d["runs"] for d in dungeons) if dungeons and all(d["runs"] is not None for d in dungeons) else None
     return {"region": region, "realm": args.realm, "name": character["name"], "zone": args.zone,
