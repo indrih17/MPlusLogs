@@ -11,6 +11,7 @@ from tkinter import messagebox, ttk
 import clipboard_companion as bridge
 import clipboard_protocol
 import build_database
+import cache_maintenance
 import local_settings
 import realm_resolver
 import wcl_oauth
@@ -97,7 +98,10 @@ class App:
         ttk.Label(header, image=self.logo).pack(side="left", padx=(0,12))
         ttk.Label(header, text="MPlusLogs", font=("Segoe UI", 22, "bold")).pack(side="left")
         ttk.Label(frame, textvariable=self.account, style="Muted.TLabel").pack(anchor="w", pady=(4, 14))
-        ttk.Label(frame, textvariable=self.status, wraplength=420, justify="left").pack(anchor="w", fill="x")
+        self.loading_area = ttk.Frame(frame)
+        self.loading_area.pack(fill="x")
+        ttk.Label(self.loading_area, textvariable=self.status, wraplength=420, justify="left").pack(anchor="w", fill="x")
+        self.progress_bar = ttk.Progressbar(self.loading_area, mode="determinate", maximum=1)
         buttons = ttk.Frame(frame)
         buttons.pack(anchor="w", pady=16)
         self.login_text = self.textvar('Войти через Warcraft Logs')
@@ -384,17 +388,6 @@ class App:
             return "windows"
         return "manual"
 
-    def toggle(self):
-        if self.installing_update:
-            return
-        if self.want_running:
-            self.want_running = False
-            self.stop.set()
-            self.status.set("Обработка приостановлена.")
-        else:
-            self.want_running = True
-            self.start()
-
     def start(self):
         if self.installing_update or not self.want_running or (self.worker and self.worker.is_alive()):
             return
@@ -415,6 +408,8 @@ class App:
                     token_provider=session.access_token, invalidate_token=session.invalidate,
                     state_path=state_path, cache_scope=scope)
                 client.api_mode = self.api_mode
+                client.cancel = stop
+                client.search_status = lambda message: post("status",message)
                 quota = session.tokens.get("_api_budget")
                 if quota and quota.get("reset_at", 0) > time.time() and not client.budget.snapshot()["limitPerHour"]:
                     client.budget.observe({"limitPerHour": quota["limit"], "pointsSpentThisHour": quota["limit"] - quota["remaining"], "pointsResetIn": quota["reset_at"] - time.time()})
@@ -424,6 +419,7 @@ class App:
             post("status", "Проверка связи: ожидаю запрос из WoW." if diagnostic else "Готов к работе. Ожидаю запрос из WoW.")
             last_sequence = None
             while not stop.wait(0.3):
+                cache_maintenance.maintain(DATA_ROOT / ".wcl-cache")
                 sequence = clipboard.sequence()
                 self.clipboard_sequence = sequence
                 if sequence == last_sequence:
@@ -438,19 +434,21 @@ class App:
                         if text.startswith(("MPLQ1", "MPLQ2")) or (text.startswith("MPLS1") and "MPLQ" in text):
                             post("status", "Запрос скопирован не полностью. Выделите поле в WoW (Ctrl+A), затем Ctrl+C.")
                         continue
-                    post("status", "Загружаю данные Warcraft Logs…")
+                    post("progress", dict(stage="preparing"))
                     if not session and not diagnostic:
                         request_id=clipboard_protocol.unwrap_request(text)[0]
                         from urllib.parse import quote
                         response="MPLE1\n"+request_id+"\n"+quote("Сначала войдите в Warcraft Logs.",safe="")
                     else:
-                        response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic)
+                        response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic,
+                            progress=lambda value: post("progress", value))
                     if isinstance(client, bridge.Client):
                         snapshot = client.budget.snapshot()
                         if snapshot["limitPerHour"]:
                             post("quota", {"remaining": max(0, snapshot["limitPerHour"] - snapshot["pointsSpentThisHour"]), "limit": snapshot["limitPerHour"], "reset_at": snapshot["resetAt"]})
                     if stop.is_set() and not self.installing_update:
                         break
+                    post("progress", dict(stage="finalizing"))
                     build_database.atomic_write(DATA_ROOT / "last-result.mpl", response)
                     post("result", response)
                     if clipboard.reply_if_unchanged(text, response):
@@ -462,9 +460,41 @@ class App:
         except (ValueError, OSError, KeyError, TypeError) as exc:
             post("fatal", "Помощник остановлен: " + str(exc))
 
+    def clear_progress(self):
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+
+    def show_progress(self, value):
+        stages = {
+            "preparing": "Preparing request…",
+            "profiles": "Loading characters: {completed}/{total}\n{character}",
+            "overview": "Loading character overview: {completed}/{total}\n{character}",
+            "specializations": "Loading specializations: {completed}/{total}\n{character}",
+            "search": "Finding group members: {completed}/{total}\n{character}",
+            "finalizing": "Preparing reply…",
+        }
+        stage = stages[value["stage"]]
+        self.progress_bar.stop()
+        total = value.get("total", 0)
+        if total:
+            character = value.get("character", "")
+            if value.get("realm"):
+                character += " — " + value["realm"]
+            if value.get("spec"):
+                character += " (" + value["spec"] + ")"
+            self.status.set_format(stage, completed=value["completed"], total=total, character=character)
+            self.progress_bar.configure(mode="determinate", maximum=total, value=value["completed"])
+        else:
+            self.status.set(stage)
+            self.progress_bar.configure(mode="indeterminate", maximum=100, value=0)
+            self.progress_bar.start(40)
+        self.progress_bar.pack(fill="x", pady=(8, 0))
+
     def poll(self):
         if self.exiting:
             return
+        if self.stop.is_set():
+            self.clear_progress()
         if time.monotonic() - self.last_theme_check >= 2:
             self.last_theme_check = time.monotonic()
             self.refresh_theme()
@@ -476,7 +506,11 @@ class App:
                 stop, kind, value = value
                 if stop is not self.stop or stop.is_set():
                     continue
-            if kind == "quota":
+            if kind in {"status", "ready", "fatal", "auth", "configured_auth", "auth_error"}:
+                self.clear_progress()
+            if kind == "progress":
+                self.show_progress(value)
+            elif kind == "quota":
                 # Display upstream observations without an extra API request or disk write.
                 self.config.setdefault("oauth", {})["_api_budget"] = value
                 self.refresh_api_display()
@@ -495,8 +529,6 @@ class App:
             elif kind == "update_error":
                 if value:
                     self.update_status.set("Could not check updates. Try again later.")
-            elif kind == "toggle":
-                self.toggle()
             elif kind == "exit":
                 self.exit()
                 return

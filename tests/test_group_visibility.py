@@ -118,7 +118,7 @@ class GroupVisibilityTests(unittest.TestCase):
             Menu.callbacks.MENU_LFG_FRAME_SEARCH_ENTRY(owner,root)
         ''')
         self.assertGreater(len(self.lua.globals().GameTooltip.lines),0)
-        self.assertEqual(self.lua.globals().root.count,3)
+        self.assertEqual(self.lua.globals().root.count,2)
         self.lua.execute('''
             searchActivity=6; GameTooltip.lines={}; GameTooltip.mplKey=nil; root.count=0
             hooks.LFGListSearchEntry_OnEnter(owner)

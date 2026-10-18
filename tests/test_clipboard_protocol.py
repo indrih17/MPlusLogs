@@ -44,7 +44,7 @@ class ProtocolTests(unittest.TestCase):
         request = self.request.replace("MPLS1\n12345-1\n", "MPLS2\n12345-1\nMPLC1 updater\n")
         reply = protocol.reply(request, self.mapping, self.path, lambda _: api_fixture())
         self.assertTrue(reply.startswith("MPLS1\n12345-1\nMPLV1 "))
-        self.assertIn(" batch,dual,refresh,specdetails,specprofiles,updater\nMPLB1\n", reply)
+        self.assertIn(" "+",".join(sorted(protocol.CAPABILITIES))+"\nMPLB1\n", reply)
         request = request.replace("MPLC1 updater", "MPLC1 unknown")
         error = protocol.reply(request, self.mapping, self.path, lambda _: self.fail("Unsupported feature must not query WCL"))
         self.assertTrue(error.startswith("MPLE1\n12345-1\n"))

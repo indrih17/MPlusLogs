@@ -320,7 +320,8 @@ class GroupProfileTests(unittest.TestCase):
         for stamp in (143200,143201,143500):
             self.mpl.panel.loadButton.scripts.OnClick()
             self.assertTrue(self.mpl.pendingReply.refresh)
-            self.assertIn('MPLC1 refresh,specdetails\n',self.mpl.downloadWindow.request)
+            capabilities=self.mpl.downloadWindow.request.splitlines()[2].split(' ',1)[1].split(',')
+            self.assertTrue({'refresh','specdetails'}<=set(capabilities))
             with patch('build_database.time.time',return_value=stamp):
                 response=clipboard_protocol.reply(self.mpl.downloadWindow.request,realm_resolver.load_mappings(),self.cache,fetch)
             self.assertEqual(self.mpl.ReceiveReply(response,True),5)

@@ -25,7 +25,7 @@ class CompanionTests(unittest.TestCase):
         for name in ("Silvermoon","Tarren Mill","Twisting Nether","Азурегос"):
             slug = realm_resolver.resolve(self.mapping,"eu",name)
             self.assertTrue(slug)
-        self.assertEqual(realm_resolver.resolve(self.mapping,"eu","Ткач Смерти"),"ткач-смерти")
+        self.assertEqual(realm_resolver.resolve(self.mapping,"eu","Ткач Смерти"),"deathweaver")
 
     def test_query_and_response_preserve_spec(self):
         called = []

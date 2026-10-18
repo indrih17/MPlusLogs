@@ -16,6 +16,9 @@ def entries():
         for pattern in patterns:
             files.extend((ROOT / directory).glob(pattern))
     files.extend([ROOT / "experiments/wcl-points-and-damage.json"])
+    for directory in ("v1", "published-v1"):
+        for pattern in ("*.lua", "*.py", "README.md"):
+            files.extend((ROOT / "tests/compatibility" / directory).glob(pattern))
     result = []
     for path in sorted(set(files)):
         if not path.is_file():

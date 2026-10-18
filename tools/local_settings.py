@@ -3,6 +3,7 @@ import base64
 import ctypes
 from ctypes import wintypes
 import json
+import math
 import os
 from pathlib import Path
 
@@ -48,11 +49,54 @@ def load():
     if not PATH.exists():
         return {}
     data=json.loads(PATH.read_text(encoding="utf-8"))
-    if data.get("secret_dpapi"):
-        data["secret"]=crypt(base64.b64decode(data["secret_dpapi"]),False).decode()
-    if data.get("oauth_dpapi"):
-        data["oauth"]=json.loads(crypt(base64.b64decode(data["oauth_dpapi"]),False).decode())
-    return data
+    if not isinstance(data,dict):
+        raise ValueError("Invalid MPlusLogs settings")
+    # A broken credential must not discard unrelated preferences. Read only:
+    # recovery never rewrites the user's file or stores plaintext credentials.
+    for encrypted, plain in (("secret_dpapi", "secret"), ("oauth_dpapi", "oauth")):
+        data.pop(plain, None)
+        if data.get(encrypted):
+            try:
+                value=crypt(base64.b64decode(data[encrypted],validate=True),False).decode()
+                data[plain]=json.loads(value) if plain=="oauth" else value
+            except (ValueError,OSError,TypeError):
+                data.pop(encrypted,None)
+    return validate_config(data)
+
+
+def validate_config(config):
+    """Keep good preferences and unknown future fields; drop only invalid values."""
+    result=dict(config)
+    choices={"theme":{"system","light","dark"},"api_mode":{"shared","personal"},
+             "language":{"system","enUS","ruRU","deDE","esES","esMX","frFR","itIT","ptBR","koKR","zhCN","zhTW"}}
+    for key,allowed in choices.items():
+        if key in result and (not isinstance(result[key],str) or result[key] not in allowed):
+            result.pop(key)
+    for key in ("sound","autostart","retail_autostart"):
+        if key in result and type(result[key]) is not bool: result.pop(key)
+    for key in ("oauth_client_id","personal_client_id","client_id"):
+        value=result.get(key)
+        if key in result and (not isinstance(value,str) or len(value)>128 or any(c.isspace() for c in value)):
+            result.pop(key)
+    tokens=result.get("oauth")
+    if tokens is not None:
+        expiry=tokens.get("expires_at") if isinstance(tokens,dict) else None
+        valid=(isinstance(tokens,dict) and isinstance(tokens.get("access_token"),str)
+               and bool(tokens["access_token"]) and isinstance(expiry,(int,float))
+               and not isinstance(expiry,bool) and 0<=expiry<=253402300799 and math.isfinite(expiry)
+               and (tokens.get("refresh_token") is None or isinstance(tokens["refresh_token"],str)))
+        if not valid:
+            result.pop("oauth",None); result.pop("oauth_dpapi",None)
+        else:
+            tokens=result["oauth"]=dict(tokens)
+            if "_account_id" in tokens and (type(tokens["_account_id"]) is not int or not 0<tokens["_account_id"]<=2147483647):
+                tokens.pop("_account_id")
+            quota=tokens.get("_api_budget")
+            if quota is not None:
+                values=[quota.get(key) for key in ("remaining","limit","reset_at")] if isinstance(quota,dict) else []
+                if (len(values)!=3 or any(type(v) not in (int,float) or not 0<=v<=253402300799 or not math.isfinite(v) for v in values)
+                        or values[1]<=0 or values[0]>values[1]): tokens.pop("_api_budget",None)
+    return result
 
 
 def save_config(config):

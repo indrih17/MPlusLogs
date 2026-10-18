@@ -4,7 +4,7 @@ from urllib.parse import quote
 import clipboard_companion as bridge
 import companion_update
 
-CAPABILITIES = {"dual", "batch", "updater", "specprofiles", "refresh", "specdetails"}
+CAPABILITIES = {"dual", "batch", "updater", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "nameerrors", "errorcodes"}
 
 
 def describe_clipboard(text):
@@ -28,12 +28,12 @@ def unwrap_request(text):
         if not separator or not re.fullmatch(r"MPLC1 [a-z,]+", requirement):
             return None
         parts[2] = body
-    if not parts[2].startswith(("MPLQ1\n","MPLQ2\n")):
+    if not parts[2].startswith(("MPLQ1\n","MPLQ2\n","MPLN1\n")):
         return None
     return parts[1],parts[2]
 
 
-def reply(text,mapping,cache,client=None,diagnostic=False):
+def reply(text,mapping,cache,client=None,diagnostic=False,progress=None):
     request=unwrap_request(text)
     if not request: return None
     request_id,body=request
@@ -45,18 +45,33 @@ def reply(text,mapping,cache,client=None,diagnostic=False):
     if diagnostic:
         # Validate identity and request format even in a no-network test.
         import realm_resolver
-        realm_resolver.parse_queue(body,mapping)
+        if body.startswith(('MPLN1\n','MPLQ2\nMPLN1\n')):
+            import name_search
+            name_search.parse(body)
+        else:
+            realm_resolver.parse_queue(body,mapping)
         message="Связь работает: Ctrl+C > помощник > Ctrl+V. Проверка без WCL, логи не запрашивались."
         return "MPLE1\n"+request_id+"\n"+quote(message,safe="")
     try:
-        batch=body.startswith("MPLQ2\n")
-        result,_=bridge.process_request(body,mapping,cache,client,batch=batch,
-            spec_profiles=metadata_requested and 'specprofiles' in required,
-            refresh=metadata_requested and 'refresh' in required,
-            spec_details=metadata_requested and 'specdetails' in required)
+        if body.startswith(('MPLN1\n','MPLQ2\nMPLN1\n')):
+            if not metadata_requested or 'namesearch' not in required:
+                raise ValueError('Group search requires namesearch capability')
+            import name_search
+            result=name_search.reply(body,mapping,cache,client,progress=progress,error_details='nameerrors' in required,
+                                     error_codes='errorcodes' in required)
+        else:
+            batch=body.startswith("MPLQ2\n")
+            result,_=bridge.process_request(body,mapping,cache,client,batch=batch,
+                spec_profiles=metadata_requested and 'specprofiles' in required,
+                refresh=metadata_requested and 'refresh' in required,
+                spec_details=metadata_requested and 'specdetails' in required, progress=progress,
+                error_codes=metadata_requested and 'errorcodes' in required)
         # WoW EditBox expands clipboard tabs to spaces. Encode the entire
         # data block, including delimiters, before handing it to the game.
         metadata = "MPLV1 " + companion_update.current_version() + " " + ",".join(sorted(CAPABILITIES)) + "\n" if metadata_requested else ""
         return "MPLS1\n"+request_id+"\n"+metadata+"MPLB1\n"+quote(result,safe="")
     except (ValueError,OSError,KeyError,TypeError) as exc:
-        return "MPLE1\n"+request_id+"\n"+quote(str(exc),safe="")
+        message=str(exc)
+        if metadata_requested and 'errorcodes' in required:
+            message=bridge.wcl.wire_error(message,bridge.wcl.error_info(exc))
+        return "MPLE1\n"+request_id+"\n"+quote(message,safe="")

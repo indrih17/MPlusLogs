@@ -11,6 +11,7 @@ import wcl_sync as wcl
 class BudgetError(ValueError):
     def __init__(self, message, retry_after, global_stop=True):
         self.global_stop = global_stop
+        self.code = "budget" if global_stop else "retry"
         self.retry_after = max(1, math.ceil(retry_after))
         super().__init__(message + f"; retry after {self.retry_after} seconds")
 
@@ -36,7 +37,7 @@ class Budget:
     def _set(self, key, value):
         self.db.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, value))
 
-    def reserve(self, key, pace=False):
+    def reserve(self, key, pace=False, profile=True):
         now = self.clock()
         with self.lock, self.db:
             self.db.execute("BEGIN IMMEDIATE")
@@ -46,7 +47,7 @@ class Budget:
             if until > now:
                 raise BudgetError("WCL API budget is low", until - now)
             until = self._value("profile:" + key)
-            if until > now:
+            if profile and until > now:
                 raise BudgetError("Profile refresh is cooling down", until - now, False)
             count, first = self.db.execute("SELECT COUNT(*), MIN(at) FROM attempts").fetchone()
             if count >= self.hourly:
@@ -60,7 +61,7 @@ class Budget:
                 raise BudgetError("WCL requests are cooling down", scheduled - now)
             self.db.execute("INSERT INTO attempts VALUES (?,?)", (now, key))
             # Even unsuccessful attempts cannot be spammed for one identity.
-            self._set("profile:" + key, now + 300)
+            if profile: self._set("profile:" + key, now + 300)
             self._increment("upstream_attempts")
             if pace:
                 self._set("next_request_at", scheduled + 1)
@@ -100,7 +101,9 @@ class Budget:
 
     def success(self, key):
         with self.lock, self.db:
-            self._set("profile:" + key, self.clock() + 3600)
+            # Normal reads use the cache TTL; explicit refresh is allowed after
+            # five minutes, matching the addon and builder refresh controls.
+            self._set("profile:" + key, self.clock() + 300)
 
     def failure(self, error):
         self.observe(getattr(error, "rate_limit", None))

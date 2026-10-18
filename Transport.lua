@@ -12,6 +12,8 @@ local function envelope(id, body,includeSpecs,refresh)
     if includeSpecs then add("specprofiles") end
     if refresh then add("refresh") end
     add("specdetails")
+    -- Optional extension: never require it from an unrecognized/older helper.
+    if MPL.CompanionSupports("errorcodes") then add("errorcodes") end
     for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do add(value) end
     if #capabilities>0 then
         return "MPLS2\n"..id.."\nMPLC1 "..table.concat(capabilities,",").."\n"..body
@@ -51,6 +53,8 @@ end
 
 function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
+    local state=MPL.GetProfileState(name,realm,spec)
+    if state and state.reason=="hidden" then return nil,L["Логи скрыты в Warcraft Logs."] end
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     local role=MPL.roles and MPL.roles[MPL.Key(name,realm)]
@@ -66,6 +70,13 @@ function MPL.SendBatchRequest(players,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
     if #players==0 then return nil,L["Нет кандидатов для загрузки"] end
     if #players>250 then return nil,L["Слишком много кандидатов (максимум 250)"] end
+    local available={}
+    for _,player in ipairs(players) do
+        local state=MPL.GetProfileState(player.name,player.realm,player.spec)
+        if not state or state.reason~="hidden" then available[#available+1]=player end
+    end
+    if #available==0 then return nil,L["Логи скрыты в Warcraft Logs."] end
+    players=available
     local rows,expected={},{}
     for _,player in ipairs(players) do
         local key=MPL.Key(player.name,player.realm)
@@ -83,6 +94,34 @@ function MPL.SendBatchRequest(players,refresh)
     return id,envelope(id,"MPLQ2\n"..table.concat(rows),false,refresh)
 end
 
+local function recordProfileFailure(name,realm,spec,message,code,retryAt)
+    local lower=string.lower(message)
+    local reason
+    if code then reason=({hidden="hidden",missing="missing",empty="empty",retry="retry"})[code]
+    elseif lower:find("rankings hidden",1,true) then reason="hidden"
+    elseif lower:find("character not found",1,true) then reason="missing"
+    elseif lower:find("no public logs",1,true)
+        or message:find(string.char(208,159,209,131,208,177,208,187,208,184,209,135,208,189,209,139,208,181,32,208,187,208,190,208,179,208,184),1,true) then reason="empty"
+    elseif lower:find("profile refresh is cooling down",1,true) then reason="retry" end
+    if not reason then return end
+    MPL.profileStates=MPL.profileStates or {}
+    MPlusLogsDB.profileStates=MPlusLogsDB.profileStates or {}
+    local key=MPL.Key(name,realm)
+    local known=MPL.GetProfileState(name,realm,spec)
+    local wasRetry=reason=="retry"
+    if wasRetry and known and known.reason=="hidden" then reason="hidden" end
+    local state={reason=reason,spec=reason~="hidden" and spec or nil}
+    if reason=="retry" and retryAt and retryAt>GetServerTime() then state.expires=retryAt end
+    if reason=="hidden" then
+        state.expires=wasRetry and known.expires or GetServerTime()+6*3600
+        MPlusLogsDB.profileStates[key]=state
+    else
+        MPlusLogsDB.profileStates[key]=nil
+    end
+    MPL.profileStates[key]=state
+    return state
+end
+
 function MPL.ReceiveReply(text, strict)
     local pendingReply=MPL.pendingReply
     if text:match("^MPLS2[\r\n]") then
@@ -95,36 +134,19 @@ function MPL.ReceiveReply(text, strict)
         if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос"] end
         message=message:gsub("%%(%x%x)",function(hex) return string.char(tonumber(hex,16)) end)
         if message=="" then return nil,L["Неверный формат ответа логов"] end
+        local code,retryAt
+        message,code,retryAt=MPL.DecodeCompanionError(message)
         companionReplied()
         if not pendingReply.batch then
-            local lower=string.lower(message)
-            local reason
-            if lower:find("rankings hidden",1,true) then reason="hidden"
-            elseif lower:find("character not found",1,true) then reason="missing"
-            elseif lower:find("no public logs",1,true)
-                or message:find(string.char(208,159,209,131,208,177,208,187,208,184,209,135,208,189,209,139,208,181,32,208,187,208,190,208,179,208,184),1,true) then reason="empty"
-            elseif lower:find("profile refresh is cooling down",1,true) then reason="retry" end
-            if reason then
-                MPL.profileStates=MPL.profileStates or {}
-                local key=MPL.Key(pendingReply.name,pendingReply.realm)
-                MPlusLogsDB.profileStates=MPlusLogsDB.profileStates or {}
-                local known=MPlusLogsDB.profileStates[key]
-                local wasRetry=reason=="retry"
-                if reason=="retry" and known and known.reason=="hidden" and (known.expires or 0)>GetServerTime() then
-                    reason="hidden"
-                end
-                local state={reason=reason,spec=pendingReply.spec}
-                if reason=="hidden" then
-                    state.expires=wasRetry and known.expires or GetServerTime()+6*3600
-                    MPlusLogsDB.profileStates[key]=state
-                end
-                MPL.profileStates[key]=state
+            if recordProfileFailure(pendingReply.name,pendingReply.realm,pendingReply.spec,message,code,retryAt) then
                 MPL.pendingReply=nil
                 MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context,true)
                 return 0
             end
         end
-        return nil,MPL.T((message:gsub("[|%z]","")))
+        message=(message:gsub("[|%z]",""))
+        if code then return nil,"MPLERR1 "..code.." "..string.format("%.0f",retryAt)..":"..message end
+        return nil,MPL.T(message)
     end
     if text:match("^MPLS1[\r\n]") then
         local id,body=text:match("^MPLS1\r?\n([^\r\n]+)\r?\n(.*)")
@@ -173,6 +195,10 @@ function MPL.ReceiveReply(text, strict)
                 end
             end
             local count=MPL.StoreProfiles(result.profiles)
+            for key,failure in pairs(result.failures) do
+                local player=pendingReply.expected[key]
+                recordProfileFailure(player.name,player.realm,player.spec,failure.error,failure.errorCode,failure.retryAt)
+            end
             companionReplied()
             MPL.pendingReply=nil
             MPL.ShowBatchResults(pendingReply.players,result.profiles,result.failures,count)

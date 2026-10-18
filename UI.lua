@@ -5,18 +5,20 @@ local L = MPL.L
 local ruSessionExpired=string.char(208,161,208,181,209,129,209,129,208,184,209,143,32,87,97,114,99,114,97,102,116,32,76,111,103,115,32,208,184,209,129,209,130,208,181,208,186,208,187,208,176)
 local ruApiAccess=string.char(208,180,208,190,209,129,209,130,209,131,208,191,32,208,186,32)
 local ruNoPublicLogs=string.char(208,159,209,131,208,177,208,187,208,184,209,135,208,189,209,139,208,181,32,208,187,208,190,208,179,208,184,32,77,43,32,208,189,208,181,32,208,189,208,176,208,185,208,180,208,181,208,189,209,139)
-local function companionError(errorText)
+local function companionError(errorText,code,retryAt)
     if not errorText then return "" end
+    local decoded,wireCode,wireRetry=MPL.DecodeCompanionError(errorText)
+    errorText=decoded; code=code or wireCode; retryAt=retryAt or wireRetry
     errorText=errorText:match("^%s*(.-)%s*$")
     local personal=errorText:find("Personal API; ",1,true)
-    local reset=tonumber(errorText:match("API reset at (%d+); "))
+    local reset=retryAt and retryAt>0 and retryAt or tonumber(errorText:match("API reset at (%d+); "))
     errorText=errorText:gsub("Personal API; ",""):gsub("Shared API; ","")
     errorText=errorText:gsub("API reset at %d+; ","")
     local lower=string.lower(errorText)
     local function details(message)
         return message.."\n"..L["Подробности: "]..errorText
     end
-    if lower:find("http 401",1,true) or lower:find("unauthor",1,true)
+    if code=="auth" or lower:find("http 401",1,true) or lower:find("unauthor",1,true)
         or lower:find("authentication",1,true) or lower:find("authorization",1,true)
         or lower:find("access token",1,true) or lower:find("session expired",1,true)
         or errorText:find(ruSessionExpired,1,true) then
@@ -24,7 +26,7 @@ local function companionError(errorText)
     elseif lower:find("http 403",1,true) or lower:find("forbidden",1,true)
         or lower:find("permission",1,true) or errorText:find(ruApiAccess,1,true) then
         return details(L["\nПроверьте вход в Warcraft Logs и доступ к API в Companion, затем повторите загрузку."])
-    elseif lower:find("http 429",1,true) or lower:find("rate limit",1,true)
+    elseif code=="budget" or lower:find("http 429",1,true) or lower:find("rate limit",1,true)
         or lower:find("hourly query limit",1,true) or lower:find("api budget is low",1,true) then
         local hint=L["\nДостигнут лимит запросов Warcraft Logs или Companion. Подождите и попробуйте снова."]
         if reset then
@@ -38,17 +40,23 @@ local function companionError(errorText)
             hint=hint..L["\nРекомендуем открыть MPlusLogs Companion и нажать «Перейти на личный API», чтобы использовать свой API-клиент Warcraft Logs."]
         end
         return details(hint)
-    elseif lower:find("rankings hidden",1,true) then
+    elseif code=="hidden" or lower:find("rankings hidden",1,true) then
         return L["Логи этого персонажа скрыты в Warcraft Logs. Доступ к ним не разрешён для текущего аккаунта."]
-    elseif lower:find("character not found",1,true) then
+    elseif lower:find("no matching character found",1,true) then
+        return L["В Warcraft Logs не найден персонаж с таким именем, классом и подходящим уровнем."]
+    elseif lower:find("lookup response",1,true) or lower:find("class lookup",1,true) then
+        return details(L["Не удалось определить персонажа: Warcraft Logs вернул неполные или некорректные данные поиска."])
+    elseif code=="retry" or lower:find("profile refresh is cooling down",1,true) then
+        return details(L["Повторный запрос логов отложен. Его можно отправить позже."])
+    elseif code=="missing" or lower:find("character not found",1,true) then
         return details(L["Персонаж не найден"])
-    elseif lower:find("no public logs",1,true) or errorText:find(ruNoPublicLogs,1,true) then
+    elseif code=="empty" or lower:find("no public logs",1,true) or errorText:find(ruNoPublicLogs,1,true) then
         return L["Для этого персонажа нет доступных логов M+."]
-    elseif lower:find("unknown ",1,true) and lower:find(" shape",1,true)
+    elseif code=="schema" or lower:find("unknown ",1,true) and lower:find(" shape",1,true)
         or lower:find("throughputrankings missing",1,true)
         or lower:find("graphql error",1,true) then
         return details(L["\nCompanion не распознал формат ответа Warcraft Logs. Обновите MPlusLogs Companion; если ошибка повторится, сообщите об этой ошибке."])
-    elseif lower:find("could not connect",1,true) or lower:find("timed out",1,true)
+    elseif code=="network" or lower:find("could not connect",1,true) or lower:find("timed out",1,true)
         or lower:find("name resolution",1,true) or lower:find("getaddrinfo",1,true)
         or lower:find("http 5",1,true) then
         return details(L["\nПроверьте подключение к интернету и попробуйте снова."])
@@ -73,6 +81,7 @@ local function companionError(errorText)
     end
     return errorText
 end
+MPL.CompanionError=companionError
 local function label(parent, x, y, width, text, template)
     local f = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlightSmall")
     f:SetPoint("TOPLEFT", x, y); f:SetWidth(width); f:SetJustifyH("LEFT"); f:SetText(text or "")
@@ -125,6 +134,9 @@ local function window(name, title, width, height)
     f:Hide()
     return f
 end
+
+-- Reuse the same opaque backgrounds and dialog stacking for auxiliary views.
+MPL.CreateDialog=window
 
 function MPL.UpdatePanelScroll(f)
     local overflow=f.content:GetHeight()>math.max(1,f.scroll:GetHeight())+1
@@ -306,6 +318,12 @@ local function buildPanel()
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function()
+        if type(f.searchMember)=="table" and (not f.searchMember.loaded
+            or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
+            MPL.ShowSearchGroupLogs(f.searchMember.searchResultID); return
+        end
+        local state=MPL.GetProfileState(f.name,f.realm,f.selectedSpec)
+        if state and state.reason=="hidden" then return end
         local cooling,remaining=MPL.UpdateProfileLoadButton()
         if cooling then
             f.cooldownNotice=true
@@ -367,6 +385,14 @@ end
 function MPL.UpdateProfileLoadButton()
     local f=MPL.panel
     if not f then return false end
+    if type(f.searchMember)=="table" and (not f.searchMember.loaded
+        or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
+        f.loadButton:Show(); f.loadButton:SetAlpha(1)
+        f.loadButton:SetNormalFontObject("GameFontNormal")
+        return false,0
+    end
+    local state=MPL.GetProfileState(f.name,f.realm,f.selectedSpec)
+    f.loadButton:SetShown(not (state and state.reason=="hidden"))
     local remaining=math.ceil(MPL.ProfileRefreshRemaining(f.profile or nil))
     local cooling=remaining>0
     if type(f.groupPlayers)=="table" and #f.groupPlayers>1 then
@@ -376,9 +402,13 @@ function MPL.UpdateProfileLoadButton()
             remaining=math.huge
             for _,player in ipairs(f.groupPlayers) do
                 local spec=MPL.SelectedSpec(player.name,player.realm,player.role) or player.spec
-                local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
-                remaining=math.min(remaining,math.ceil(MPL.ProfileRefreshRemaining(profile)))
+                local playerState=MPL.GetProfileState(player.name,player.realm,spec)
+                if not playerState or playerState.reason~="hidden" then
+                    local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
+                    remaining=math.min(remaining,math.ceil(MPL.ProfileRefreshRemaining(profile)))
+                end
             end
+            if remaining==math.huge then remaining=0 end
         end
     end
     -- Keep mouse clicks so the muted button can explain the cooldown.
@@ -547,7 +577,8 @@ end
 function MPL.RenderPlayerTabs(f)
     f.playerTabs=type(f.playerTabs)=="table" and f.playerTabs or {}
     for _,tab in ipairs(f.playerTabs) do tab:Hide() end
-    local players=type(f.groupPlayers)=="table" and f.groupPlayers or {}
+    local players=type(f.searchPlayers)=="table" and f.searchPlayers or
+        (type(f.groupPlayers)=="table" and f.groupPlayers or {})
     if #players<2 then return end
     local width=880/#players
     for i,player in ipairs(players) do
@@ -566,12 +597,23 @@ function MPL.RenderPlayerTabs(f)
             tab.join:SetHeight(3)
             tab:SetScript("OnClick",function()
                 local p=tab.player
+                if p.searchResultID then
+                    local group=MPL.searchGroupWindow
+                    if group then
+                        for index,member in ipairs(group.players) do
+                            if member==p then MPL.OpenSearchGroupProfile(index); break end
+                        end
+                    end
+                    return
+                end
                 MPL.ShowProfile(p.name,p.realm,p.applicantID and p or nil,true,true)
             end)
             tab:SetScript("OnEnter",function(self)
                 if not self.selected then self:SetBackdropColor(0.40,0.07,0.07,1) end
                 GameTooltip:SetOwner(self,"ANCHOR_TOP")
-                GameTooltip:AddLine(self.player.name.."-"..self.player.realm)
+                GameTooltip:AddLine(self.player.name..(self.player.realm and "-"..self.player.realm or ""))
+                if self.player.error then GameTooltip:AddLine(self.player.error,1,.3,.2,true) end
+                if self.player.candidates then GameTooltip:AddLine(L["Choose the character's realm"],1,.82,0,true) end
                 GameTooltip:Show()
             end)
             tab:SetScript("OnLeave",function(self)
@@ -581,7 +623,8 @@ function MPL.RenderPlayerTabs(f)
             f.playerTabs[i]=tab
         end
         tab.player=player; tab:ClearAllPoints()
-        local selected=MPL.Key(player.name,player.realm)==MPL.Key(f.name,f.realm)
+        local selected=(type(f.searchMember)=="table" and player==f.searchMember) or
+            (not f.searchMember and player.realm and MPL.Key(player.name,player.realm)==MPL.Key(f.name,f.realm))
         tab.selected=selected
         tab:SetPoint("BOTTOMLEFT",f,"TOPLEFT",20+(i-1)*width,selected and 0 or 3)
         tab:SetSize(width-4,selected and 32 or 26)
@@ -598,7 +641,7 @@ function MPL.RenderPlayerTabs(f)
     end
 end
 
-function MPL.ShowGroupProfiles(players,selected)
+function MPL.ShowGroupProfiles(players,selected,trackParty)
     if #players==0 then return end
     local first=players[1]
     if selected then
@@ -607,6 +650,8 @@ function MPL.ShowGroupProfiles(players,selected)
         end
     end
     MPL.panel=MPL.panel or buildPanel()
+    MPL.panel.searchPlayers=nil
+    MPL.panel.partyTracked=trackParty or false
     MPL.panel.groupPlayers=players
     MPL.panel.groupFailures=nil
     MPL.ShowProfile(first.name,first.realm,first.applicantID and first or nil,true,true)
@@ -616,7 +661,7 @@ function MPL.ShowGroupProfiles(players,selected)
     end
 end
 
-function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
+function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unresolvedSearch)
     if not keepGroup and not suppressNotice and type(context)=="table" and (context.groupSize or 1)>1 then
         local players=MPL.CollectApplicantGroup(context)
         for _,player in ipairs(players) do
@@ -627,23 +672,23 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     end
     if not MPL.SafeString(fullName) then fullName, realm = UnitFullName("player") end
     local unitName,unitRealm=MPL.Identity(fullName,realm)
-    if unitName then MPL.RefreshCharacterSpec(unitName,unitRealm,true) end
+    if unitName and not unresolvedSearch then MPL.RefreshCharacterSpec(unitName,unitRealm,true) end
     local profile, name, server = MPL.GetProfile(fullName, realm)
     if not name then return end
     local stateKey=MPL.Key(name,server)
-    local state=MPL.profileStates and MPL.profileStates[stateKey]
-    if state and state.expires and state.expires<=GetServerTime() then state=nil end
-    if not state and MPlusLogsDB.profileStates then
-        local saved=MPlusLogsDB.profileStates[stateKey]
-        if saved and (saved.expires or 0)>GetServerTime() then state=saved end
-    end
     local requestedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
-    if state and state.spec and state.spec~="" and state.spec~=requestedSpec then state=nil end
+    local state=MPL.GetProfileState(name,server,requestedSpec)
+    local hidden=state and state.reason=="hidden"
     if state and (state.reason=="hidden" or state.reason=="empty" or state.reason=="missing") then profile=nil end
-    MPL.Remember(name,server)
+    if not unresolvedSearch then MPL.Remember(name,server) end
     MPL.panel = MPL.panel or buildPanel()
     local f = MPL.panel
-    if not keepGroup and not suppressNotice then f.groupPlayers=nil; f.groupFailures=nil end
+    f.searchMember=false
+    if type(f.searchChoices)=="table" then for _,b in ipairs(f.searchChoices) do b:Hide() end end
+    f.specButton:Show(); f.currentSpec:Show()
+    f.emptyMessage:ClearAllPoints(); f.emptyMessage:SetPoint("TOPLEFT",80,-300)
+    if not keepGroup and not suppressNotice then f.groupPlayers=nil; f.groupFailures=nil; f.searchPlayers=nil end
+    if not keepGroup and not suppressNotice then f.partyTracked=false end
     f.applicant=type(context)=="table" and MPL.Key(context.name,context.realm)==MPL.Key(name,server) and context or false
     f.inviteSent=false
     if MPL.staleWindow then MPL.staleWindow:Hide() end
@@ -671,7 +716,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     local savedSpecs=MPL.ProfileSpecs(name,server)
     f.specButton.detail:SetText(not profile and L["Профиль не загружен"]
         or (#savedSpecs==1 and L["Загружена одна специализация"] or L["Выбрать специализацию логов"]))
-    local canSelectSpecs=profile~=nil or #savedSpecs>0
+    local canSelectSpecs=not hidden and (profile~=nil or #savedSpecs>0)
     f.specButton.canSelectSpecs=canSelectSpecs
     f.specButton:SetEnabled(canSelectSpecs); f.specButton:EnableMouse(canSelectSpecs)
     f.specButton.arrow:SetShown(canSelectSpecs)
@@ -696,7 +741,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
     f.currentSpec.icon:SetTexture(currentTexture or nil)
     f.currentSpec.icon:SetShown(currentTexture~=nil and currentTexture~=false)
     f.currentSpec:SetAlpha(current and 1 or 0.55)
-    f.lookup:SetText(name .. "-" .. server)
+    f.lookup:SetText(name .. "-" .. server:gsub(" ",""))
     f.scroll:SetVerticalScroll(0)
     for _, row in ipairs(f.rows) do row:Hide() end
     f.viewMetric=primary; f.stale=stale
@@ -724,13 +769,17 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup)
             f.loadButton:SetPoint("BOTTOMLEFT",730,53); f.loadButton:SetSize(170,24)
             f.loadButton:SetText(L["Обновить M+ логи"])
             f.footer:SetText("")
-            f.specButton.detail:SetText(state.reason=="retry" and L["Повторный запрос отложен"] or L["Нет доступных логов"])
+            f.specButton.detail:SetText(hidden and L["Логи скрыты"]
+                or state.reason=="retry" and L["Повторный запрос отложен"] or L["Нет доступных логов"])
         end
         f.content:SetHeight(1)
     end
     if profile and stateText then f.footer:SetText(stateText) end
     local failure=type(f.groupFailures)=="table" and f.groupFailures[stateKey]
-    if failure then f.footer:SetText(companionError(MPL.T(failure.error))) end
+    if failure then f.footer:SetText(companionError(MPL.T(failure.error),failure.errorCode,failure.retryAt)) end
+    if profile and profile.realmInferred then
+        f.footer:SetText(f.footer:GetText().."\n"..L["Match based on name and class; realm not confirmed in game."])
+    end
     MPL.RenderProfileStats(f)
     local footerHeight=f.footer:GetStringHeight()
     local extra=type(footerHeight)=="number" and math.max(0,math.ceil(footerHeight)-20) or 0
@@ -824,13 +873,15 @@ function MPL.ShowCompanionIntro(continueLoading)
     f:Show()
 end
 
-function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
+function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchResultID)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
+    local state=MPL.GetProfileState(name,server,MPL.SelectedSpec(name,server))
+    if state and state.reason=="hidden" and not batch and not searchResultID then return end
     -- Loading from a player tab (including its stale-data notice) must keep
     -- the shared exchange instead of replacing it with a single-player one.
     local players=MPL.panel and MPL.panel.groupPlayers
-    if batch==nil and type(players)=="table" and #players>1 then
+    if not searchResultID and batch==nil and type(players)=="table" and #players>1 then
         for _,player in ipairs(players) do
             if MPL.Key(player.name,player.realm)==MPL.Key(name,server) then
                 batch=players; break
@@ -842,9 +893,19 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
     if type(batch)=="table" and #batch>0 then
         local pending=MPL.FilterFreshProfiles(batch,refresh)
         if #pending==0 then return end
+    elseif batch==true then
+        local players,err=MPL.CollectApplicants()
+        if not err and #players>0 and #MPL.FilterFreshProfiles(players,refresh)==0 then
+            -- Keep the existing all-fresh message, but never offer a request
+            -- when the only missing profiles are known to be hidden.
+            for _,player in ipairs(players) do
+                local playerState=MPL.GetProfileState(player.name,player.realm,player.spec)
+                if playerState and playerState.reason=="hidden" then return end
+            end
+        end
     end
     if not InCombatLockdown() and MPL.NeedsCompanionIntro() then
-        MPL.ShowCompanionIntro(function() MPL.ShowDownload(fullName,realm,profile,context,batch,refresh) end)
+        MPL.ShowCompanionIntro(function() MPL.ShowDownload(fullName,realm,profile,context,batch,refresh,searchResultID) end)
         return
     end
     if not MPL.downloadWindow then
@@ -923,7 +984,14 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
             local spec=MPL.SelectedSpec(f.name,f.realm) or (f.profile and f.profile.spec) or "All specs"
             if spec=="All specs" then spec="" end
             local id,request,skipped,total
-            if f.batch then
+            if f.searchResultID then
+                id,request=MPL.BeginSearchGroupRequest(true)
+                local group=MPL.searchGroupWindow
+                if not id or not request or not group or type(group.requestPlayers)~="table" then
+                    f.setStatus(L["Group member data is unavailable; try again shortly"],true); return
+                end
+                f.character:SetText(L["Нужно загрузить: "]..#group.requestPlayers)
+            elseif f.batch then
                 local players,err
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.setStatus(err,true); return end
@@ -994,7 +1062,9 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
                     end
                     return
                 end
-                local count,err=MPL.ReceiveReply(text,true)
+                local count,err
+                if f.searchResultID then count,err=MPL.ReceiveSearchGroupReply(text)
+                else count,err=MPL.ReceiveReply(text,true) end
                 if count then
                     f.phase="done"; f.status:SetText(L["Логи получены."])
                     f.programmatic=true; edit:SetText(""); f.programmatic=false
@@ -1013,6 +1083,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh)
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
     f.batch=batch or false
+    f.searchResultID=searchResultID or false
+    f.edit:SetMaxLetters(searchResultID and 1600000 or 500000)
     f.refresh=refresh or false
     f.title:SetText(L["M+ логи / Warcraft Logs"])
     f.applicant=context or false
@@ -1067,7 +1139,7 @@ function MPL.ShowBatchResults(players,profiles,failures,count,open)
         row.player=player
         row.name:SetText(player.name.." — "..player.realm)
         local failure=failures[key]
-        row.status:SetText(failure and ((profiles[key] and L["Сохранён кеш. "] or L["Не загружено. "])..companionError(MPL.T(failure.error))) or L["Логи загружены: доступны DPS и HPS"])
+        row.status:SetText(failure and ((profiles[key] and L["Сохранён кеш. "] or L["Не загружено. "])..companionError(MPL.T(failure.error),failure.errorCode,failure.retryAt)) or L["Логи загружены: доступны DPS и HPS"])
         local measured=row.status:GetStringHeight()
         local height=type(measured)=="number" and math.max(64,math.ceil(measured)) or 64
         row.status:SetHeight(height); row:SetHeight(height+24)

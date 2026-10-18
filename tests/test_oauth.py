@@ -234,7 +234,7 @@ class WindowsLifecycleTests(unittest.TestCase):
         self.assertFalse(tray.thread.is_alive())
         self.assertIsNone(tray.hwnd)
 
-    def test_gui_start_hide_show_pause_exit(self):
+    def test_gui_start_hide_show_sign_out_exit(self):
         import tkinter as tk
         loader = importlib.machinery.SourceFileLoader("companion_gui_test", str(ROOT / "tools/companion_gui.pyw"))
         spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -271,10 +271,6 @@ class WindowsLifecycleTests(unittest.TestCase):
                 app.mode_diagnostic, app.want_running = True, True
                 app.start()
                 self.assertTrue(app.worker.is_alive())
-                app.toggle()
-                app.worker.join(timeout=3)
-                self.assertFalse(app.worker.is_alive())
-                self.assertFalse(app.want_running)
                 with patch.object(local_settings, "save_config"):
                     app.messages.put(("auth", ({"access_token": "fake", "expires_at": time.time() + 3600}, app.auth_cancel)))
                     app.poll()

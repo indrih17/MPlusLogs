@@ -90,6 +90,7 @@ def main():
             "--add-data", f"{ROOT / 'tools/oauth_client.json'};.",
             "--add-data", f"{build_metadata};.",
             "--add-data", f"{ROOT / 'realm-slugs.json'};.",
+            "--add-data", f"{ROOT / 'packaging/realm-catalogue-audit.json'};.",
             str(ROOT / "tools/companion_gui.pyw")], cwd=ROOT, check=True)
         # In a frozen build modules live in _internal; realm_resolver expects its parent.
         internal = ROOT / "dist/MPlusLogs-Companion/_internal"

@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install pyinstaller==6.22.0 lupa Pillow
+      - run: python -m pip install pyinstaller==6.22.0 lupa -r tools/requirements.txt
       - name: Prepare version and changelog
         run: python tools/prepare_ci_release.py
       - name: Test

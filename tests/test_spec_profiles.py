@@ -107,8 +107,8 @@ class SpecProfileTests(unittest.TestCase):
 
     def test_hidden_and_cooldown_replies_open_normal_empty_profile(self):
         self.transport()
-        for message in ["No usable profile: Rankings hidden: Warcraft Logs denied access", "No usable profile: Profile refresh is cooling down; retry after 3182 seconds"]:
-            self.mpl.ShowDownload('Other','Thrall',None)
+        for name,message in [('Other',"No usable profile: Rankings hidden: Warcraft Logs denied access"), ('Cooldown',"No usable profile: Profile refresh is cooling down; retry after 3182 seconds")]:
+            self.mpl.ShowDownload(name,'Thrall',None)
             f=self.mpl.downloadWindow
             response='MPLE1\n'+self.mpl.pendingReply.id+'\n'+quote(message,safe='')
             f.edit.SetText(f.edit,response); f.edit.scripts.OnTextChanged()
@@ -136,6 +136,9 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.ShowProfile('Other','Thrall')
         self.assertEqual(self.mpl.panel.emptyMessage.text,self.mpl.L['Логи скрыты в Warcraft Logs.'])
         self.mpl.ShowDownload('Other','Thrall',None)
+        self.assertIsNone(self.mpl.pendingReply)
+        # A delayed cooldown response must not erase the known access reason.
+        self.lua.execute('MPlusLogs.pendingReply={id="late-cooldown",name="Other",realm="Thrall",spec="Arms"}')
         self.mpl.ReceiveReply('MPLE1\n'+self.mpl.pendingReply.id+'\n'+quote('Profile refresh is cooling down; retry after 300 seconds',safe=''),True)
         self.assertEqual(self.mpl.panel.emptyMessage.text,self.mpl.L['Логи скрыты в Warcraft Logs.'])
 

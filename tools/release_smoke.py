@@ -8,6 +8,10 @@ import windows_integration as windows
 
 
 def run(report_path):
+    import name_search
+    import name_search_api
+    assert name_search_api.catalogue()['eu']
+    assert 'WARRIOR' in name_search.CLASSES
     import clipboard_history
     assert clipboard_history.valid_request("unrelated text") is False
     import clipboard_protocol
@@ -51,4 +55,4 @@ def run(report_path):
     finally:
         root.destroy()
     Path(report_path).write_text(json.dumps({"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
-        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide", "clipboard-privacy"]}, indent=2), encoding="utf-8")
+        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide", "clipboard-privacy", "name-search-api"]}, indent=2), encoding="utf-8")

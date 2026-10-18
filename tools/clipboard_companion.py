@@ -160,6 +160,23 @@ class Client:
         self.cache_scope = cache_scope
 
     def __call__(self, args):
+        key = builder.cache_path(Path(), dict({"realm": ""}, **vars(args), _cache_scope=self.cache_scope)).stem
+        return self._query(key,lambda token:wcl.fetch(args,token,endpoint='user' if self.token_provider else 'client'))
+
+    def query_metadata(self,query):
+        import hashlib,json
+        key='metadata:'+hashlib.sha256((self.cache_scope+query).encode()).hexdigest()
+        def fetch(token):
+            endpoint='user' if self.token_provider else 'client'
+            result=wcl.request_json(wcl.ROOT+'/api/v2/'+endpoint,json.dumps({'query':query}).encode(),
+                {'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+            if not isinstance(result,dict) or result.get('errors'):
+                raise wcl.APIError('WCL character lookup failed; retry later',
+                    rate_limit=wcl.rate_limit_data(result))
+            return result
+        return self._query(key,fetch,profile=False)
+
+    def _query(self,key,fetch,profile=True):
         now = time.monotonic()
         if now - self.started >= 3600:
             self.queries, self.started = 0, now
@@ -167,14 +184,13 @@ class Client:
             raise ValueError("Local hourly query limit reached; use cache or wait")
         if self.remaining is not None and now < self.budget_reset and self.remaining < 100:
             raise ValueError("WCL API budget is low; wait for reset")
-        key = builder.cache_path(Path(), dict({"realm": ""}, **vars(args), _cache_scope=self.cache_scope)).stem
-        delay = self.budget.reserve(key, pace=True)
+        delay = self.budget.reserve(key, pace=True) if profile else self.budget.reserve(key,pace=True,profile=False)
         if delay:
             time.sleep(delay)
         self.queries += 1
         try:
             self.token = self.token_provider() if self.token_provider else self.token or wcl.access_token(self.client_id,self.secret)
-            result = wcl.fetch(args,self.token,endpoint="user") if self.token_provider else wcl.fetch(args,self.token)
+            result = fetch(self.token)
         except ValueError as exc:
             self.budget.failure(exc)
             if getattr(exc, "status", None) == 401 or "WCL HTTP 401" in str(exc):
@@ -182,16 +198,16 @@ class Client:
             if self.invalidate_token and "WCL HTTP 401" in str(exc):
                 self.invalidate_token()
             raise
-        limit = result.get("data",{}).get("rateLimitData")
+        limit = wcl.rate_limit_data(result)
         if limit:
             self.remaining = limit["limitPerHour"] - limit["pointsSpentThisHour"]
             self.budget_reset = now + limit["pointsResetIn"]
         self.budget.observe(limit)
-        self.budget.success(key)
+        if profile: self.budget.success(key)
         return result
 
 
-def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False, spec_profiles=False, refresh=False, spec_details=True):
+def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False, spec_profiles=False, refresh=False, spec_details=True, progress=None, error_codes=False):
     if not text.startswith(("MPLQ1\n","MPLQ1\r\n","MPLQ2\n","MPLQ2\r\n")):
         raise ValueError("Copy a MPlusLogs request in WoW first")
     batch=batch or text.startswith(("MPLQ2\n","MPLQ2\r\n"))
@@ -202,15 +218,25 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
     if len({builder.identity(e['region'],e['realm'],e['name']) for e in entries})!=len(entries):
         raise ValueError("Повторяющиеся кандидаты в запросе")
     valid_entries=[e for e in entries if not e.get('queue_error')]
+    def stage_progress(stage):
+        if not progress:
+            return None
+        def notify(completed, total, entry):
+            if not total:
+                return
+            progress(dict(stage=stage, completed=completed, total=total,
+                          character=(entry or {}).get('name', ''),
+                          realm=(entry or {}).get('realm', ''), spec=(entry or {}).get('spec') or ''))
+        return notify
     for entry in valid_entries:
         entry['_cache_scope'] = getattr(fetcher, 'cache_scope', 'public')
     profiles, report = builder.build(valid_entries,cache,ttl_hours=ttl_hours,max_fetch=len(entries) if batch else 20,
-                                     offline=offline,fetcher=fetcher,refresh=refresh)
+                                     offline=offline,fetcher=fetcher,refresh=refresh,progress=stage_progress('profiles'))
     if spec_profiles and not batch and len(valid_entries)==1 and profiles:
         entry=valid_entries[0]
         aggregate=dict(entry,spec=None)
         if entry.get('spec'):
-            _, extra=builder.build([aggregate],cache,ttl_hours=ttl_hours,max_fetch=1,offline=offline,fetcher=fetcher,refresh=refresh)
+            _, extra=builder.build([aggregate],cache,ttl_hours=ttl_hours,max_fetch=1,offline=offline,fetcher=fetcher,refresh=refresh,progress=stage_progress('overview'))
             report['fetched']+=extra['fetched']; report['cacheHits']+=extra['cacheHits']; report['errors']+=extra['errors']
         record=builder.read_cache(builder.cache_path(cache,aggregate))
         raw=record and record.get('raw')
@@ -220,7 +246,7 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
             # Never relabel combined numbers. Each spec gets a filtered WCL query;
             # normal cache, pacing, quotas and backoff apply to these calls too.
             additional, extra=builder.build(entries_for_specs[:8],cache,ttl_hours=ttl_hours,
-                max_fetch=max(0,20-report['fetched']),offline=offline,fetcher=fetcher,refresh=refresh)
+                max_fetch=max(0,20-report['fetched']),offline=offline,fetcher=fetcher,refresh=refresh,progress=stage_progress('specializations'))
             main=next((p.get('primarySpec') for p in profiles if p.get('primarySpec')),None)
             for profile in additional:
                 if main: profile['primarySpec']=main
@@ -240,20 +266,26 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
             item['error'] = ('Personal API; ' if getattr(fetcher, 'api_mode', 'shared') == 'personal' else 'Shared API; ') + timer + item['error']
     if not profiles and not batch:
         reasons = sorted({item["error"] for item in report["errors"]})
-        raise ValueError("No usable profile: " + "; ".join(reasons))
+        detail=next(iter(report["errors"]),{})
+        raise wcl.ProfileError("No usable profile: " + "; ".join(reasons),detail.get("error_code","unknown"),detail.get("retry_at",0))
     # Check duplicate identities and the addon's import size bound before export.
     if profiles: builder.bundle(profiles)
     response = ("MPL2\n" if batch else "MPL1\n") + "".join(wcl.export(p, spec_details=spec_details).removeprefix("MPL1\n") for p in profiles)
     if batch:
         errors={}
         for item in report['errors']:
-            errors.setdefault((item['realm'],item['character']),item['error'])
+            errors.setdefault((item['realm'],item['character']),item)
         received={builder.identity(p['region'],p['realm'],p['name']) for p in profiles}
         for entry in entries:
-            message=errors.get((entry['realm'],entry['name']))
+            detail=errors.get((entry['realm'],entry['name']),{})
+            message=detail.get('error')
             if builder.identity(entry['region'],entry['realm'],entry['name']) not in received and not message:
                 message="Публичные логи M+ не найдены"
-            if message: response+=wcl.line('F',entry['region'],entry['realm'],entry['name'],message[:500])+'\n'
+            if message:
+                if error_codes: message=wcl.wire_error(message,detail)
+                # The Lua importer limits decoded UTF-8 bytes, not characters.
+                message=message.encode('utf-8')[:500].decode('utf-8',errors='ignore')
+                response+=wcl.line('F',entry['region'],entry['realm'],entry['name'],message)+'\n'
     if len(response.encode('utf-8'))>500000: raise ValueError("Ответ превышает 500 КБ")
     return response, report
 

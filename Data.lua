@@ -101,6 +101,19 @@ function MPL.ProfileRefreshRemaining(profile)
     return timestamp and math.max(0,timestamp+5*60-GetServerTime()) or 0
 end
 
+function MPL.GetProfileState(name,realm,spec)
+    local key=MPL.Key(name,realm)
+    local state=MPL.profileStates and MPL.profileStates[key]
+    if state and state.expires and state.expires<=GetServerTime() then state=nil end
+    if not state then
+        local saved=MPlusLogsDB and MPlusLogsDB.profileStates and MPlusLogsDB.profileStates[key]
+        if saved and (saved.expires or 0)>GetServerTime() then state=saved end
+    end
+    -- Access is character-wide, including legacy saved states with a spec.
+    if state and state.reason~="hidden" and state.spec and state.spec~="" and state.spec~=spec then return end
+    return state
+end
+
 function MPL.FilterFreshProfiles(players,refresh)
     local pending,skipped={},0
     for _,player in ipairs(players) do
@@ -110,7 +123,10 @@ function MPL.FilterFreshProfiles(players,refresh)
         local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
         local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
         local usable=profile and (profile.dual or profile.metric==metric)
-        if usable and ((not refresh and not MPL.IsProfileStale(profile))
+        local state=MPL.GetProfileState(player.name,player.realm,spec)
+        if state and state.reason=="hidden" then
+            -- Known access failures are neither pending nor loaded profiles.
+        elseif usable and ((not refresh and not MPL.IsProfileStale(profile))
             or (refresh and MPL.ProfileRefreshRemaining(profile)>0)) then skipped=skipped+1
         else
             local request={}
@@ -147,6 +163,7 @@ function MPL.Identity(fullName, realm)
     local name, suffix = fullName:match("^([^%-]+)%-(.+)$")
     name = name or fullName
     realm = suffix or (MPL.SafeString(realm) and realm) or GetNormalizedRealmName()
+    if not MPL.SafeString(realm) then return end
     return name, realm
 end
 
@@ -233,8 +250,11 @@ function MPL.RefreshCharacterSpec(name,realm,requestInspect)
     for _,unit in ipairs(units) do
         if UnitExists(unit) and UnitIsPlayer(unit) then
             local unitName,unitRealm=UnitFullName(unit)
-            if MPL.SafeString(unitName) and (not unitRealm or MPL.SafeString(unitRealm))
-                and MPL.Key(unitName,unitRealm or GetNormalizedRealmName())==key then
+            if MPL.SafeString(unitName) and not (issecretvalue and issecretvalue(unitRealm))
+                and (unitRealm==nil or MPL.SafeString(unitRealm)) then
+                unitName,unitRealm=MPL.Identity(unitName,unitRealm)
+            else unitName=nil end
+            if unitName and MPL.Key(unitName,unitRealm)==key then
                 MPL.classes=MPL.classes or {}; MPL.specs=MPL.specs or {}
                 if UnitClass then
                     local _,class=UnitClass(unit)
@@ -420,6 +440,17 @@ end
 local function clean(value)
     return value:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end):gsub("[%z\1-\31\127|]", "")
 end
+
+function MPL.DecodeCompanionError(message)
+    local code,retry,text=message:match("^MPLERR1 ([a-z]+) (%d+):(.*)$")
+    local known={hidden=true,missing=true,empty=true,retry=true,budget=true,auth=true,schema=true,network=true,unknown=true}
+    retry=tonumber(retry)
+    if not code or not known[code] or not retry or retry>253402300799 then return message end
+    if code=="budget" and retry>GetServerTime() and not text:find("API reset at ",1,true) then
+        text="API reset at "..string.format("%.0f",retry).."; "..text
+    end
+    return text,code,retry
+end
 local function fields(line)
     local result = {}
     for part in (line .. "\t"):gmatch("(.-)\t") do result[#result+1] = clean(part) end
@@ -519,7 +550,8 @@ function MPL.Parse(text, batch)
                         if #f[5]>500 or f[5]=="" then error(L["Некорректное описание ошибки"]) end
                         local key=MPL.Key(name,realm,f[2])
                         if failures[key] then error(L["Повторный результат загрузки"]) end
-                        failures[key]={name=name,realm=realm,error=f[5]}
+                        local message,code,retry=MPL.DecodeCompanionError(f[5])
+                        failures[key]={name=name,realm=realm,error=message,errorCode=code,retryAt=retry}
                     elseif f[1] == "E" then
                         if not current or #f ~= 1 then error(L["Некорректное завершение профиля"]) end
                         local key = MPL.Key(current.name, current.realm, current.region)
@@ -559,10 +591,13 @@ function MPL.StoreProfiles(profiles)
         local variants=MPlusLogsDB.specProfiles[key] or {}
         -- Migrate a legacy profile before updating the compatibility view.
         local old=MPlusLogsDB.profiles[key]
+        if old and old.realmInferred and profile.realmInferred==nil then profile.realmInferred=true end
         if old then variants[MPL.VariantKey(old)]=old end
         variants[MPL.VariantKey(profile)]=profile
         MPlusLogsDB.specProfiles[key]=variants
         MPlusLogsDB.profiles[key]=profile
+        if MPL.profileStates then MPL.profileStates[key]=nil end
+        if MPlusLogsDB.profileStates then MPlusLogsDB.profileStates[key]=nil end
         count=count+1
     end
     return count

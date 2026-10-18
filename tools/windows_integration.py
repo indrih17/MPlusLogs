@@ -226,7 +226,6 @@ class Tray:
                 elif lparam in (0x205, 0x7B):
                     menu = user.CreatePopupMenu()
                     user.AppendMenuW(menu, 0, 1, tr("Открыть MPlusLogs"))
-                    user.AppendMenuW(menu, 0, 2, tr("Приостановить / Продолжить"))
                     user.AppendMenuW(menu, 0, 3, tr("Выйти"))
                     point = wt.POINT()
                     user.GetCursorPos(ctypes.byref(point))
@@ -235,7 +234,7 @@ class Tray:
                     user.DestroyMenu(menu)
                     user.PostMessageW(hwnd, 0, 0, 0)
                     if command:
-                        self.messages.put(({1: "show", 2: "toggle", 3: "exit"}[command], None))
+                        self.messages.put(({1: "show", 3: "exit"}[command], None))
                 return 0
             if message == 0x10:
                 user.DestroyWindow(hwnd)

@@ -137,26 +137,64 @@ local function applicant(owner)
     MPL.RecordApplicant(fullName,role,specID,class)
     if MPL.SafeString(fullName) then return fullName end
 end
-local function menu(root, fullName, realm,context)
+-- Search leaders need not be inspectable units. Use Blizzard's listing data;
+-- never assume that member #1 is the leader.
+local function recordSearchLeader(resultID,info)
+    if type(info)~="table" or not safe(info) or not MPL.SafeString(info.leaderName) then return end
+    local leader
+    if C_LFGList.GetSearchResultLeaderInfo then
+        leader=C_LFGList.GetSearchResultLeaderInfo(resultID)
+    end
+    if not leader and C_LFGList.GetSearchResultPlayerInfo and safe(info.numMembers)
+        and type(info.numMembers)=="number" and info.numMembers>=1 and info.numMembers<=40 then
+        for index=1,info.numMembers do
+            local member=C_LFGList.GetSearchResultPlayerInfo(resultID,index)
+            if type(member)=="table" and safe(member) and safe(member.isLeader) and member.isLeader==true then
+                leader=member; break
+            end
+        end
+    end
+    if type(leader)~="table" or not safe(leader) or not MPL.SafeString(leader.classFilename) then return end
+    local specID
+    if MPL.SafeString(leader.specName) then
+        for id,spec in pairs(MPL.specInfo) do
+            if spec[3]==leader.classFilename and MPL.SpecLabel(spec[1],spec[3])==leader.specName then
+                specID=id; break
+            end
+        end
+    end
+    MPL.RecordApplicant(info.leaderName,leader.assignedRole,specID,leader.classFilename)
+end
+
+local function menu(root, fullName, realm,context,searchResultID)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     root:CreateDivider()
     root:CreateButton(L["M+ логи (MPlusLogs)"],function()
+        -- Keep the published leader-profile flow until group-search support
+        -- has been advertised; an addon-only update must work with old helpers.
+        if searchResultID and MPL.ShowSearchGroupLogs and MPL.CompanionSupports("namesearch") then
+            local players=MPL.CollectSearchGroup(searchResultID)
+            if players and #players>1 then MPL.ShowSearchGroupLogs(searchResultID); return end
+        end
         if not context and not (IsInRaid and IsInRaid()) then
             local players=MPL.CollectParty()
             for _,player in ipairs(players) do
                 if #players>1 and MPL.Key(player.name,player.realm)==MPL.Key(name,server) then
-                    MPL.ShowGroupProfiles(players,player); return
+                    MPL.ShowGroupProfiles(players,player,true); return
                 end
             end
         end
         MPL.ShowProfile(name,server,context)
     end)
-    root:CreateButton(L["Загрузить M+ логи"],function()
-        MPL.ShowDownload(name,server,MPL.GetProfile(name,server),context)
-    end)
+    if not searchResultID then
+        root:CreateButton(L["Загрузить M+ логи"],function()
+            MPL.ShowDownload(name,server,MPL.GetProfile(name,server),context)
+        end)
+    end
     root:CreateButton(L["Ссылка на логи M+"],function()
-        MPL.CopyURL(name,server,MPL.GetProfile(name,server))
+        local profile=MPL.GetProfile(name,server)
+        MPL.CopyURL(name,server,profile)
     end)
 end
 
@@ -181,6 +219,7 @@ local function hookLFG()
             if InCombatLockdown() or not owner.resultID then return end
             local info = C_LFGList.GetSearchResultInfo(owner.resultID)
             if info and MPL.SafeString(info.leaderName) and MPL.GroupLogsEnabled(info.activityIDs) then
+                recordSearchLeader(owner.resultID,info)
                 MPL.AddTooltip(GameTooltip,info.leaderName,nil,MPL.ListedDungeon(info.activityIDs))
             end
         end)
@@ -204,7 +243,10 @@ local function hookLFG()
         Menu.ModifyMenu("MENU_LFG_FRAME_SEARCH_ENTRY",function(owner,root)
             if not owner or not owner.resultID then return end
             local info = C_LFGList.GetSearchResultInfo(owner.resultID)
-            if info and MPL.GroupLogsEnabled(info.activityIDs) then menu(root,info.leaderName) end
+            if info and MPL.GroupLogsEnabled(info.activityIDs) then
+                recordSearchLeader(owner.resultID,info)
+                menu(root,info.leaderName,nil,nil,owner.resultID)
+            end
         end)
         for _, tag in ipairs({"PLAYER","SELF","TARGET","FOCUS","PARTY","RAID_PLAYER","FRIEND","GUILD","GUILD_OFFLINE","CHAT_ROSTER"}) do
             Menu.ModifyMenu("MENU_UNIT_"..tag,function(_,root,context)
@@ -334,12 +376,17 @@ function MPL.InstallBatchButton()
         if MPL.GroupLogsEnabled() then MPL.ShowBatchDownload() end
     end)
     MPL.batchButton=b
-    local loaded,total=0,0
+    local loaded,total,hidden=0,0,0
     local function update()
         local players,err=MPL.CollectApplicants()
         local pending
         pending,loaded=MPL.FilterFreshProfiles(players)
         total=#players
+        hidden=0
+        for _,player in ipairs(players) do
+            local state=MPL.GetProfileState(player.name,player.realm,player.spec)
+            if state and state.reason=="hidden" then hidden=hidden+1 end
+        end
         b:SetText(L["Загрузить логи всех ("]..loaded.."/"..total..")")
         local visible=MPL.GroupLogsEnabled()
         b:SetShown(visible)
@@ -362,7 +409,8 @@ function MPL.InstallBatchButton()
         GameTooltip:ClearLines()
         GameTooltip:AddLine(L["Логи текущих кандидатов"])
         GameTooltip:AddLine(L["Актуальные данные: "]..loaded..L[" из "]..total,1,1,1)
-        GameTooltip:AddLine(L["Нет актуальных данных: "]..(total-loaded),0.7,0.7,0.7)
+        GameTooltip:AddLine(L["Нет актуальных данных: "]..(total-loaded-hidden),0.7,0.7,0.7)
+        if hidden>0 then GameTooltip:AddLine(L["Скрытые логи: "]..hidden,0.7,0.7,0.7) end
         GameTooltip:AddLine(L["Срок актуальности логов"]..": "..string.format(L["%d ч."],MPL.GetOption("freshHours")),0.7,0.7,0.7)
         GameTooltip:AddLine(L["Загружаются только отсутствующие или устаревшие логи."],0.7,0.7,0.7,true)
         GameTooltip:Show()
@@ -375,11 +423,48 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED"); events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("LFG_LIST_APPLICANT_LIST_UPDATED"); events:RegisterEvent("LFG_LIST_APPLICANT_UPDATED")
+events:RegisterEvent("LFG_LIST_SEARCH_RESULT_UPDATED")
 events:RegisterEvent("PLAYER_REGEN_ENABLED"); events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:RegisterEvent("PARTY_LEADER_CHANGED"); events:RegisterEvent("GROUP_ROSTER_UPDATE")
 events:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
 events:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED"); events:RegisterEvent("INSPECT_READY")
 events:SetScript("OnEvent",function(_,event,loaded)
+    if (event=="GROUP_ROSTER_UPDATE" or event=="PLAYER_REGEN_ENABLED") and not InCombatLockdown() then
+        local panel=MPL.panel
+        if panel and panel:IsShown() and panel.partyTracked and not (IsInRaid and IsInRaid()) then
+            local players=MPL.CollectParty()
+            if #players>0 then
+                local present=false
+                for _,p in ipairs(players) do
+                    if MPL.Key(p.name,p.realm)==MPL.Key(panel.name,panel.realm) then present=true; break end
+                end
+                if not present then
+                    for _,p in ipairs(panel.groupPlayers or {}) do
+                        if MPL.Key(p.name,p.realm)==MPL.Key(panel.name,panel.realm) then players[#players+1]=p; break end
+                    end
+                end
+                panel.groupPlayers=players; MPL.RenderPlayerTabs(panel)
+            end
+        end
+    end
+    if event=="PLAYER_REGEN_ENABLED" and MPL.searchGroupWindow and MPL.UpdateSearchGroupRoster then
+        MPL.UpdateSearchGroupRoster(MPL.searchGroupWindow.resultID)
+    end
+    if event=="LFG_LIST_SEARCH_RESULT_UPDATED" and not InCombatLockdown() then
+        local handled=MPL.UpdateSearchGroupRoster and MPL.UpdateSearchGroupRoster(loaded)
+        local f=MPL.panel
+        if not handled and f and f:IsShown() then
+            local info=C_LFGList.GetSearchResultInfo(loaded)
+            local name,realm
+            if info then name,realm=MPL.Identity(info.leaderName) end
+            if name and realm and MPL.Key(name,realm)==MPL.Key(f.name,f.realm) then
+                recordSearchLeader(loaded,info)
+                local metric=f.viewMetric
+                MPL.ShowProfile(f.name,f.realm,f.applicant,true,true)
+                f.viewMetric=metric; MPL.RenderProfileStats(f)
+            end
+        end
+    end
     if (event=="PLAYER_SPECIALIZATION_CHANGED" or event=="INSPECT_READY")
         and MPL.panel and MPL.panel:IsShown() and not InCombatLockdown() then
         local f=MPL.panel
@@ -431,7 +516,7 @@ SlashCmdList.MPLUSLOGS = function(text)
         MPL.SetOption("tooltips",not MPL.GetOption("tooltips"))
         print(L["MPlusLogs: тултипы "] .. (MPlusLogsDB.tooltips and L["включены"] or L["выключены"]))
     elseif text ~= "" then MPL.ShowProfile(text)
-    elseif UnitExists("party1") and not (IsInRaid and IsInRaid()) then MPL.ShowGroupProfiles(MPL.CollectParty())
+    elseif UnitExists("party1") and not (IsInRaid and IsInRaid()) then MPL.ShowGroupProfiles(MPL.CollectParty(),nil,true)
     elseif UnitExists("target") and UnitIsPlayer("target") then
         local name,realm = UnitFullName("target"); MPL.ShowProfile(name,realm)
     else MPL.ShowProfile(UnitFullName("player")) end

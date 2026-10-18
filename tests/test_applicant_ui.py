@@ -29,6 +29,8 @@ class ApplicantUITests(unittest.TestCase):
         f.lookupButton.scripts.OnClick()
         self.assertEqual(f.name, "Alice")
         self.assertEqual(f.realm, "Area 52")
+        self.assertEqual(f.lookup.text, "Alice-Area52")
+        self.assertEqual(f.character.text, "Alice — Area 52")
         self.assertTrue(f.emptyMessage.shown)
         f.lookup.SetText(f.lookup, "Киндрих-Гордунни")
         f.lookup.scripts.OnEnterPressed()

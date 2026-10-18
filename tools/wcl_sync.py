@@ -20,13 +20,63 @@ ROOT = "https://www.warcraftlogs.com"
 
 class APIError(ValueError):
     """Safe upstream error with machine-readable status and retry timing."""
-    def __init__(self, message, status=None, retry_after=0, rate_limit=None):
+    def __init__(self, message, status=None, retry_after=0, rate_limit=None, code=None):
         super().__init__(message)
         self.status, self.retry_after, self.rate_limit = status, retry_after, rate_limit
+        self.code = code or ("budget" if status == 429 else "auth" if status == 401 else "network" if status is None or status >= 500 else "unknown")
 
 
 class NoProfile(ValueError):
     """A valid response explicitly says there is no usable public profile."""
+    def __init__(self, message, code="unknown"):
+        super().__init__(message)
+        self.code=code
+
+
+class NoSeasonLogs(NoProfile):
+    """A readable profile has no public M+ measurements for this season."""
+    def __init__(self, message):
+        super().__init__(message, "empty")
+
+
+ERROR_CODES={"hidden","missing","empty","retry","budget","auth","schema","network","unknown"}
+
+
+def legacy_error_code(message):
+    """Migration only: caches written before error codes contain text alone."""
+    text=message.lower()
+    for phrase,code in (("rankings hidden","hidden"),("character not found","missing"),
+                        ("публичные логи m+ не найдены","empty"),("no public logs","empty"),
+                        ("profile refresh is cooling down","retry"),("http 429","budget")):
+        if phrase in text: return code
+    return "unknown"
+
+
+class ProfileError(ValueError):
+    def __init__(self, message, code="unknown", retry_at=0):
+        super().__init__(message)
+        self.code=code if isinstance(code,str) and code in ERROR_CODES else "unknown"
+        self.retry_at=retry_at
+
+
+def error_info(error, now=None):
+    code=getattr(error,"code","unknown")
+    if not isinstance(code,str) or code not in ERROR_CODES: code="unknown"
+    retry=getattr(error,"retry_at",0)
+    if not retry and getattr(error,"retry_after",0):
+        retry=(time.time() if now is None else now)+error.retry_after
+    if type(retry) not in (int,float) or not 0<=retry<=253402300799: retry=0
+    return {"error_code":code,"retry_at":int(retry)}
+
+
+def wire_error(message, details=None, limit=500):
+    details=details or {}
+    code=details.get("error_code","unknown")
+    if not isinstance(code,str) or code not in ERROR_CODES: code="unknown"
+    retry=details.get("retry_at",0)
+    if type(retry) not in (int,float) or not 0<=retry<=253402300799: retry=0
+    text=f"MPLERR1 {code} {int(retry)}:"+message
+    return text.encode("utf-8")[:limit].decode("utf-8",errors="ignore")
 
 
 def retry_seconds(value):
@@ -37,11 +87,13 @@ def retry_seconds(value):
             return max(0, min(86400, parsedate_to_datetime(value).timestamp() - time.time()))
         except (ValueError, TypeError, OverflowError):
             return 0
-QUERY = """query MPlusLogs($id:Int, $name:String, $slug:String, $region:String, $zone:Int!, $spec:String) {
+QUERY = """query MPlusLogs($id:Int, $name:String, $slug:String, $region:String, $zone:Int!, $spec:String, $verifyRealm:Boolean! = false) {
   rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn }
+  gameData { classes { id name } }
+  worldData @include(if:$verifyRealm) { server(slug:$slug, region:$region) { id } }
   characterData {
     character(id:$id, name:$name, serverSlug:$slug, serverRegion:$region) {
-      id name hidden server { name slug region { slug } }
+      id name classID level hidden server { id name slug region { slug } }
       damage: zoneRankings(zoneID:$zone, metric:points_and_damage, byBracket:true, specName:$spec)
       healing: zoneRankings(zoneID:$zone, metric:points_and_healing, byBracket:true, specName:$spec)
     }
@@ -85,24 +137,30 @@ def fetch(args, token=None, endpoint="client"):
         raise ValueError("Unsupported WCL endpoint")
     token = token or access_token()
     variables = {"id": args.character_id, "name": args.name, "slug": args.server_slug,
-                 "region": args.region, "zone": args.zone, "spec": args.spec}
+                 "region": args.region, "zone": args.zone, "spec": args.spec,
+                 "verifyRealm": bool(getattr(args,'verify_realm',False))}
     data = request_json(ROOT + "/api/v2/" + endpoint, json.dumps({"query": QUERY, "variables": variables}).encode(),
                         {"Authorization": "Bearer " + token, "Content-Type": "application/json"})
     if not isinstance(data, dict):
-        raise APIError("Invalid WCL response")
+        raise APIError("Invalid WCL response",code="schema")
     if data.get("errors"):
         raise APIError("WCL GraphQL error; inspect API schema/query. No export written",
-                       rate_limit=(data.get("data") or {}).get("rateLimitData"))
+                       rate_limit=rate_limit_data(data),code="schema")
     return data
+
+
+def rate_limit_data(raw):
+    data = raw.get("data") if isinstance(raw, dict) else None
+    return data.get("rateLimitData") if isinstance(data, dict) else None
 
 
 def numeric(value, maximum=1e12, integer=False):
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (float, int)):
-        raise ValueError("Unexpected numeric field in WCL JSON")
+        raise ProfileError("Unexpected numeric field in WCL JSON","schema")
     if not math.isfinite(value) or value < 0 or value > maximum or (integer and value % 1):
-        raise ValueError("Numeric field outside supported range")
+        raise ProfileError("Numeric field outside supported range","schema")
     return int(value) if integer else value
 
 
@@ -110,7 +168,10 @@ def rankings(value):
     if isinstance(value, str):
         value = json.loads(value)
     if not isinstance(value, dict) or not isinstance(value.get("rankings"), list):
-        raise ValueError("Unknown zoneRankings JSON shape; preserve raw JSON and update the adapter")
+        raise ProfileError("Unknown zoneRankings JSON shape; preserve raw JSON and update the adapter","schema")
+    if any(not isinstance(row, dict) or (row.get("encounter") is not None
+           and not isinstance(row["encounter"], dict)) for row in value["rankings"]):
+        raise ProfileError("Unknown zoneRankings row shape; expected an object","schema")
     return value
 
 
@@ -120,11 +181,11 @@ def throughput_rankings(value, label):
         try:
             value = json.loads(value)
         except (TypeError, ValueError):
-            raise ValueError(f"Unknown {label} throughputRankings shape; expected a JSON object") from None
+            raise ProfileError(f"Unknown {label} throughputRankings shape; expected a JSON object","schema") from None
     if value is None or (isinstance(value, list) and not value):
         return {}
     if not isinstance(value, dict):
-        raise ValueError(f"Unknown {label} throughputRankings shape; expected an object")
+        raise ProfileError(f"Unknown {label} throughputRankings shape; expected an object","schema")
     return value
 
 
@@ -138,29 +199,36 @@ def logged_specs(raw):
     for key in ('damage','healing','performance'):
         if character.get(key) is None: continue
         data=rankings(character[key])
-        for row in data.get('allStars',[])+data['rankings']:
+        stars=data.get('allStars')
+        for row in (stars if isinstance(stars,list) else [])+data['rankings']:
+            if not isinstance(row,dict): continue
             for field in ('spec','bestSpec'):
                 spec=row.get(field)
                 if isinstance(spec,str) and spec and spec!='All specs': found.add(spec)
     return sorted(found)
 
-def normalize(raw, args):
+def character_data(raw):
     data = raw.get("data") if isinstance(raw, dict) else None
     characters = data.get("characterData") if isinstance(data, dict) else None
     if not isinstance(characters, dict) or "character" not in characters or raw.get("errors"):
-        raise ValueError("Invalid WCL character response; no profile cached")
+        raise ProfileError("Invalid WCL character response; no profile cached","schema")
     character = characters["character"]
     if character is not None and not isinstance(character, dict):
-        raise ValueError("Invalid WCL character response; no profile cached")
+        raise ProfileError("Invalid WCL character response; no profile cached","schema")
     if not character:
-        raise NoProfile("Character not found; absence is not a zero parse")
+        raise NoProfile("Character not found; absence is not a zero parse", "missing")
     if character.get("hidden"):
-        raise NoProfile("Rankings hidden: Warcraft Logs denied access to this character's logs")
+        raise NoProfile("Rankings hidden: Warcraft Logs denied access to this character's logs", "hidden")
+    return character
+
+
+def normalize(raw, args):
+    character = character_data(raw)
     dual="damage" in character and "healing" in character
     damage=rankings(character["damage"]) if dual else None
     healing=rankings(character["healing"]) if dual else None
     if dual and not damage['rankings'] and not healing['rankings']:
-        raise NoProfile("Публичные логи M+ не найдены")
+        raise NoSeasonLogs("Публичные логи M+ не найдены")
     role=getattr(args,"role",None)
     if role not in {"HEALER","TANK","DAMAGER"}:
         specs={}
@@ -185,9 +253,14 @@ def normalize(raw, args):
     if not throughput and not other:
         # zoneRankings also contains leaderboard scores from runs with no
         # uploaded combat log. Those scores cannot supply DPS/HPS measurements.
-        raise NoProfile("Публичные логи M+ не найдены")
+        raise NoSeasonLogs("Публичные логи M+ не найдены")
     server = character.get("server") or {}
-    region = (server.get("region") or {}).get("slug", args.region).lower()
+    if not isinstance(server, dict) or not isinstance(server.get("region") or {}, dict):
+        raise ValueError("Invalid WCL server response")
+    region = (server.get("region") or {}).get("slug", args.region)
+    if not isinstance(region, str):
+        raise ValueError("Invalid WCL region response")
+    region = region.lower()
     if region not in {"eu", "us", "kr", "tw", "cn"}:
         raise ValueError("Unknown region")
     dungeons = []
@@ -227,7 +300,7 @@ def normalize(raw, args):
                 # or making otherwise usable dungeon logs fail import.
                 ranks_by_spec[spec] = None
     spec_ranks = [{"spec": spec, "rank": rank} for spec, rank in ranks_by_spec.items() if rank is not None]
-    points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 else None
+    points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 and isinstance(stars[0], dict) else None
     runs = sum(d["runs"] for d in dungeons) if dungeons and all(d["runs"] is not None for d in dungeons) else None
     return {"region": region, "realm": args.realm, "name": character["name"], "zone": args.zone,
             "season": args.season, "spec": args.spec or "All specs", "primarySpec":primary_spec, "metric": metric,"role":role,"dual":dual,

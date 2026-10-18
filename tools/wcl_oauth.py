@@ -35,9 +35,9 @@ def callback_code(path, state):
 
 
 def token_record(response, previous=None):
-    if not isinstance(response.get("access_token"), str) or not response["access_token"]:
+    if not isinstance(response, dict) or not isinstance(response.get("access_token"), str) or not response["access_token"]:
         raise ValueError("Warcraft Logs не вернул токен. Повторите вход.")
-    if response.get("token_type", "Bearer").lower() != "bearer":
+    if not isinstance(response.get("token_type", "Bearer"), str) or response.get("token_type", "Bearer").lower() != "bearer":
         raise ValueError("Unsupported OAuth token type")
     try:
         lifetime = int(response["expires_in"])
@@ -143,7 +143,7 @@ class Session:
             if time.time() < self.tokens.get("expires_at", 0) - 60:
                 return self.tokens["access_token"]
             if not self.tokens.get("refresh_token"):
-                raise ValueError("Сессия Warcraft Logs истекла. Войдите ещё раз.")
+                raise wcl.ProfileError("Сессия Warcraft Logs истекла. Войдите ещё раз.","auth")
             updated = token_record(exchange({"grant_type": "refresh_token", "client_id": self.client_id,
                                             "refresh_token": self.tokens["refresh_token"]}), self.tokens)
             self.persist(updated)
@@ -164,10 +164,12 @@ def validate_access(tokens):
     data = wcl.request_json(wcl.ROOT + "/api/v2/user",
                            b'{"query":"{ rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn } characterData { __typename } userData { currentUser { id } } }"}',
                            {"Authorization": "Bearer " + tokens["access_token"], "Content-Type": "application/json"})
-    if data.get("errors") or not data.get("data", {}).get("characterData"):
+    payload = data.get("data") if isinstance(data, dict) else None
+    if not isinstance(payload, dict) or data.get("errors") or not isinstance(payload.get("characterData"), dict) or not payload["characterData"]:
         raise ValueError("Вход выполнен, но доступ к API персонажей WCL не подтверждён.")
-    account = (data.get("data", {}).get("userData") or {}).get("currentUser") or {}
-    if not valid_account_id(account.get("id")):
+    users = payload.get("userData")
+    account = users.get("currentUser") if isinstance(users, dict) else None
+    if not isinstance(account, dict) or not valid_account_id(account.get("id")):
         raise ValueError("WCL account identity could not be verified. Sign in again.")
     tokens["_account_id"] = account["id"]
-    return data.get("data", {}).get("rateLimitData")
+    return wcl.rate_limit_data(data)

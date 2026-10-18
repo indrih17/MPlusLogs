@@ -57,6 +57,9 @@ def apply(root, mode, settings=None):
     style.configure("TFrame", background=palette["background"])
     style.configure("TLabel", background=palette["background"], foreground=palette["text"])
     style.configure("Muted.TLabel", foreground=palette["muted"])
+    style.configure("Horizontal.TProgressbar", background=palette["accent"],
+                    troughcolor=palette["control"], bordercolor=palette["border"],
+                    lightcolor=palette["accent"], darkcolor=palette["accent"])
     style.configure("TEntry", fieldbackground=palette["control"], foreground=palette["text"],
                     insertcolor=palette["text"], bordercolor=palette["border"])
     style.map("TEntry", fieldbackground=[("readonly",palette["control"]),("disabled",palette["control"])],

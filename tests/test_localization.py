@@ -2,6 +2,7 @@
 import json
 import re
 import unittest
+from urllib.parse import quote
 from test_addon import ROOT,MOCK,LuaRuntime,load_locales
 
 LOCALES=['enUS','enGB','ruRU','deDE','esES','esMX','frFR','itIT','ptBR','koKR','zhCN','zhTW']
@@ -66,5 +67,22 @@ class LocalizationTests(unittest.TestCase):
         # Missing entries in a selected dictionary still use the English base.
         _,mpl=self.runtime('koKR')
         self.assertEqual(mpl.L['MPlusLogs: tooltips '],'MPlusLogs: tooltips ')
+
+    def test_search_failure_preserves_realm_and_localizes_reason_in_every_locale(self):
+        for locale in LOCALES:
+            with self.subTest(locale=locale):
+                lua,mpl=self.runtime(locale)
+                lua.execute('return assert(loadstring(...))',(ROOT/'SearchGroup.lua').read_text(encoding='utf-8'))('MPlusLogs',mpl)
+                lua.execute('''
+                    local MPL=...
+                    local p={name="Hexoxo",class="SHAMAN",role="DAMAGER",region="eu",origin="search"}
+                    MPL.searchGroupWindow={players={p},requestPlayers={p},requestTargets={p},selected=1,resultID=10,requestID="1-1"}
+                ''',mpl)
+                payload="MPLN2\nF\t1\teu\tTwilight's Hammer\tHexoxo\tSHAMAN\tRankings hidden: Warcraft Logs denied access\n"
+                self.assertEqual(mpl.ReceiveSearchGroupReply('MPLS1\n1-1\nMPLB1\n'+quote(payload,safe='')),0)
+                self.assertEqual(mpl.panel.character.text,"Hexoxo — Twilight's Hammer")
+                self.assertEqual(mpl.panel.emptyMessage.text,mpl.L['Логи этого персонажа скрыты в Warcraft Logs. Доступ к ним не разрешён для текущего аккаунта.'])
+                self.assertEqual(mpl.CompanionError('No matching character found for this name and class'),
+                    mpl.L['В Warcraft Logs не найден персонаж с таким именем, классом и подходящим уровнем.'])
 
 if __name__=='__main__': unittest.main()
