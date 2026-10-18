@@ -100,7 +100,9 @@ function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
     if MPL.UsesDungeonMetric() then dungeon=dungeon or MPL.ListedDungeon() end
     local profile, name, server = MPL.GetProfile(fullName,realm)
     if not name then return end
-    local key = MPL.Key(name,server)..":"..(profile and MPL.VariantKey(profile) or MPL.SelectedSpec(name,server) or "")..":"..(dungeon or "")
+    local state=MPL.GetProfileState(name,server,MPL.SelectedSpec(name,server))
+    if state and (state.reason=="hidden" or state.reason=="empty" or state.reason=="missing") then profile=nil end
+    local key = MPL.Key(name,server)..":"..(profile and MPL.VariantKey(profile) or MPL.SelectedSpec(name,server) or "")..":"..(dungeon or "")..":"..(state and state.reason or "")
     MPL.Remember(name,server)
     if tooltip.mplKey == key then return end
     tooltip.mplKey = key
@@ -120,6 +122,8 @@ function MPL.AddTooltip(tooltip, fullName, realm, dungeon)
         tooltip:AddDoubleLine(secondary:upper().." "..MPL.PercentileCaption(),MPL.Percent(otherBest,stale).." / "..MPL.Percent(otherMedian,stale))
         tooltip:AddDoubleLine(L["Залогированные прохождения"],tostring(profile.runs or "—"))
         if stale then tooltip:AddLine(L["Обновите логи персонажа"],0.65,0.65,0.65) end
+    elseif state and state.reason=="hidden" then
+        tooltip:AddLine(L["Логи скрыты в Warcraft Logs."],0.65,0.65,0.65)
     else
         local spec=MPL.SelectedSpec(name,server)
         if spec then tooltip:AddLine(MPL.SpecLabel(spec),0.8,0.8,0.8) end
@@ -171,9 +175,9 @@ local function menu(root, fullName, realm,context,searchResultID)
     if not name then return end
     root:CreateDivider()
     root:CreateButton(L["M+ логи (MPlusLogs)"],function()
-        -- Keep the published leader-profile flow until group-search support
-        -- has been advertised; an addon-only update must work with old helpers.
-        if searchResultID and MPL.ShowSearchGroupLogs and MPL.CompanionSupports("namesearch") then
+        -- Session capabilities are unknown after /reload. Keep the requested
+        -- roster; the group exchange negotiates support with older helpers.
+        if searchResultID and MPL.ShowSearchGroupLogs then
             local players=MPL.CollectSearchGroup(searchResultID)
             if players and #players>1 then MPL.ShowSearchGroupLogs(searchResultID); return end
         end
@@ -187,11 +191,6 @@ local function menu(root, fullName, realm,context,searchResultID)
         end
         MPL.ShowProfile(name,server,context)
     end)
-    if not searchResultID then
-        root:CreateButton(L["Загрузить M+ логи"],function()
-            MPL.ShowDownload(name,server,MPL.GetProfile(name,server),context)
-        end)
-    end
     root:CreateButton(L["Ссылка на логи M+"],function()
         local profile=MPL.GetProfile(name,server)
         MPL.CopyURL(name,server,profile)
@@ -488,9 +487,11 @@ events:SetScript("OnEvent",function(_,event,loaded)
                 local _, unit = tooltip:GetUnit()
                 if MPL.SafeString(unit) and UnitIsPlayer(unit) then
                     local name,realm = UnitFullName(unit)
+                    name,realm=MPL.Identity(name,realm)
+                    if not name then return end
                     local role=UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit)
                     if MPL.SafeString(role) and ({HEALER=true,TANK=true,DAMAGER=true})[role] then
-                        MPL.roles=MPL.roles or {}; MPL.roles[MPL.Key(name,realm or GetNormalizedRealmName())]=role
+                        MPL.roles=MPL.roles or {}; MPL.roles[MPL.Key(name,realm)]=role
                     end
                     MPL.AddTooltip(tooltip,name,realm)
                 end
@@ -509,6 +510,7 @@ SlashCmdList.MPLUSLOGS = function(text)
     if text == "settings" then MPL.OpenSettings()
     elseif text == "import" then MPL.ShowImport()
     elseif text == "applicants" then MPL.ShowBatchDownload()
+    elseif text == "testimport" then MPL.ShowImportTest()
     elseif text == "results" then MPL.OpenBatchResults()
     elseif text == "requests" then MPL.ShowRequests()
     elseif text == "demo" then MPL.ShowProfile("Киндрих","Гордунни")

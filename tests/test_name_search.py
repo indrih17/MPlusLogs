@@ -237,6 +237,25 @@ class NameSearchTests(unittest.TestCase):
         self.assertTrue(self.mpl.panel.shown)
         self.assertEqual(len(self.mpl.panel.playerTabs),2)
 
+    def test_search_menu_keeps_group_request_before_companion_handshake(self):
+        # A reload clears session capabilities. Opening a group must still
+        # negotiate the group protocol rather than silently opening its leader.
+        self.mpl.companionInfo = None
+        self.lua.execute('buttons={}; Menu.callbacks.MENU_LFG_FRAME_SEARCH_ENTRY(owner,root); buttons[1]()')
+        exchange = self.mpl.downloadWindow
+        self.assertIsNotNone(exchange)
+        self.assertTrue(exchange.shown)
+        _, body = clipboard_protocol.unwrap_request(exchange.request)
+        self.assertEqual([p['name'] for p in name_search.parse(body)], ['Frákkie', 'Mirkowrr'])
+
+    def test_search_menu_keeps_group_request_with_older_companion(self):
+        # Protocol negotiation already reports unsupported group requests.
+        # Missing capabilities must not silently change the requested roster.
+        self.mpl.companionInfo = self.lua.table_from(dict(capabilities=self.lua.table_from({})))
+        self.lua.execute('buttons={}; Menu.callbacks.MENU_LFG_FRAME_SEARCH_ENTRY(owner,root); buttons[1]()')
+        self.assertIsNotNone(self.mpl.downloadWindow)
+        self.assertIn('MPLQ2\nMPLN1\n', self.mpl.downloadWindow.request)
+
     def test_context_menu_log_link_is_a_url_with_and_without_saved_profile(self):
         for saved in (False,True):
             if saved:
@@ -255,6 +274,75 @@ class NameSearchTests(unittest.TestCase):
         self.assertIsNone(self.lua.eval('function(f) return rawget(f,"requestID") end')(self.mpl.searchGroupWindow))
         if self.mpl.downloadWindow:
             self.assertFalse(self.mpl.downloadWindow.shown)
+
+    def test_reopening_same_roster_under_new_listing_reuses_resolved_realms(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        self.mpl.ShowSearchGroupLogs(11)
+        self.assertIsNone(self.mpl.downloadWindow)
+        self.assertEqual(self.mpl.panel.searchPlayers[2].realm, 'Silvermoon')
+        self.assertEqual(self.mpl.panel.searchPlayers[2].searchResultID, 11)
+
+    def test_returning_to_previous_group_reuses_its_exact_roster(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        self.lua.execute('leaderName="Other-Draenor"')
+        self.mpl.ShowSearchGroup(11)
+        self.assertIsNone(self.mpl.searchGroupWindow.players[2].realm)
+        self.lua.execute('leaderName="Frákkie-Draenor"')
+        self.mpl.ShowSearchGroupLogs(12)
+        self.assertIsNone(self.mpl.downloadWindow)
+        self.assertEqual(self.mpl.panel.searchPlayers[2].realm, 'Silvermoon')
+
+    def test_reopening_group_requests_only_stale_members(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        profile, _, _ = self.mpl.GetProfile('Mirkowrr', 'Silvermoon')
+        profile.updated = '2000-01-01 00:00 UTC'
+        self.mpl.ShowSearchGroupLogs(10)
+        _, body = clipboard_protocol.unwrap_request(self.mpl.downloadWindow.request)
+        self.assertEqual([p['name'] for p in name_search.parse(body)], ['Mirkowrr'])
+
+    def test_fresh_stored_profile_recovers_missing_loaded_marker(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        self.mpl.searchGroupWindow.players[2].loaded = None
+        self.mpl.ShowSearchGroupLogs(10)
+        self.assertIsNone(self.mpl.downloadWindow)
+        self.assertTrue(self.mpl.searchGroupWindow.players[2].loaded)
+
+    def test_restored_roster_still_checks_profile_freshness(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        profile, _, _ = self.mpl.GetProfile('Mirkowrr', 'Silvermoon')
+        profile.updated = '2000-01-01 00:00 UTC'
+        self.mpl.ShowSearchGroupLogs(11)
+        _, body = clipboard_protocol.unwrap_request(self.mpl.downloadWindow.request)
+        members = name_search.parse(body)
+        self.assertEqual([p['name'] for p in members], ['Mirkowrr'])
+        self.assertEqual(members[0]['realm'], 'Silvermoon')
+
+    def test_expired_roster_does_not_restore_unknown_realms(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        self.lua.execute('leaderName="Other-Draenor"')
+        self.mpl.ShowSearchGroup(11)
+        self.lua.execute('''
+            local now=GetServerTime()
+            GetServerTime=function() return now+6*3600 end
+            leaderName="Frákkie-Draenor"
+        ''')
+        self.mpl.ShowSearchGroup(12)
+        self.assertIsNone(self.mpl.searchGroupWindow.players[2].realm)
+
+    def test_changed_authoritative_realm_is_not_overwritten_by_snapshot(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        self.lua.execute('searchMembers[2].name="Mirkowrr-Kazzak"')
+        self.mpl.ShowSearchGroup(11)
+        self.assertEqual(self.mpl.searchGroupWindow.players[2].realm, 'Kazzak')
+
+    def test_roster_without_known_leader_realm_is_not_reused_across_listings(self):
+        self.lua.execute('leaderName="Frákkie"')
+        self.mpl.ShowSearchGroup(11)
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        self.assertEqual(self.mpl.searchGroupWindow.players[2].realm, 'Silvermoon')
+        self.mpl.ShowSearchGroup(12)
+        self.assertIsNone(self.mpl.searchGroupWindow.players[1].realm)
+        self.assertIsNone(self.mpl.searchGroupWindow.players[2].realm)
 
     def test_partial_reply_opens_first_loaded_profile_and_keeps_failed_tab(self):
         self.mpl.searchGroupWindow.selected=2
@@ -380,7 +468,8 @@ class NameSearchTests(unittest.TestCase):
         self.assertIn('Search/API unavailable',self.mpl.panel.emptyMessage.text)
 
     def test_ambiguous_match_requires_realm_choice_inside_addon(self):
-        client=Client(realms=('silvermoon','draenor'))
+        from test_name_search_roles import RoleClient
+        client=RoleClient(specs=('Arms','Fury'))
         self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(client)),1)
         player=self.mpl.searchGroupWindow.players[2]
         self.assertIsNone(player.realm)
@@ -389,15 +478,59 @@ class NameSearchTests(unittest.TestCase):
         f=self.mpl.searchGroupWindow
         self.mpl.OpenSearchGroupProfile(2)
         choices=self.mpl.panel.searchChoices
+        self.assertIn('WCL',choices[1].text)
+        self.assertIn('Best %',choices[1].text)
+        self.assertIn('Arms',choices[1].text)
+        self.assertGreaterEqual(choices[1].height,50)
         choices[2].scripts.OnClick(choices[2])
         reply=clipboard_protocol.reply(f.request,realm_resolver.load_mappings(),self.cache,client)
-        self.assertEqual(self.mpl.ReceiveSearchGroupReply(reply),2)
+        self.assertEqual(len(f.requestPlayers),1)
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(reply),1)
         self.assertEqual(player.realm,'Silvermoon')
         self.assertTrue(player.loaded)
         self.assertFalse(self.mpl.panel.searchChoices[1].shown)
         self.assertTrue(self.mpl.panel.specButton.shown)
 
-    def test_empty_season_profile_is_not_a_realm_choice_against_usable_logs(self):
+    def test_paladins_with_opposite_role_history_resolve_through_clipboard(self):
+        from test_name_search_roles import RoleClient
+        class Paladins(RoleClient):
+            def __call__(self,args):
+                raw=super().__call__(args)
+                if args.name=='Mirkowrr':
+                    raw['data']['characterData']['character']['classID']=71
+                    raw['data']['gameData']['classes'].append(dict(id=71,name='Paladin'))
+                return raw
+        self.lua.execute('searchMembers[2].classFilename="PALADIN"')
+        self.mpl.UpdateSearchGroupRoster(10)
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(Paladins(specs=('Protection','Retribution')))),2)
+        player=self.mpl.searchGroupWindow.players[2]
+        self.assertEqual(player.realm,'Silvermoon')
+        self.assertTrue(player.loaded)
+        self.assertIsNone(player.candidates)
+
+    def test_candidate_metadata_is_validated_before_any_profile_is_stored(self):
+        reply=self.response(Client(realms=('silvermoon','draenor')))
+        head,body=reply.split('MPLB1\n',1)
+        lines=unquote(body).splitlines()
+        original=next(i for i,line in enumerate(lines) if line.startswith('C\t'))
+        for field,bad in ((6,'-1'),(7,'nan'),(8,'inf'),(9,'101'),(10,'1.5'),(11,'%7CHplayer:test')):
+            with self.subTest(field=field,bad=bad):
+                edited=list(lines); row=edited[original].split('\t'); row[field]=bad
+                edited[original]='\t'.join(row)
+                count,error=self.mpl.ReceiveSearchGroupReply(head+'MPLB1\n'+quote('\n'.join(edited)+'\n',safe=''))
+                self.assertIsNone(count)
+                self.assertEqual(len(self.lua.globals().MPlusLogsDB.profiles),0)
+
+    def test_legacy_candidates_show_missing_data_hint(self):
+        reply=self.response(Client(realms=('silvermoon','draenor')))
+        head,body=reply.split('MPLB1\n',1)
+        lines=unquote(body).splitlines()
+        lines=['\t'.join(line.split('\t')[:6]) if line.startswith('C\t') else line for line in lines]
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(head+'MPLB1\n'+quote('\n'.join(lines)+'\n',safe='')),1)
+        self.mpl.OpenSearchGroupProfile(2)
+        self.assertIn(self.mpl.L['Role data unavailable; update Companion'],self.mpl.panel.searchChoices[1].text)
+
+    def test_empty_season_profile_does_not_prove_a_different_identity(self):
         class EmptySeason(Client):
             def __call__(self,args):
                 raw=super().__call__(args)
@@ -409,11 +542,11 @@ class NameSearchTests(unittest.TestCase):
                         for row in char[metric]['rankings']:
                             row.update(totalKills=0,rankPercent=None,medianPercent=None,bestAmount=0)
                 return raw
-        self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(EmptySeason(realms=('neptulon','stormscale')))),2)
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(EmptySeason(realms=('neptulon','stormscale')))),1)
         player=self.mpl.searchGroupWindow.players[2]
-        self.assertEqual(player.realm,'Stormscale')
-        self.assertTrue(player.loaded)
-        self.assertIsNone(player.candidates)
+        self.assertIsNone(player.realm)
+        self.assertFalse(player.loaded)
+        self.assertEqual(len(player.candidates),2)
 
     def test_hidden_candidate_is_not_silently_discarded_as_empty(self):
         class HiddenCandidate(Client):
@@ -695,6 +828,52 @@ class NameSearchTests(unittest.TestCase):
         restarted=Cooling()
         self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(restarted)),2)
         self.assertEqual(restarted.calls,[])
+
+    def test_search_reuses_two_hour_old_disk_profile_after_restart(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        for path in self.cache.glob('*.json'):
+            record=json.loads(path.read_text(encoding='utf-8'))
+            if 'raw' not in record: continue
+            record['fetched_at']-=7200
+            path.write_text(json.dumps(record),encoding='utf-8')
+        restarted=Client()
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(restarted)),2)
+        self.assertEqual(restarted.calls,[])
+
+    def test_search_refreshes_profiles_older_than_shared_ttl(self):
+        self.mpl.ReceiveSearchGroupReply(self.response())
+        for path in self.cache.glob('*.json'):
+            record=json.loads(path.read_text(encoding='utf-8'))
+            if 'raw' not in record: continue
+            record['fetched_at']-=25*3600
+            path.write_text(json.dumps(record),encoding='utf-8')
+        restarted=Client()
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(restarted)),2)
+        self.assertEqual(len(restarted.calls),2)
+
+    def test_search_role_switch_reuses_raw_dual_profile(self):
+        client=Client()
+        self.mpl.ReceiveSearchGroupReply(self.response(client))
+        self.lua.execute('searchMembers[2].assignedRole="HEALER"')
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(client)),1)
+        self.assertEqual(len(client.calls),2)
+
+    def test_search_prefers_newer_disk_profile_over_its_memory_copy(self):
+        import time
+        client=Client()
+        self.mpl.ReceiveSearchGroupReply(self.response(client))
+        now=time.time()
+        for path in self.cache.glob('*.json'):
+            record=json.loads(path.read_text(encoding='utf-8'))
+            if 'raw' not in record: continue
+            record['fetched_at']=now+5
+            char=record['raw']['data']['characterData']['character']
+            char['damage']['throughputRankings']['12825']['best_per_second_amount']=999000
+            path.write_text(json.dumps(record),encoding='utf-8')
+        with patch.object(name_search.time,'time',return_value=now+10):
+            self.assertEqual(self.mpl.ReceiveSearchGroupReply(self.response(client)),2)
+        self.assertEqual(len(client.calls),2)
+        self.assertEqual(self.mpl.panel.profile.dungeons[1].amount,999000)
 
     def test_cached_summary_preserves_the_actual_fetch_date(self):
         self.mpl.ReceiveSearchGroupReply(self.response())

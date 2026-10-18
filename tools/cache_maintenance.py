@@ -10,7 +10,7 @@ MIN_AGE=86400
 INTERVAL=6*3600
 _lock=threading.Lock()
 _last={}
-_owned=re.compile(r"(?:[0-9a-f]{64}|name-lookup-[0-9a-f]{64})\.json(\.tmp)?$")
+_owned=re.compile(r"(?:[0-9a-f]{64}|name-lookup-[0-9a-f]{64}|name-scan-[0-9a-f]{64})\.json(\.tmp)?$")
 
 
 def linked(path):

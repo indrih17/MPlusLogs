@@ -9,6 +9,9 @@ from pathlib import Path
 import re
 import sys
 import time
+import threading
+import statistics
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
 from urllib.parse import unquote
 
@@ -38,6 +41,8 @@ def load_entries(manifest=None, requests=None, realms=None):
         entries = json.loads(manifest.read_text(encoding="utf-8-sig"))
         if not isinstance(entries, list):
             raise ValueError("Roster must be a JSON array")
+        if any(not isinstance(entry, dict) for entry in entries):
+            raise ValueError("Every roster entry must be a JSON object")
     if requests:
         text = requests.read_text(encoding="utf-8-sig")
         mapping = realm_resolver.load_mappings(realms)
@@ -73,7 +78,9 @@ def arguments(entry):
     return SimpleNamespace(character_id=entry.get("character_id"), name=entry.get("name"),
                            realm=entry["realm"], server_slug=entry.get("server_slug"),
                            region=entry.get("region", "eu"), zone=55, season="Midnight M+ Season 2",
-                           spec=entry.get("spec"), metric=entry.get("metric", "dps"),role=entry.get("role"))
+                           spec=entry.get("spec"), metric=entry.get("metric", "dps"),role=entry.get("role"),
+                           class_name=entry.get("class_name"), class_id=entry.get("class_id"),
+                           include_secondary=bool(entry.get("include_secondary", False)))
 
 
 def cache_path(directory, entry):
@@ -100,6 +107,8 @@ def read_cache(path):
             return None
         if record.get("negative") and (not isinstance(record.get("error"), str) or not record["error"]):
             return None
+        if "refresh_error" in record and not isinstance(record["refresh_error"], str):
+            return None
         return record
     except (ValueError, OSError, AttributeError):
         return None
@@ -108,6 +117,15 @@ def read_cache(path):
 def validate_raw(raw, args):
     # Presentation choice must never determine whether a raw reply is cacheable.
     character = wcl.character_data(raw)
+    wcl.validate_identity(raw, args)
+    if wcl.primary_only_raw(raw):
+        if not wcl.cache_satisfies(raw,args):
+            raise wcl.ProfileError("Incomplete requested metrics; refresh with both WCL metrics", "retry")
+        try:
+            wcl.normalize(raw, args)
+        except wcl.NoSeasonLogs:
+            raise wcl.ProfileError("No primary measurements; refresh with both WCL metrics", "retry") from None
+        return
     # Hidden characters return zoneRankings error objects rather than ranking
     # arrays. Classify access/absence before validating the metric schema.
     if character and "damage" in character and "healing" in character:
@@ -146,7 +164,247 @@ def atomic_write(path, text):
     temporary.replace(path)
 
 
-def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher=None, now=None, refresh=False, progress=None):
+def _profile_resources():
+    """Cheap Windows memory/CPU counters; unavailable telemetry stays conservative."""
+    if sys.platform != 'win32':
+        return None, None
+    import ctypes
+    from ctypes import wintypes
+    class Memory(ctypes.Structure):
+        _fields_ = [('length', wintypes.DWORD), ('load', wintypes.DWORD)] + [
+            (name, ctypes.c_ulonglong) for name in (
+                'total', 'available', 'page_total', 'page_available',
+                'virtual_total', 'virtual_available', 'extended')]
+    try:
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        memory = Memory()
+        memory.length = ctypes.sizeof(memory)
+        available = memory.available if kernel.GlobalMemoryStatusEx(ctypes.byref(memory)) else None
+        idle, system, user = (wintypes.FILETIME() for _ in range(3))
+        ticks = None
+        if kernel.GetSystemTimes(ctypes.byref(idle), ctypes.byref(system), ctypes.byref(user)):
+            values = [value.dwLowDateTime + (value.dwHighDateTime << 32) for value in (idle, system, user)]
+            ticks = (values[0], values[1] + values[2])
+        return available, ticks
+    except (OSError, AttributeError):
+        return None, None
+
+
+class _ProfileWaves:
+    """Bound I/O by memory and measured pressure, never by a CPU core count."""
+    def __init__(self, maximum):
+        self.maximum = min(50, max(1, maximum))
+        self.ceiling = self.maximum
+        self.previous = None
+        self.ticks = None
+        self.healthy = 0
+
+    def desired(self, remaining):
+        memory, ticks = _profile_resources()
+        # Leave headroom for WoW and the GUI. Unknown telemetry is not evidence
+        # that a machine can comfortably absorb fifty replies at once.
+        gib = 1024 ** 3
+        resource_cap = 16
+        if memory is not None:
+            resource_cap = next((cap for threshold, cap in (
+                (gib/2, 4), (gib, 8), (2*gib, 16), (4*gib, 32))
+                if memory < threshold), 50)
+        if ticks and self.ticks:
+            idle, total = ticks[0]-self.ticks[0], ticks[1]-self.ticks[1]
+            if total > 0 and 1-idle/total >= .9:
+                resource_cap = min(resource_cap, 8)
+        self.ticks = ticks
+        # Balance remaining real requests over the fewest waves permitted by
+        # the current resource ceiling, avoiding a large wave and a tiny tail.
+        limit = min(self.maximum, self.ceiling, resource_cap)
+        waves = math.ceil(remaining/limit)
+        return math.ceil(remaining/waves)
+
+    def observe(self, width, elapsed, cpu, durations):
+        if not durations:
+            return
+        latency = statistics.median(durations)
+        throughput = len(durations)/max(elapsed, .000001)
+        # CPU covers normalization, JSON/cache writes and scheduler work too.
+        # Ignore sub-50ms waves, whose ratios are dominated by timer noise.
+        cpu_pressure = elapsed >= .05 and cpu/elapsed >= .65
+        congestion = (len(durations) >= 4 and self.previous is not None
+                      and latency > self.previous[0]*1.75
+                      and throughput < self.previous[1]*1.1)
+        if cpu_pressure or congestion:
+            self.ceiling = max(1, min(self.ceiling, width//2))
+            self.healthy = 0
+        else:
+            self.healthy += 1
+            if self.healthy >= 2:
+                self.ceiling = min(self.maximum, max(self.ceiling+1, math.ceil(self.ceiling*1.25)))
+                self.healthy = 0
+        if len(durations) >= 4:
+            self.previous = (latency, throughput)
+
+
+def _parallel_build(entries, cache_dir, ttl_hours, max_fetch, offline, fetcher, now, refresh, progress, max_workers):
+    entries=list(entries)
+    now=time.time() if now is None else now
+    guard=threading.Lock()
+    cache_locks={cache_path(cache_dir,entry):threading.Lock() for entry in entries}
+    fetched=0
+    stopped=None
+    remaining=None
+    token=None
+    token_lock=threading.Lock()
+    durations=[]
+
+    def shared_fetch(args):
+        nonlocal fetched,stopped,remaining,token
+        with guard:
+            if stopped:
+                raise wcl.ProfileError(stopped['message'],stopped['error_code'],stopped['retry_at'])
+            if fetched>=max_fetch:
+                raise wcl.ProfileError('Per-run request limit reached','budget')
+            if remaining is not None and remaining<100:
+                raise wcl.ProfileError('WCL hourly budget is low; retry after reset','budget')
+            if getattr(fetcher,'cancel',None) is not None and fetcher.cancel.is_set():
+                raise wcl.ProfileError('Profile loading stopped','retry')
+            fetched+=1
+        started=time.monotonic()
+        try:
+            if fetcher:
+                raw=fetcher(args)
+            else:
+                with token_lock:
+                    token=token or wcl.access_token()
+                raw=wcl.fetch(args,token)
+            limit=wcl.rate_limit_data(raw)
+            if limit:
+                points=limit['limitPerHour']-limit['pointsSpentThisHour']
+                with guard:remaining=points if remaining is None else min(remaining,points)
+            return raw
+        except (ValueError,OSError,KeyError,TypeError) as exc:
+            if (isinstance(exc,wcl.APIError) or isinstance(exc,BudgetError) and exc.global_stop
+                    or getattr(exc,'code',None)=='auth' or 'HTTP 429' in str(exc)):
+                with guard:
+                    if stopped is None:stopped=dict(message=str(exc),**wcl.error_info(exc,now))
+            raise
+        finally:
+            with guard:durations.append(time.monotonic()-started)
+
+    shared_fetch.budget=getattr(fetcher,'budget',None)
+    def run(entry):
+        # Role/realm aliases can share one raw cache key. Serialize that key,
+        # so the second view reads the completed cache instead of racing .tmp.
+        with cache_locks[cache_path(cache_dir,entry)]:
+            return build([entry],cache_dir,ttl_hours,max_fetch,offline,shared_fetch,now,refresh)
+
+    results={}
+    completed=0
+    if progress:progress(0,len(entries),entries[0] if entries else None)
+    if max_workers>3:
+        policy=_ProfileWaves(max_workers)
+        # Establish a system CPU interval including the quota probe.
+        policy.desired(max(1,len(entries)))
+        def finish(index, result):
+            nonlocal completed
+            results[index]=result;completed+=1
+            if progress:progress(completed,len(entries),entries[index] if completed<len(entries) else None)
+
+        # Cached, offline and cooling-down views need no network slots. Group
+        # role/realm aliases by raw key, so they do not inflate the wave size.
+        groups={}
+        for index,entry in enumerate(entries):
+            path=cache_path(cache_dir,entry)
+            cached=read_cache(path)
+            if offline or (_fresh_cache(cached,now,ttl_hours,refresh) and _complete_cache(cached,entry)) or _retry_cache_active(cached,now,fetcher):
+                finish(index,run(entries[index]))
+            else:
+                groups.setdefault(path,[]).append(index)
+        pending=list(groups.values())
+        if pending and max_fetch>0:
+            probe=pending.pop(0)
+            started=time.monotonic();cpu=time.process_time()
+            for index in probe:finish(index,run(entries[index]))
+            policy.observe(1,time.monotonic()-started,time.process_time()-cpu,durations)
+        durations.clear()
+        capacity=getattr(fetcher,'parallel_capacity',None)
+        with ThreadPoolExecutor(max_workers=min(50,max_workers)) as pool:
+            while pending:
+                if stopped or fetched>=max_fetch:
+                    # Visit remaining entries to retain stale-cache fallback
+                    # and error details, without asking the network again.
+                    for group in pending:
+                        for index in group:finish(index,run(entries[index]))
+                    break
+                desired=policy.desired(min(len(pending),max_fetch-fetched))
+                allowed=min(desired,capacity(desired)) if capacity else min(3,desired)
+                if allowed<=0:
+                    with guard:
+                        if stopped is None:
+                            budget=getattr(fetcher,'budget',None)
+                            reset=budget.snapshot()['resetAt'] if budget else 0
+                            stopped=dict(message='WCL API budget is low; wait for reset',error_code='budget',retry_at=int(reset))
+                    # Still visit cached entries and preserve old usable profiles.
+                    allowed=desired
+                wave,pending=pending[:allowed],pending[allowed:]
+                started=time.monotonic();cpu=time.process_time()
+                jobs={pool.submit(run,entries[group[0]]):group for group in wave}
+                for job in as_completed(jobs):
+                    group=jobs[job];finish(group[0],job.result())
+                    for index in group[1:]:finish(index,run(entries[index]))
+                policy.observe(len(wave),time.monotonic()-started,time.process_time()-cpu,durations)
+                durations.clear()
+    else:
+        with ThreadPoolExecutor(max_workers=max(1,max_workers)) as pool:
+            jobs={pool.submit(run,entry):index for index,entry in enumerate(entries)}
+            for job in as_completed(jobs):
+                index=jobs[job];results[index]=job.result();completed+=1
+                if progress:progress(completed,len(entries),entries[index] if completed<len(entries) else None)
+    profiles,errors=[],[]
+    hits=negative_hits=0
+    for index in range(len(entries)):
+        loaded,report=results[index]
+        profiles.extend(loaded);errors.extend(report['errors'])
+        hits+=report['cacheHits'];negative_hits+=report['negativeCacheHits']
+    return profiles,dict(profiles=len(profiles),fetched=fetched,cacheHits=hits,negativeCacheHits=negative_hits,
+                         remainingApiPoints=remaining,errors=errors)
+
+
+def _fresh_cache(cached,now,ttl_hours,refresh):
+    ttl=6*3600 if cached and cached.get('negative') else max(3600,ttl_hours*3600)
+    if refresh:ttl=min(ttl,300)
+    return cached and ('raw' in cached or cached.get('negative')) and 0<=now-cached['fetched_at']<ttl
+
+
+def _complete_cache(cached, entry):
+    if not cached or "raw" not in cached:
+        return True
+    try:
+        args = arguments(entry)
+        wcl.validate_identity(cached["raw"], args)
+        args.class_id = wcl.character_data(cached["raw"]).get("classID", args.class_id)
+        args.class_name = wcl.character_class_name(cached["raw"])
+        return wcl.cache_satisfies(cached["raw"], args)
+    except (ValueError, KeyError, TypeError):
+        return False
+
+
+def _retry_cache_active(cached,now,fetcher):
+    if not cached or now>=cached.get('retry_until',0):return False
+    budget=getattr(fetcher,'budget',None)
+    message=cached.get('refresh_error','').lower()
+    if budget and (cached.get('error_code')=='budget' or 'api budget is low' in message):
+        try:
+            budget.check_upstream()
+            return False
+        except BudgetError:
+            pass
+    return True
+
+
+def build(entries, cache_dir, ttl_hours=wcl.PROFILE_CACHE_TTL_HOURS, max_fetch=20, offline=False, fetcher=None, now=None, refresh=False, progress=None, max_workers=1):
+    if max_workers>1:
+        entries=list(entries)
+        if len(entries)>1:
+            return _parallel_build(entries,cache_dir,ttl_hours,max_fetch,offline,fetcher,now,refresh,progress,max_workers)
     if progress:
         entries = list(entries)
     now = time.time() if now is None else now
@@ -163,17 +421,14 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
             progress(index, len(entries), entry)
         path = cache_path(cache_dir, entry)
         cached = read_cache(path)
-        ttl = 6 * 3600 if cached and cached.get("negative") else max(3600, ttl_hours * 3600)
-        if refresh:
-            ttl = min(ttl, 300)
-        fresh = cached and ("raw" in cached or cached.get("negative")) and 0 <= now - cached["fetched_at"] < ttl
+        fresh = _fresh_cache(cached,now,ttl_hours,refresh) and _complete_cache(cached,entry)
         record = cached
         failure = None
         details = {}
         if fresh:
             if cached.get("negative"):
                 negative_hits += 1
-                errors.append(dict(character=entry.get("name") or entry.get("character_id"), realm=entry["realm"], error=cached["error"],
+                errors.append(dict(character=entry.get("name") or entry.get("character_id"), region=entry.get("region", "eu"), realm=entry["realm"], error=cached["error"],
                                    error_code=cached.get("error_code",wcl.legacy_error_code(cached["error"])), retry_at=cached["fetched_at"]+6*3600))
                 continue
             hits += 1
@@ -181,7 +436,7 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
             if auth_failure:
                 failure = auth_failure
                 details = auth_details
-            elif cached and now < cached.get("retry_until", 0):
+            elif _retry_cache_active(cached,now,fetcher):
                 failure = cached.get("refresh_error", "Profile refresh is cooling down")
                 details = dict(error_code=cached.get("error_code",wcl.legacy_error_code(failure)), retry_at=cached["retry_until"])
             elif fetched >= max_fetch:
@@ -193,6 +448,14 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
             else:
                 try:
                     args = arguments(entry)
+                    if cached and "refresh with both WCL metrics" in cached.get("refresh_error", ""):
+                        args.include_secondary = True
+                    if cached and "raw" in cached:
+                        try:
+                            args.class_id = wcl.character_data(cached["raw"]).get("classID", args.class_id)
+                            args.class_name = wcl.character_class_name(cached["raw"])
+                        except (ValueError, KeyError, TypeError):
+                            pass
                     fetched += 1
                     if fetcher:
                         raw = fetcher(args)
@@ -227,17 +490,19 @@ def build(entries, cache_dir, ttl_hours=24, max_fetch=20, offline=False, fetcher
         elif not fresh and offline:
             failure = "Offline: using cache without refresh"
         if failure:
-            errors.append(dict(character=entry.get("name") or entry.get("character_id"), realm=entry["realm"], error=failure, **details))
+            errors.append(dict(character=entry.get("name") or entry.get("character_id"), region=entry.get("region", "eu"), realm=entry["realm"], error=failure, **details))
         if not record or record.get("negative") or "raw" not in record:
             continue
         try:
+            if not _complete_cache(record, entry):
+                raise wcl.ProfileError("Secondary metric requires a full WCL profile", "retry")
             profile = wcl.normalize(record["raw"], arguments(entry))
             profile["updated"] = datetime.fromtimestamp(record["fetched_at"], timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
             if failure:
                 profile["source"] = "WCL API: cached; refresh unavailable"
             profiles.append(profile)
         except (ValueError, KeyError, TypeError) as exc:
-            errors.append(dict(character=entry.get("name") or entry.get("character_id"), realm=entry["realm"], error=str(exc), **wcl.error_info(exc,now)))
+            errors.append(dict(character=entry.get("name") or entry.get("character_id"), region=entry.get("region", "eu"), realm=entry["realm"], error=str(exc), **wcl.error_info(exc,now)))
     if progress:
         progress(len(entries), len(entries), None)
     budget = getattr(fetcher, "budget", None)

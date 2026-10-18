@@ -1,17 +1,25 @@
 # MPlusLogs
 
-Companion reuses dual DPS/HPS profiles for 24 hours, caches valid missing-log
-responses for six hours, and persists its API budget across restarts. Companion
-connects directly to Warcraft Logs through a personal or shared API client.
-The profile cache is isolated by WCL account and API client and survives token
-refreshes and signing back into the same account. Existing sessions resolve their
-account once after upgrading; profiles then populate the new account cache as
-requested. Automatic reads reuse this cache. The explicit **Update M+ logs**
-button fetches fresh WCL data once five minutes have passed since the last
-successful request for that character and specialization. Cache reads and
-requests for other profiles do not restart this timer.
+Check Mythic+ Warcraft Logs while forming or choosing a group in WoW Retail.
+MPlusLogs adds a **Logs** column to Group Finder applications and opens detailed
+player profiles with a separate Windows Companion.
 
-Mythic+ Warcraft Logs DPS/HPS profiles for WoW group recruitment, with a Windows Companion.
+## What you can see
+
+- Dungeon tables with DPS/HPS, Best and Median percentiles, key levels and logged-run counts.
+- Profiles by specialization, with the listed dungeon highlighted in recruitment tooltips.
+- Batch loading for applicants, your party, and members of listed groups. When a realm is missing,
+  Companion searches Warcraft Logs; ambiguous matches let you choose the realm.
+- Saved profiles, last-loaded dates, stale-data indicators, and configurable healer HPS priority.
+
+Only runs available to Warcraft Logs are included. Missing logs mean data is unavailable;
+percentiles do not measure survival, interrupts, or mechanics.
+
+[CurseForge](https://www.curseforge.com/wow/addons/mpluslogs) ·
+[Wago](https://addons.wago.io/addons/mpluslogs) ·
+[Releases](https://github.com/indrih17/MPlusLogs/releases) ·
+[Discord](https://discord.gg/URUukHCUW) ·
+[Report a bug](https://github.com/indrih17/MPlusLogs/issues)
 
 ## Install
 
@@ -21,7 +29,8 @@ folder. Do not place it inside an individual addon folder such as
 `AddOns\MPlusLogs`: an addon update can remove those files. Reinstalling always
 offers a directory selection, including when the previous files are missing.
 
-Install the addon from [CurseForge](https://www.curseforge.com/wow/addons/mpluslogs).
+Install the addon from [CurseForge](https://www.curseforge.com/wow/addons/mpluslogs)
+or [Wago](https://addons.wago.io/addons/mpluslogs).
 **REQUIRED: Install and run MPlusLogs Companion on Windows. Online log loading does not work without it.**
 Download the [current MPlusLogs Companion installer for Windows](https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe)
 and run the Setup exe. This permanent link is updated whenever a new Companion
@@ -51,9 +60,35 @@ startup after manually moving a portable folder.
 автозапуск заново из нового расположения. Не размещайте Companion внутри папки
 отдельного аддона, например `AddOns\MPlusLogs`.
 
-Sign in through Warcraft Logs in the Companion. In WoW, right-click an applicant
-or open `/mpl`, request their M+ logs, press Ctrl+C, wait, then press Ctrl+V.
-Use `/mpl demo` for a fictional preview without an account.
+## Load logs in WoW
+
+1. Start Companion and connect your personal Warcraft Logs API using its built-in guide
+   (recommended; see below). The shared API is available as an alternative, but its allowance
+   is shared by everyone who uses it.
+2. When forming a Mythic+ group, use **Load all logs** above the application list,
+   or right-click an applicant and request their M+ logs.
+3. Press **Ctrl+C** in the addon window. Wait for the Companion sound or its message
+   that the reply is on the clipboard, then press **Ctrl+V** in the same window.
+4. Left-click a number in the **Logs** column to open the player's dungeon table.
+
+If you copy something else while waiting, use **Copy last reply** in Companion and paste
+again. WoW cannot detect a ready reply until you paste it.
+
+`/mpl` opens your party's logs; outside a party it opens your target's logs, or your own
+if no player is targeted. `/mpl demo` shows fictional data without a WCL account.
+`/mpl settings` opens the addon settings; `/mpl import` handles manual imports.
+
+### Кратко по-русски
+
+Установите аддон с CurseForge или Wago и запустите Companion для Windows.
+Подключите личный API Warcraft Logs по встроенной инструкции; общий API доступен
+как запасной вариант с общим лимитом запросов. При формировании группы для М+
+нажмите **«Загрузить логи всех»**, затем **Ctrl+C** в окне аддона.
+Дождитесь звука или сообщения о готовности ответа в Companion и нажмите **Ctrl+V**
+в том же окне. Нажатие на число в колонке **«Логи»** открывает профиль игрока.
+Для загрузки новых данных Companion должен быть запущен.
+
+## Profiles and settings
 
 The addon supports eleven locales, player panels, recruitment tooltips,
 dual DPS/HPS profiles, batch candidate loading, stale-data indicators and manual import.
@@ -69,6 +104,28 @@ tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl set
 Changes apply immediately and are saved between sessions.
 Percentiles describe available Warcraft Logs runs. They do not measure tank survival.
 
+## Cache and compatibility
+
+Companion reuses dual DPS/HPS profiles for 24 hours, caches valid missing-log
+responses for six hours, and persists its API budget across restarts. Companion
+connects directly to Warcraft Logs through a personal or shared API client.
+The profile cache is isolated by WCL account and API client and survives token
+refreshes and signing back into the same account. Existing sessions resolve their
+account once after upgrading; profiles then populate the new account cache as
+requested. Automatic reads reuse this cache. The explicit **Update M+ logs**
+button fetches fresh WCL data once five minutes have passed since the last
+successful request for that character and specialization. Cache reads and
+requests for other profiles do not restart this timer.
+
+Old profile and search cache files are cleaned automatically; settings, credentials,
+and API budget state are preserved. Cache reuse and the addon's configurable freshness
+indicator are separate: the freshness setting changes how saved profiles are displayed.
+
+The addon and Companion have independent version numbers. Updating either component
+preserves existing profile-loading workflows. New group discovery needs a Companion
+that supports it; with an older Companion the addon loads the group leader's profile.
+Update both components to use all current features.
+
 ## Code signing policy
 
 See our [Code signing policy](CODE-SIGNING.md) for the current signing status,
@@ -77,7 +134,8 @@ unsigned; a SignPath application has been submitted and is awaiting review.
 
 ## Privacy policy
 
-The Companion sends only MPlusLogs request envelopes to Warcraft Logs.
+The Companion processes only MPlusLogs clipboard requests and sends the requested
+character/profile queries to Warcraft Logs.
 Unrelated clipboard text is not transmitted. It does not read game memory or
 automate gameplay. Login uses browser OAuth with PKCE; local tokens are protected
 with Windows DPAPI. Startup with Windows or WoW Retail is optional. Response sounds are enabled by default and can be disabled in Settings.
@@ -135,7 +193,7 @@ If WCL has not provided a reset time, it says so instead of guessing.
 Requires Python 3.12 on Windows with tkinter and Inno Setup 6.
 
 ```powershell
-python -m pip install pyinstaller==6.22.0 lupa Pillow
+python -m pip install pyinstaller==6.22.0 lupa -r tools/requirements.txt
 python -m unittest discover -s tests -q
 python tools/build_release.py --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
@@ -161,6 +219,7 @@ CurseForge moderation must still approve the upload.
 
 For the live addon folder, `tools/publish_changes.py --summary "Describe change"`
 runs tests, raises the patch version, writes CHANGELOG.md and pushes an allowlisted
-snapshot. A Codex heartbeat checks finished local edits every 15 minutes.
+snapshot. Publication requires explicit maintainer approval as described in [AGENTS.md](AGENTS.md).
+Wago currently has a separately imported release; automatic Wago publication is not configured.
 
 See [LICENSE](LICENSE) for usage terms. Bundled third-party components retain their licenses.

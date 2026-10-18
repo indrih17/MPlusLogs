@@ -84,6 +84,8 @@ class CompanionIntroTests(unittest.TestCase):
         self.lua.execute('IsControlKeyDown=function() return true end')
         window.edit.scripts.OnKeyDown(window.edit,'C')
         window.edit.scripts.OnKeyDown(window.edit,'V')
+        self.lua.eval('function(edit,body) for i=1,#body do edit.scripts.OnChar(edit,body:sub(i,i)) end end')(window.edit,window.request)
+        self.lua.execute('local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end')
         self.lua.execute('local pending=timers; timers={}; for _,fn in ipairs(pending) do fn() end')
         self.assertIn('MPlusLogs Companion пока не ответил',window.status.text)
         self.assertNotIn('Companion не установлен',window.status.text)

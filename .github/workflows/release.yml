@@ -1,4 +1,4 @@
-name: Publish GitHub and CurseForge
+name: Publish GitHub, CurseForge and Wago
 on:
   push:
     branches: [main]
@@ -23,6 +23,18 @@ jobs:
         run: python tools/prepare_ci_release.py
       - name: Test
         run: python -m unittest discover -s tests -q
+      - name: Verify Wago publication credential
+        id: wago
+        shell: pwsh
+        env:
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+        run: |
+          if ($env:WAGO_API_TOKEN) {
+            'configured=true' >> $env:GITHUB_OUTPUT
+          } else {
+            'configured=false' >> $env:GITHUB_OUTPUT
+            Write-Output '::notice::Wago publication deferred until WAGO_API_TOKEN is configured; GitHub and CurseForge publication will continue.'
+          }
       - name: Push prepared release metadata
         run: |
           git push origin HEAD:main
@@ -151,6 +163,36 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'CurseForge upload failed' }
             gh release upload $releaseTag release-output/curseforge-upload.json
             if ($LASTEXITCODE -ne 0) { throw 'CurseForge receipt upload failed; inspect before retrying' }
+          }
+      - name: Publish addon to Wago
+        if: steps.wago.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseVersion = python -c "import sys; sys.path.insert(0,'tools'); import addon_version; print(addon_version.version())"
+          $releaseTag = "v$releaseVersion"
+          $releaseInfo = gh release view $releaseTag --json assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Addon release inspection failed' }
+          if ('wago-upload.json' -notin $releaseInfo.assets.name) {
+            if ('wago-upload-started.json' -in $releaseInfo.assets.name) {
+              throw 'An earlier Wago upload may have succeeded. Reconcile it on Wago and attach its receipt before retrying; do not upload twice.'
+            }
+            # Retry Wago independently when the other destinations already succeeded.
+            gh release download $releaseTag --pattern "MPlusLogs-$releaseVersion.zip" --dir release-output --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Addon archive download for Wago failed' }
+            # A later Companion-only release must not replace the addon's notes.
+            gh release view $releaseTag --json body --jq .body | Set-Content -Encoding utf8 packaging/RELEASE-NOTES.md
+            if ($LASTEXITCODE -ne 0) { throw 'Addon release notes download failed' }
+            @{ version = $releaseVersion; run_id = $env:GITHUB_RUN_ID; sha256 = (Get-FileHash "release-output/MPlusLogs-$releaseVersion.zip" -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content -Encoding utf8 release-output/wago-upload-started.json
+            gh release upload $releaseTag release-output/wago-upload-started.json
+            if ($LASTEXITCODE -ne 0) { throw 'Wago upload intent recording failed; no upload attempted' }
+            python tools/upload_wago.py
+            if ($LASTEXITCODE -ne 0) { throw 'Wago upload failed; inspect Wago before retrying' }
+            gh release upload $releaseTag release-output/wago-upload.json
+            if ($LASTEXITCODE -ne 0) { throw 'Wago receipt upload failed; inspect Wago before retrying' }
           }
       - uses: actions/upload-artifact@v4
         if: always()

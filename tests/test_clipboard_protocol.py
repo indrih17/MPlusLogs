@@ -37,7 +37,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_real_response_envelope_has_same_id(self):
         reply=protocol.reply(self.request,self.mapping,self.path,lambda _:api_fixture())
-        self.assertTrue(reply.startswith("MPLS1\n12345-1\nMPLB1\nMPL1%0AP%09"))
+        self.assertTrue(reply.startswith("MPLS1\n12345-1\nMPLB1\nMPL1\nP%09"))
         self.assertNotIn("\t",reply)
 
     def test_capabilities_opt_in_and_missing_feature_avoids_wcl(self):

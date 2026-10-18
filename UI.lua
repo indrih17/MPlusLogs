@@ -168,14 +168,32 @@ local function specTexture(spec,class)
         end
     end
 end
+local function missingMetric(profile,metric)
+    return profile and ((profile.secondaryPending and metric=="hps")
+        or (profile.dual==false and metric~=profile.metric))
+end
 local function metricTab(f,metric,x)
     local b=CreateFrame("Button",nil,f,"BackdropTemplate")
     b:SetSize(86,28); b:SetPoint("TOPLEFT",x,-112)
     b:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
     b:SetBackdropBorderColor(0.27,0.27,0.27,1)
     b.caption=label(b,8,-7,70,metric:upper()); b.caption:SetJustifyH("CENTER")
+    b.selectionBar=b:CreateTexture(nil,"ARTWORK")
+    b.selectionBar:SetColorTexture(1,0.78,0.30,1)
+    b.selectionBar:SetPoint("BOTTOMLEFT",2,2); b.selectionBar:SetPoint("BOTTOMRIGHT",-2,2)
+    b.selectionBar:SetHeight(3); b.selectionBar:Hide()
+    b.hover=b:CreateTexture(nil,"HIGHLIGHT")
+    b.hover:SetAllPoints(); b.hover:SetColorTexture(1,1,1,0.07)
     b:SetScript("OnClick",function()
         f.viewMetric=metric; MPL.RenderProfileStats(f)
+        MPL.UpdateProfileLoadButton()
+        if missingMetric(f.profile,metric) then
+            f.metricNoticeFooter=f.metricNoticeFooter or f.footer:GetText()
+            f.footer:SetText(metric=="hps" and L["Healing data loads on request. Click Load HPS."]
+                or L["Damage data loads on request. Click Load DPS."])
+        elseif f.metricNoticeFooter then
+            f.footer:SetText(f.metricNoticeFooter); f.metricNoticeFooter=nil
+        end
     end)
     return b
 end
@@ -249,6 +267,7 @@ local function buildPanel()
                     local sent=f.inviteSent
                     MPL.ShowProfile(f.name,f.realm,f.applicant,true)
                     if sent then f.inviteSent=true; MPL.UpdateProfileInvite() end
+                    if not stored then MPL.ShowDownload(f.name,f.realm,nil,f.applicant,false,false) end
                     if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
                 end)
             end
@@ -256,13 +275,14 @@ local function buildPanel()
             root:CreateButton(L["Загрузить другие специализации"],function()
                 -- A targeted spec discovery must not expand back into the
                 -- party batch, which only refreshes one profile per member.
+                MPL.SelectSpec(f.name,f.realm,"All specs",role)
+                MPL.ShowProfile(f.name,f.realm,f.applicant,true)
                 MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,false,true)
             end)
         end)
     end)
     f.context:SetWidth(540)
     f.metricTabs={dps=metricTab(f,"dps",20),hps=metricTab(f,"hps",112)}
-    f.filter = label(f,218,-120,680)
     f.scoreLabel=label(f,64,-163,310,L["Рейтинг Mythic+"],"GameFontHighlight")
     f.scoreLabel:SetJustifyH("CENTER")
     f.scoreValue=label(f,64,-189,310,"","GameFontHighlightLarge")
@@ -314,10 +334,16 @@ local function buildPanel()
     scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
     scroll:HookScript("OnSizeChanged",function() MPL.UpdatePanelScroll(f) end)
     f.metricHeading=f.headings[7]
-    f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary,f.filter}
+    f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary}
     f.footer = label(f,20,-606,900)
     button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function()
+        if type(f.searchMember)=="table" and IsShiftKeyDown and IsShiftKeyDown() then
+            MPL.ShowSearchGroupLogs(f.searchMember.searchResultID,true); return
+        end
+        if missingMetric(f.profile,f.viewMetric) then
+            MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,false,false,nil,nil,f.viewMetric); return
+        end
         if type(f.searchMember)=="table" and (not f.searchMember.loaded
             or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
             MPL.ShowSearchGroupLogs(f.searchMember.searchResultID); return
@@ -334,6 +360,14 @@ local function buildPanel()
         end
         MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,true)
     end)
+    f.loadButton:SetScript("OnEnter",function(self)
+        if type(f.searchMember)=="table" then
+            GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
+            GameTooltip:AddLine(L["Shift-click to search realms again."],1,.82,0,true)
+            GameTooltip:Show()
+        end
+    end)
+    f.loadButton:SetScript("OnLeave",function() GameTooltip:Hide() end)
     f.loadElapsed=0
     f.loadButton:SetScript("OnUpdate",function(_,elapsed)
         f.loadElapsed=(f.loadElapsed or 0)+elapsed
@@ -385,6 +419,12 @@ end
 function MPL.UpdateProfileLoadButton()
     local f=MPL.panel
     if not f then return false end
+    if missingMetric(f.profile,f.viewMetric) then
+        f.loadButton:Show(); f.loadButton:SetAlpha(1)
+        f.loadButton:SetText(f.viewMetric=="hps" and L["Load HPS"] or L["Load DPS"])
+        return false,0
+    end
+    f.loadButton:SetText(f.profile and L["Обновить M+ логи"] or L["Загрузить M+ логи"])
     if type(f.searchMember)=="table" and (not f.searchMember.loaded
         or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
@@ -457,9 +497,12 @@ function MPL.RenderProfileStats(f)
     for _,element in ipairs(f.tableElements) do element:SetShown(profile~=nil) end
     for _,texture in ipairs(f.tableDecor) do texture:SetShown(profile~=nil) end
     for key,tab in pairs(f.metricTabs) do
+        local selected=key==metric
         tab:SetShown(profile~=nil)
-        tab:SetBackdropColor(key==metric and 0.16 or 0.04,key==metric and 0.10 or 0.04,key==metric and 0.18 or 0.04,1)
-        tab.caption:SetTextColor(key==metric and 0.85 or 0.65,key==metric and 0.95 or 0.65,key==metric and 0.75 or 0.65)
+        tab:SetBackdropColor(selected and 0.28 or 0.045,selected and 0.13 or 0.045,selected and 0.40 or 0.055,1)
+        tab:SetBackdropBorderColor(selected and 1 or 0.35,selected and 0.78 or 0.35,selected and 0.30 or 0.38,1)
+        tab.caption:SetTextColor(selected and 1 or 0.70,selected and 0.95 or 0.70,selected and 0.80 or 0.73)
+        tab.selectionBar:SetShown(selected)
     end
     for _,row in ipairs(f.rows) do row:Hide() end
     f.metricHeading:SetText(L["Лучший "]..metric:upper())
@@ -479,7 +522,6 @@ function MPL.RenderProfileStats(f)
         f.specRanks:SetTextColor(226/255,104/255,168/255)
         f.specRanks:Show()
     end
-    f.filter:SetText(metric:upper()..L[" / по уровню ключа"].."  /  "..MPL.SpecLabel(profile.spec,f.class))
     f.scoreValue:SetText(profile.score and string.format("%.0f",profile.score) or "—")
     f.scoreValue:SetTextColor(226/255,104/255,168/255)
     local _,_,best,median=MPL.MetricValues(profile,nil,metric)
@@ -697,6 +739,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
     local primary=profile and MPL.PrimaryMetric(profile,name,server) or "dps"
     local secondary=primary=="hps" and "dps" or "hps"
     f.cooldownNotice=false
+    f.metricNoticeFooter=nil
     f.name, f.realm, f.profile = name, server, profile or false
     f.selectedSpec=MPL.SelectedSpec(name,server) or (profile and profile.spec) or "All specs"
     local main=MPL.MainProfileSpec(name,server,MPL.roles and MPL.roles[MPL.Key(name,server)])
@@ -714,8 +757,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
         or L["Для этого персонажа нет доступных логов M+."])
     f.specButton:SetText(MPL.SpecLabel(displayed,f.class))
     local savedSpecs=MPL.ProfileSpecs(name,server)
-    f.specButton.detail:SetText(not profile and L["Профиль не загружен"]
-        or (#savedSpecs==1 and L["Загружена одна специализация"] or L["Выбрать специализацию логов"]))
+    f.specButton.detail:SetText(not profile and L["Профиль не загружен"] or L["Выбрать специализацию логов"])
     local canSelectSpecs=not hidden and (profile~=nil or #savedSpecs>0)
     f.specButton.canSelectSpecs=canSelectSpecs
     f.specButton:SetEnabled(canSelectSpecs); f.specButton:EnableMouse(canSelectSpecs)
@@ -745,7 +787,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
     f.scroll:SetVerticalScroll(0)
     for _, row in ipairs(f.rows) do row:Hide() end
     f.viewMetric=primary; f.stale=stale
-    f.context:SetText(profile and (profile.season.."  /  "..MPL.SpecLabel(profile.spec,f.class)) or "Midnight M+ Season 2")
+    f.context:SetText(profile and profile.season or "Midnight M+ Season 2")
     f.loadButton:ClearAllPoints()
     if profile then
         f.scroll:Show(); f.emptyMessage:Hide()
@@ -873,7 +915,7 @@ function MPL.ShowCompanionIntro(continueLoading)
     f:Show()
 end
 
-function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchResultID)
+function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchResultID,importTest,requestedMetric,forceSearch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     local state=MPL.GetProfileState(name,server,MPL.SelectedSpec(name,server))
@@ -890,7 +932,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     end
     -- A fresh party needs no exchange. Check before clearing a pending reply or
     -- opening an empty 0/N window; clicking a player must keep existing work.
-    if type(batch)=="table" and #batch>0 then
+    if type(batch)=="table" and #batch>0 and not importTest then
         local pending=MPL.FilterFreshProfiles(batch,refresh)
         if #pending==0 then return end
     elseif batch==true then
@@ -905,7 +947,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         end
     end
     if not InCombatLockdown() and MPL.NeedsCompanionIntro() then
-        MPL.ShowCompanionIntro(function() MPL.ShowDownload(fullName,realm,profile,context,batch,refresh,searchResultID) end)
+        MPL.ShowCompanionIntro(function() MPL.ShowDownload(fullName,realm,profile,context,batch,refresh,searchResultID,importTest,requestedMetric,forceSearch) end)
         return
     end
     if not MPL.downloadWindow then
@@ -976,16 +1018,25 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         inputClip:SetScript("OnMouseDown",focusInput)
         edit:SetScript("OnMouseUp",focusInput)
         local function setText(text)
+            f.capturePaste=false; f.capturedReply=false; f.charBuffer=false
+            edit:SetMaxBytes(type(f.importTest)=="table" and f.importTest.captureChars and 1 or 0)
             f.programmatic=true; edit:SetText(text); f.programmatic=false
             focusInput()
         end
         f.begin=function()
             f.quotaError=nil
+            if type(f.importTest)=="table" and f.importTest.replay then
+                f.phase="waiting"; f.request=""
+                f.steps:SetText(MPL.locale=="ruRU" and "Повторная вставка — без запросов WCL" or "Replay paste — no WCL requests")
+                f.setStatus(MPL.locale=="ruRU" and "В Companion нажмите «Скопировать последний ответ».\nВернитесь сюда и нажмите Ctrl+V.\nМожно повторять тот же ответ без Ctrl+C и без загрузки данных."
+                    or "In Companion, copy the last reply.\nReturn here and press Ctrl+V.\nRepeat the same reply without Ctrl+C or loading data.")
+                setText(""); return
+            end
             local spec=MPL.SelectedSpec(f.name,f.realm) or (f.profile and f.profile.spec) or "All specs"
             if spec=="All specs" then spec="" end
             local id,request,skipped,total
             if f.searchResultID then
-                id,request=MPL.BeginSearchGroupRequest(true)
+                id,request=MPL.BeginSearchGroupRequest(f.forceSearch)
                 local group=MPL.searchGroupWindow
                 if not id or not request or not group or type(group.requestPlayers)~="table" then
                     f.setStatus(L["Group member data is unavailable; try again shortly"],true); return
@@ -996,7 +1047,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.setStatus(err,true); return end
                 total=#players
-                players,skipped=MPL.FilterFreshProfiles(players,f.refresh)
+                if f.importTest then skipped=0 else players,skipped=MPL.FilterFreshProfiles(players,f.refresh) end
                 if total>0 and #players==0 then
                     f.character:SetText(L["Нужно загрузить: "].."0 / "..total)
                     f.status:SetText(L["Все кандидаты уже имеют актуальные логи."])
@@ -1006,7 +1057,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                 id,request=MPL.SendBatchRequest(players,f.refresh)
                 if id and type(f.batch)=="table" then MPL.pendingReply.groupPlayers=f.batch end
                 f.character:SetText(L["Нужно загрузить: "]..#players.." / "..total)
-            else id,request=MPL.SendRequest(f.name,f.realm,f.profile and f.profile.metric or "dps",spec,f.applicant,true,f.refresh) end
+            else id,request=MPL.SendRequest(f.name,f.realm,f.requestedMetric or (f.profile and f.profile.metric) or "dps",spec,f.applicant,false,f.refresh) end
             if not id then f.setStatus(request,true); return end
             f.phase="copy"; f.request=request
             f.steps:SetText(L["|cffffd1001. Отправка запроса|r    /    |cff8888882. Получение логов|r"])
@@ -1015,7 +1066,10 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
             setText(request)
         end
         edit:SetScript("OnEscapePressed",function() f:Hide() end)
-        f:SetScript("OnHide",function() edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil end)
+        f:SetScript("OnHide",function()
+            edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil
+            f.charBuffer=false; f.capturedReply=false; f.capturePaste=false
+        end)
         f:SetScript("OnUpdate",function(_,elapsed)
             if not f.quotaError then return end
             f.quotaElapsed=(f.quotaElapsed or 0)+elapsed
@@ -1043,29 +1097,48 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         end
         edit:SetScript("OnKeyDown",function(_,key)
             if IsControlKeyDown() then
+                if key=="V" and f.importTest then MPL.BeginImportTestPaste(f) end
+                if key=="V" and not (type(f.importTest)=="table" and f.importTest.replay) then
+                    f.capturePaste=true; f.capturedReply=false; f.charBuffer=false
+                    f.programmatic=true; edit:SetText(""); edit:SetMaxBytes(1); f.programmatic=false
+                end
                 -- Native clipboard shortcuts act on the selection. Replace the
                 -- entire request on paste, even after a mouse click moved it.
                 if key=="C" or key=="V" then edit:HighlightText() end
                 copied(key)
             end
         end)
-        edit:SetScript("OnTextChanged",function()
+        local function textChanged()
+            if (f.capturePaste or (type(f.importTest)=="table" and f.importTest.captureChars)) and not f.capturedReply then return end
+            if f.importTest then MPL.ImportTestTextChanged(f) end
             f.revision=f.revision+1
             local revision=f.revision
             if f.programmatic or f.phase=="idle" then return end
             C_Timer.After(0.15,function()
                 if revision~=f.revision or f.programmatic or not f:IsShown() then return end
-                local text=edit:GetText()
+                local text=f.capturedReply or edit:GetText()
                 if text==f.request then
                     if f.phase=="waiting" and not MPL.CompanionHasHistory() then
                         f.setStatus(L["MPlusLogs Companion пока не ответил.\nЕсли программа ещё не установлена — скачайте её. Если установлена — откройте её и проверьте вход в Warcraft Logs."],true)
                     end
+                    setText(f.request)
                     return
                 end
                 local count,err
+                if type(f.importTest)=="table" and f.importTest.replay then
+                    local prepared
+                    prepared,err=MPL.PrepareImportTestReplay(f,text)
+                    if not prepared then f.setStatus(err,true); return end
+                end
+                local testStarted=f.importTest and MPL.ImportTestClock()
                 if f.searchResultID then count,err=MPL.ReceiveSearchGroupReply(text)
                 else count,err=MPL.ReceiveReply(text,true) end
+                if f.importTest then MPL.FinishImportTest(f,count,err,text,testStarted) end
                 if count then
+                    local panel=MPL.panel
+                    if f.requestedMetric and panel and panel.name==f.name and panel.realm==f.realm and panel.profile then
+                        panel.viewMetric=f.requestedMetric; MPL.RenderProfileStats(panel); MPL.UpdateProfileLoadButton()
+                    end
                     f.phase="done"; f.status:SetText(L["Логи получены."])
                     f.programmatic=true; edit:SetText(""); f.programmatic=false
                     f:Hide()
@@ -1075,6 +1148,31 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                     setText(f.request)
                 end
             end)
+        end
+        edit:SetScript("OnTextChanged",textChanged)
+        -- Keep the native EditBox buffer constant-sized. WoW dispatches OnChar
+        -- for pasted characters even when they exceed its display byte limit.
+        -- Assemble once after the paste, rather than growing native text.
+        edit:SetScript("OnChar",function(_,character)
+            if not f.capturePaste and not (type(f.importTest)=="table" and f.importTest.captureChars) then return end
+            if f.programmatic or (f.phase~="waiting" and f.phase~="copy") then return end
+            if not f.charBuffer then
+                f.charBuffer={}; f.charBufferBytes=0; f.charBufferOverflow=false
+                local buffer,revision=f.charBuffer,f.revision
+                C_Timer.After(0,function()
+                    if revision~=f.revision or not f:IsShown() or f.charBuffer~=buffer then return end
+                    f.charBuffer=false
+                    if f.charBufferOverflow then
+                        f.setStatus(MPL.L["Слишком большой импорт (максимум 500 КБ)"],true); return
+                    end
+                    f.capturedReply=table.concat(buffer)
+                    textChanged()
+                end)
+            end
+            if f.charBufferOverflow then return end
+            f.charBufferBytes=f.charBufferBytes+#character
+            if f.charBufferBytes>1600000 then f.charBufferOverflow=true; return end
+            f.charBuffer[#f.charBuffer+1]=character
         end)
         MPL.downloadWindow=f
     end
@@ -1083,9 +1181,14 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
     f.batch=batch or false
+    f.importTest=importTest or false; f.importTestPaste=false
+    f.capturedReply=false; f.charBuffer=false; f.capturePaste=false
     f.searchResultID=searchResultID or false
-    f.edit:SetMaxLetters(searchResultID and 1600000 or 500000)
+    local replay=type(importTest)=="table" and importTest.replay
+    f.edit:SetMaxLetters(replay and importTest.noLetterCount and 0 or (searchResultID and 1600000 or 500000))
+    f.edit:SetMaxBytes(replay and importTest.captureChars and 1 or (replay and 1600000 or 0))
     f.refresh=refresh or false
+    f.requestedMetric=requestedMetric or false; f.forceSearch=forceSearch or false
     f.title:SetText(L["M+ логи / Warcraft Logs"])
     f.applicant=context or false
     f.character:SetText(name.." — "..server)
@@ -1179,6 +1282,7 @@ function MPL.InstallApplicantLogColumn(viewer)
     end)
     f:SetScript("OnLeave",function() GameTooltip:Hide() end)
     f.headers=headers; f.original={}; f.compact=false; f.viewer=viewer; f.expanded=false
+    f.raiderExport=false
     f.baseWidth=PVEFrame and (PVE_FRAME_BASE_WIDTH or PVEFrame:GetWidth()) or false
     f.panelWidths=setmetatable({},{__mode="k"})
     f.backgroundWidth=viewer.InfoBackground and type(viewer.InfoBackground)~="function" and viewer.InfoBackground:GetWidth() or false
@@ -1200,6 +1304,27 @@ function MPL.InstallApplicantLogColumn(viewer)
     end
 end
 
+local function raiderExportLayout(f,active)
+    -- Raider.IO anchors its export icon beside the native bottom-center
+    -- buttons. Our wider applicant panel leaves space before Edit instead.
+    local b=active and _G.RaiderIO_ExportButton or f.raiderExport
+    if not b or b:GetNumPoints()~=1 then return end
+    local point,parent,relative,x,y=b:GetPoint(1)
+    -- Anchor offsets round after UI scaling, just like frame widths.
+    local function near(value,target) return type(value)=="number" and math.abs(value-target)<0.1 end
+    if point~="BOTTOMRIGHT" or parent~=LFGListFrame or not near(y,7) then return end
+    if active and relative=="BOTTOM" and near(x,-12) then
+        b:ClearAllPoints(); b:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOMRIGHT",-112,7)
+        f.raiderExport=b
+    elseif not active and f.raiderExport then
+        -- Do not overwrite a position another addon changed in the meantime.
+        if relative=="BOTTOMRIGHT" and near(x,-112) then
+            b:ClearAllPoints(); b:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOM",-12,7)
+        end
+        f.raiderExport=false
+    end
+end
+
 local function applicantLogLayout(forceInactive)
     local f=MPL.logColumn
     if not f then return false end
@@ -1207,6 +1332,7 @@ local function applicantLogLayout(forceInactive)
         and f.viewer:IsVisible() and MPL.GroupLogsEnabled()
         and (not C_LFGList.HasActiveEntryInfo or C_LFGList.HasActiveEntryInfo())
     if not InCombatLockdown() then
+        raiderExportLayout(f,active)
         -- The native LFG stub has a fixed width, even when PVEFrame grows.
         local stub=LFGListFrame and type(LFGListFrame.GetParent)=="function" and LFGListFrame:GetParent()
         if stub and not f.panelWidths[stub] then f.panelWidths[stub]=stub:GetWidth() end

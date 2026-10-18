@@ -1,4 +1,5 @@
 import copy
+import gc
 import json
 from pathlib import Path
 import re
@@ -35,11 +36,77 @@ class MetadataClient:
 
 class ApiSearchTests(unittest.TestCase):
     def setUp(self):
+        # Release previous GUI fixtures on the main thread before starting I/O.
+        gc.collect()
         self.temp=tempfile.TemporaryDirectory(prefix='.test-api-',dir=Path(__file__).resolve().parents[1])
         self.addCleanup(self.temp.cleanup)
         self.cache=Path(self.temp.name)
         self.servers={'eu':[dict(id=i+1,slug='s'+str(i)) for i in range(81)]}
         self.member=dict(name='Zaratrass',region='eu',realm='',class_name='WARRIOR',min_level=90)
+
+    def test_parallel_lookup_starts_with_progress_and_probe_then_overlaps(self):
+        events=[];outer=self
+        class ParallelClient(MetadataClient):
+            profile_workers=50
+            def __init__(self):
+                super().__init__();self.lock=threading.Lock();self.active=0;self.peak=0;self.done=0;self.waves=[]
+            def metadata_parallel_capacity(self,desired):
+                self.waves.append((desired,self.done));return desired
+            def query_metadata(self,query):
+                with self.lock:
+                    outer.assertTrue(events)
+                    self.active+=1;self.peak=max(self.peak,self.active)
+                try:
+                    time.sleep(.015)
+                    return super().query_metadata(query)
+                finally:
+                    with self.lock:self.active-=1;self.done+=1
+        client=ParallelClient()
+        servers={'eu':[dict(id=i+1,slug='s'+str(i)) for i in range(268)]}
+        search=name_search_api.ApiSearch(client,self.cache,servers)
+        members=[dict(self.member,name=name) for name in ('One','Two','Three','Four')]
+        with patch.object(name_search_api.builder,'_profile_resources',return_value=(8*1024**3,None)):
+            search.prepare(members,progress=events.append)
+        self.assertEqual(len(client.calls),14)
+        self.assertGreater(client.peak,1)
+        self.assertEqual(client.waves[0],(13,1))
+        self.assertEqual([e['completed'] for e in events],list(range(15)))
+        self.assertTrue(all(e['stage']=='realm_lookup' and e['total']==14 for e in events))
+        for member in members:self.assertEqual(search.for_member(member),[dict(realm_slug='s80',class_name='WARRIOR',level=90)])
+
+    def test_parallel_lookup_failure_never_caches_an_incomplete_scan(self):
+        class ParallelClient(MetadataClient):
+            profile_workers=50
+            def metadata_parallel_capacity(self,desired):return desired
+        client=ParallelClient(fail=2)
+        search=name_search_api.ApiSearch(client,self.cache,self.servers)
+        members=[dict(self.member,name=name) for name in ('One','Two','Three','Four')]
+        with self.assertRaisesRegex(ValueError,'API unavailable'):
+            search.prepare(members)
+        self.assertEqual(search.results,{})
+        self.assertEqual(list(self.cache.glob('name-lookup-*.json')),[])
+
+    def test_quota_stop_after_probe_does_not_send_later_batches(self):
+        class NoRoomClient(MetadataClient):
+            profile_workers=50
+            def metadata_parallel_capacity(self,desired):return 0
+        client=NoRoomClient()
+        search=name_search_api.ApiSearch(client,self.cache,self.servers)
+        with self.assertRaisesRegex(ValueError,'safety reserve'):
+            search.prepare([self.member])
+        self.assertEqual(len(client.calls),1)
+        self.assertEqual(search.results,{})
+        self.assertEqual(list(self.cache.glob('name-lookup-*.json')),[])
+        self.assertTrue(list(self.cache.glob('name-scan-*.json')))
+
+    def test_known_realms_and_complete_cached_lookup_skip_discovery_progress(self):
+        client=MetadataClient()
+        search=name_search_api.ApiSearch(client,self.cache,self.servers)
+        search.prepare([self.member])
+        events=[];client.calls.clear()
+        search.prepare([self.member,dict(self.member,name='Known',realm='Gordunni')],progress=events.append)
+        self.assertEqual(events,[])
+        self.assertEqual(client.calls,[])
 
     def test_scans_all_realms_and_filters_historical_low_level_character(self):
         client=MetadataClient();search=name_search_api.ApiSearch(client,self.cache,self.servers)
@@ -68,7 +135,8 @@ class ApiSearchTests(unittest.TestCase):
         search=name_search_api.ApiSearch(MetadataClient(fail=2),self.cache,self.servers)
         with self.assertRaisesRegex(ValueError,'API unavailable'): search.prepare([self.member])
         self.assertEqual(search.results,{})
-        self.assertEqual(list(self.cache.glob('*.json')),[])
+        self.assertEqual(list(self.cache.glob('name-lookup-*.json')),[])
+        self.assertTrue(list(self.cache.glob('name-scan-*.json')))
 
     def test_unclassified_level_zero_record_does_not_abort_other_characters(self):
         class PlaceholderClient(MetadataClient):
@@ -145,7 +213,7 @@ class ApiSearchTests(unittest.TestCase):
         client=MetadataClient();client.cache_scope='another'
         second=name_search_api.ApiSearch(client,self.cache,self.servers);second.prepare([self.member])
         self.assertEqual(len(client.calls),2)
-        with patch.object(name_search_api.time,'time',return_value=first.stamps[('eu','zaratrass')]+3601):
+        with patch.object(name_search_api.time,'time',return_value=first.stamps[('eu','zaratrass')]+21601):
             first.prepare([self.member])
         self.assertEqual(len(first.client.calls),4)
 

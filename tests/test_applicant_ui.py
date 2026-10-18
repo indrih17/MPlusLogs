@@ -215,7 +215,7 @@ class ApplicantUITests(unittest.TestCase):
                 data['allStars'][0]['spec']=args.spec or 'Feral'
             return raw
         response = clipboard_protocol.reply(f.request, realm_resolver.load_mappings(), self.cache, fetch_specs)
-        self.assertEqual(self.mpl.ReceiveReply(response, True), (2, None))
+        self.assertEqual(self.mpl.ReceiveReply(response, True), (1, None))
         self.assertEqual(self.mpl.panel.applicant.applicantID, 10)
         self.assertTrue(self.mpl.panel.inviteButton.enabled)
 
@@ -284,6 +284,7 @@ class ApplicantUITests(unittest.TestCase):
         self.mpl.InstallBatchButton()
         viewer=self.lua.globals().LFGListFrame.ApplicationViewer
         self.assertEqual(self.lua.globals().PVEFrame.width,653)
+
         viewer.Hide(viewer); viewer.scripts.OnHide()
         self.assertEqual(self.lua.globals().PVEFrame.width,563)
         self.assertEqual(self.lua.globals().LFGListPVEStub.width,338)
@@ -293,6 +294,76 @@ class ApplicantUITests(unittest.TestCase):
         # Repeated refreshes must not keep adding 90 pixels.
         self.mpl.RefreshApplicantLogs()
         self.assertEqual(self.lua.globals().PVEFrame.width,653)
+
+    def mock_raider_export(self):
+        self.lua.execute('''
+            RaiderIO_ExportButton=CreateFrame("Button",nil,LFGListFrame)
+            local b=RaiderIO_ExportButton
+            b:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOM",-12,7)
+            b.GetNumPoints=function() return 1 end
+            b.GetPoint=function(self) return "BOTTOMRIGHT",unpack(self.points.BOTTOMRIGHT) end
+        ''')
+
+    def test_raider_export_moves_out_of_cancel_button_and_restores_on_exit(self):
+        self.mock_raider_export()
+        self.mpl.InstallBatchButton()
+        export = self.lua.globals().RaiderIO_ExportButton
+        self.assertEqual(export.points.BOTTOMRIGHT[2], 'BOTTOMRIGHT')
+        self.assertEqual(export.points.BOTTOMRIGHT[3], -112)
+        self.mpl.RefreshApplicantLogs(True)
+        self.assertEqual(export.points.BOTTOMRIGHT[2], 'BOTTOM')
+        self.assertEqual(export.points.BOTTOMRIGHT[3], -12)
+
+    def test_raider_export_loaded_later_is_adjusted_on_next_refresh(self):
+        self.mpl.InstallBatchButton()
+        self.mock_raider_export()
+        self.mpl.RefreshApplicantLogs()
+        self.mpl.RefreshApplicantLogs()
+        export = self.lua.globals().RaiderIO_ExportButton
+        self.assertEqual(export.points.BOTTOMRIGHT[2], 'BOTTOMRIGHT')
+        self.mpl.RefreshApplicantLogs(True)
+        self.assertEqual(export.points.BOTTOMRIGHT[2], 'BOTTOM')
+
+    def test_raider_export_scaled_anchor_rounding_does_not_block_move(self):
+        self.mock_raider_export()
+        self.lua.execute('RaiderIO_ExportButton:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOM",-12.000000953674,7.0000004768372)')
+        self.mpl.InstallBatchButton()
+        export = self.lua.globals().RaiderIO_ExportButton
+        self.assertEqual(export.points.BOTTOMRIGHT[2], 'BOTTOMRIGHT')
+        self.assertEqual(export.points.BOTTOMRIGHT[3], -112)
+        self.lua.execute('RaiderIO_ExportButton:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOMRIGHT",-112.00000762939,7.0000004768372)')
+        self.mpl.RefreshApplicantLogs(True)
+        self.assertEqual(export.points.BOTTOMRIGHT[2], 'BOTTOM')
+
+    def test_raider_export_native_reanchor_is_adjusted_again(self):
+        self.mock_raider_export()
+        self.mpl.InstallBatchButton()
+        self.lua.execute('RaiderIO_ExportButton:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOM",-12,7)')
+        self.mpl.RefreshApplicantLogs()
+        self.assertEqual(self.lua.globals().RaiderIO_ExportButton.points.BOTTOMRIGHT[2], 'BOTTOMRIGHT')
+
+    def test_custom_raider_export_position_is_preserved(self):
+        self.mock_raider_export()
+        self.lua.execute('RaiderIO_ExportButton:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOM",-60,7)')
+        self.mpl.InstallBatchButton()
+        self.assertEqual(self.lua.globals().RaiderIO_ExportButton.points.BOTTOMRIGHT[3], -60)
+
+    def test_raider_export_does_not_move_in_combat(self):
+        self.mpl.InstallBatchButton()
+        self.mock_raider_export()
+        self.lua.execute('combat=true')
+        self.mpl.RefreshApplicantLogs()
+        self.assertEqual(self.lua.globals().RaiderIO_ExportButton.points.BOTTOMRIGHT[2], 'BOTTOM')
+        self.lua.execute('combat=false')
+        self.mpl.RefreshApplicantLogs()
+        self.assertEqual(self.lua.globals().RaiderIO_ExportButton.points.BOTTOMRIGHT[2], 'BOTTOMRIGHT')
+
+    def test_raider_export_external_move_is_not_overwritten_on_exit(self):
+        self.mock_raider_export()
+        self.mpl.InstallBatchButton()
+        self.lua.execute('RaiderIO_ExportButton:SetPoint("BOTTOMRIGHT",LFGListFrame,"BOTTOMRIGHT",-160,7)')
+        self.mpl.RefreshApplicantLogs(True)
+        self.assertEqual(self.lua.globals().RaiderIO_ExportButton.points.BOTTOMRIGHT[3], -160)
 
     def test_panel_switch_restores_width_even_before_old_viewer_visibility_changes(self):
         self.mpl.InstallBatchButton()

@@ -4,7 +4,7 @@ from urllib.parse import quote
 import clipboard_companion as bridge
 import companion_update
 
-CAPABILITIES = {"dual", "batch", "updater", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "nameerrors", "errorcodes"}
+CAPABILITIES = {"dual", "batch", "updater", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "nameerrors", "errorcodes", "lazyspecs", "candidateinfo", "rescan", "primarymetric", "leaderfirst"}
 
 
 def describe_clipboard(text):
@@ -58,18 +58,25 @@ def reply(text,mapping,cache,client=None,diagnostic=False,progress=None):
                 raise ValueError('Group search requires namesearch capability')
             import name_search
             result=name_search.reply(body,mapping,cache,client,progress=progress,error_details='nameerrors' in required,
-                                     error_codes='errorcodes' in required)
+                                     error_codes='errorcodes' in required, available_specs='lazyspecs' in required,
+                                     candidate_info='candidateinfo' in required, refresh='rescan' in required,
+                                     primary_metric='primarymetric' in required)
         else:
             batch=body.startswith("MPLQ2\n")
             result,_=bridge.process_request(body,mapping,cache,client,batch=batch,
                 spec_profiles=metadata_requested and 'specprofiles' in required,
                 refresh=metadata_requested and 'refresh' in required,
                 spec_details=metadata_requested and 'specdetails' in required, progress=progress,
-                error_codes=metadata_requested and 'errorcodes' in required)
+                error_codes=metadata_requested and 'errorcodes' in required,
+                lazy_specs=metadata_requested and 'lazyspecs' in required,
+                primary_metric=metadata_requested and 'primarymetric' in required)
         # WoW EditBox expands clipboard tabs to spaces. Encode the entire
-        # data block, including delimiters, before handing it to the game.
+        # data block, including tab delimiters, before handing it to the game.
+        # Preserve record newlines: one enormous encoded line stalls native
+        # EditBox paste/layout. Existing Lua decoders already accept these
+        # newlines, and unquoting still restores the exact original payload.
         metadata = "MPLV1 " + companion_update.current_version() + " " + ",".join(sorted(CAPABILITIES)) + "\n" if metadata_requested else ""
-        return "MPLS1\n"+request_id+"\n"+metadata+"MPLB1\n"+quote(result,safe="")
+        return "MPLS1\n"+request_id+"\n"+metadata+"MPLB1\n"+quote(result,safe="\n")
     except (ValueError,OSError,KeyError,TypeError) as exc:
         message=str(exc)
         if metadata_requested and 'errorcodes' in required:

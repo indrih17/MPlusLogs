@@ -301,5 +301,15 @@
   "дата неизвестна": "data desconhecida",
   "доступ к api": "API access",
   "В Warcraft Logs не найден персонаж с таким именем, классом и подходящим уровнем.": "Nenhum personagem com esse nome, classe e nível adequado foi encontrado no Warcraft Logs.",
-  "Не удалось определить персонажа: Warcraft Logs вернул неполные или некорректные данные поиска.": "Não foi possível identificar o personagem: o Warcraft Logs retornou dados de busca incompletos ou inválidos."
+  "Не удалось определить персонажа: Warcraft Logs вернул неполные или некорректные данные поиска.": "Não foi possível identificar o personagem: o Warcraft Logs retornou dados de busca incompletos ou inválidos.",
+  "Tank": "Tanque",
+  "Healer": "Curador",
+  "Damage": "Dano",
+  "Role data unavailable; update Companion": "Dados de função indisponíveis; atualize o Companion",
+  "Load HPS": "Carregar HPS",
+  "Healing data loads on request. Click Load HPS.": "Os dados de cura são carregados sob demanda. Clique em Carregar HPS.",
+  "Load DPS": "Carregar DPS",
+  "Damage data loads on request. Click Load DPS.": "Os dados de dano são carregados sob demanda. Clique em Carregar DPS.",
+  "Shift-click to search realms again.": "Shift-clique para buscar reinos novamente.",
+  "Update Companion to search realms again.": "Atualize o Companion para buscar reinos novamente."
 }

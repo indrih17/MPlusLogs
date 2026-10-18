@@ -285,7 +285,6 @@ class App:
         return True
 
     def sign_out(self):
-        self.auth_cancel.set()
         with self.config_lock:
             config = {key: value for key, value in self.config.items() if key not in {"oauth", "oauth_dpapi", "secret", "secret_dpapi"}}
             try:
@@ -293,6 +292,9 @@ class App:
             except (ValueError, OSError) as exc:
                 messagebox.showerror("MPlusLogs", i18n.tr(str(exc)), parent=self.root)
                 return
+            # Cancellation belongs to the successful sign-out transaction. A
+            # failed settings write must leave an in-flight browser login alive.
+            self.auth_cancel.set()
             self.session, self.config = None, config
         self.want_running = True
         self.stop.set()
@@ -358,23 +360,22 @@ class App:
     def save_preferences(self):
         previous = windows.autostart_enabled()
         previous_retail = windows.retail_autostart_enabled()
-        previous_config = dict(self.config)
         mode = self.startup_mode.get()
         try:
             windows.set_autostart(mode == "windows")
             windows.set_retail_autostart(mode == "retail")
+            # Complete fallible startup changes before committing preferences.
+            # Rolling back an old whole-config snapshot could restore a token
+            # superseded by a concurrent OAuth refresh.
+            windows.ensure_retail_watcher()
             with self.config_lock:
                 config = dict(self.config, sound=self.sound.get(), autostart=mode == "windows", retail_autostart=mode == "retail", theme=self.theme.get(), language=self.language.get())
                 local_settings.save_config(config)
                 self.config = config
-            windows.ensure_retail_watcher()
         except (ValueError, OSError) as exc:
             try:
                 windows.set_autostart(previous)
                 windows.set_retail_autostart(previous_retail)
-                with self.config_lock:
-                    local_settings.save_config(previous_config)
-                    self.config = previous_config
             except (ValueError, OSError):
                 pass
             self.startup_mode.set(self.current_startup_mode())
@@ -443,13 +444,19 @@ class App:
                         response = clipboard_protocol.reply(text, mapping, DATA_ROOT / ".wcl-cache", client, diagnostic,
                             progress=lambda value: post("progress", value))
                     if isinstance(client, bridge.Client):
+                        client.save_request_metrics(DATA_ROOT / '.wcl-cache' / 'request-metrics.json')
                         snapshot = client.budget.snapshot()
                         if snapshot["limitPerHour"]:
                             post("quota", {"remaining": max(0, snapshot["limitPerHour"] - snapshot["pointsSpentThisHour"]), "limit": snapshot["limitPerHour"], "reset_at": snapshot["resetAt"]})
                     if stop.is_set() and not self.installing_update:
                         break
                     post("progress", dict(stage="finalizing"))
-                    build_database.atomic_write(DATA_ROOT / "last-result.mpl", response)
+                    try:
+                        build_database.atomic_write(DATA_ROOT / "last-result.mpl", response)
+                    except OSError:
+                        # A locked/local result file must not discard a completed
+                        # response; retain it in the UI and deliver the clipboard.
+                        pass
                     post("result", response)
                     if clipboard.reply_if_unchanged(text, response):
                         post("ready", "Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V.")
@@ -470,6 +477,7 @@ class App:
             "profiles": "Loading characters: {completed}/{total}\n{character}",
             "overview": "Loading character overview: {completed}/{total}\n{character}",
             "specializations": "Loading specializations: {completed}/{total}\n{character}",
+            "realm_lookup": "Determining character realms: {completed}/{total}",
             "search": "Finding group members: {completed}/{total}\n{character}",
             "finalizing": "Preparing reply…",
         }

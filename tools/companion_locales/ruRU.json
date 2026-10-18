@@ -32,6 +32,7 @@
   "Could not start the update. Try again.": "Не удалось запустить обновление. Попробуйте ещё раз.",
   "Coverage": "Полнота записи",
   "Date": "Дата",
+  "Determining character realms: {completed}/{total}": "Определяю серверы персонажей: {completed}/{total}",
   "Downloading Companion update…": "Скачиваю обновление Companion…",
   "Dungeon": "Подземелье",
   "Fill in the fields as shown below. Enable Public Client, then click Create.": "Заполните поля по примеру ниже. Включите Public Client и нажмите Create.",

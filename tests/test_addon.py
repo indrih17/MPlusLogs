@@ -275,6 +275,7 @@ class AdapterTests(unittest.TestCase):
         del row["best_level"]
         del row["best_historical_percentile"]
         char["performance"]["allStars"].append({"points": 1000})
+        char["performance"]["rankings"][0]["bestAmount"] = None
         profile = sync.normalize(raw, self.args())
         self.assertIsNone(profile["score"])
         self.assertIsNone(profile["dungeons"][0]["level"])

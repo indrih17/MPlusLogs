@@ -93,6 +93,26 @@ class LoadingProgressTests(unittest.TestCase):
             try:
                 app.want_running = False
                 app.last_heartbeat = time.time()
+                app.messages.put(('worker', (app.stop, 'progress', dict(stage='realm_lookup',
+                    completed=0, total=14))))
+                app.poll()
+                self.assertEqual(app.status.get(), 'Определяю серверы персонажей: 0/14')
+                self.assertEqual(str(app.progress_bar['mode']), 'determinate')
+                self.assertEqual(app.progress_bar['maximum'], 14)
+                app.messages.put(('worker', (app.stop, 'progress', dict(stage='realm_lookup',
+                    completed=3, total=14))))
+                app.poll()
+                self.assertEqual(app.progress_bar['value'], 3)
+                with patch.object(app, 'save_preferences'):
+                    app.language.set('enUS')
+                    app.change_language()
+                self.assertEqual(app.status.get(), 'Determining character realms: 3/14')
+                app.show_progress(dict(stage='search', completed=1, total=4, character='Lumar'))
+                self.assertIn('Finding group members: 1/4', app.status.get())
+                self.assertEqual(app.progress_bar['maximum'], 4)
+                with patch.object(app, 'save_preferences'):
+                    app.language.set('ruRU')
+                    app.change_language()
                 app.messages.put(('worker', (app.stop, 'progress', dict(stage='profiles', completed=2,
                     total=5, character='Киндрих', realm='Гордунни', spec=''))))
                 app.poll()

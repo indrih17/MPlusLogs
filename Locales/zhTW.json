@@ -301,5 +301,15 @@
   "дата неизвестна": "日期未知",
   "доступ к api": "API access",
   "В Warcraft Logs не найден персонаж с таким именем, классом и подходящим уровнем.": "Warcraft Logs 中找不到名稱、職業及符合要求的等級皆相符的角色。",
-  "Не удалось определить персонажа: Warcraft Logs вернул неполные или некорректные данные поиска.": "無法識別角色：Warcraft Logs 傳回不完整或無效的搜尋資料。"
+  "Не удалось определить персонажа: Warcraft Logs вернул неполные или некорректные данные поиска.": "無法識別角色：Warcraft Logs 傳回不完整或無效的搜尋資料。",
+  "Tank": "坦克",
+  "Healer": "治療",
+  "Damage": "傷害",
+  "Role data unavailable; update Companion": "角色職責資料無法取得；請更新 Companion",
+  "Load HPS": "載入 HPS",
+  "Healing data loads on request. Click Load HPS.": "治療資料依需求載入。點擊載入 HPS。",
+  "Load DPS": "載入 DPS",
+  "Damage data loads on request. Click Load DPS.": "傷害資料依需求載入。點擊載入 DPS。",
+  "Shift-click to search realms again.": "按住 Shift 點擊以重新搜尋伺服器。",
+  "Update Companion to search realms again.": "更新 Companion 以重新搜尋伺服器。"
 }

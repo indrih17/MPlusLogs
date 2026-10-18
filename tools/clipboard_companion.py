@@ -1,11 +1,14 @@
 """Local Windows helper: explicit MPLQ1 clipboard request -> WCL API -> MPL1 clipboard reply."""
 from __future__ import annotations
 import argparse
+import json
+import math
 import ctypes
 from ctypes import wintypes
 from pathlib import Path
 import sys
 import time
+import threading
 from api_budget import Budget
 import clipboard_history
 
@@ -144,6 +147,35 @@ class WindowsClipboard:
 
 
 class Client:
+    @property
+    def profile_workers(self):
+        return 50
+
+    def parallel_capacity(self,remaining_profiles):
+        return self._parallel_capacity(remaining_profiles,metadata=False)
+
+    def metadata_parallel_capacity(self,remaining_batches):
+        return self._parallel_capacity(remaining_batches,metadata=True)
+
+    def _parallel_capacity(self,remaining,*,metadata):
+        with self.lock:
+            cost=self.metadata_cost if metadata else self.profile_cost
+            snapshot=self.budget.snapshot()
+            local_remaining=max(0,self.limit-self.queries)
+        if remaining<=0:return 0
+        if not local_remaining:return 0
+        if snapshot['blockedUntil']>time.time():return 0
+        if cost is None or snapshot['resetAt']<=time.time():return 1
+        cap=snapshot['limitPerHour']
+        spent=snapshot.get('projectedSpentThisHour',snapshot['pointsSpentThisHour'])
+        # Match Budget.reserve's conservative unit price, so an admitted wave
+        # cannot overfill its own holds after a more expensive profile query.
+        cost=max(cost,snapshot.get('requestCostEstimate',cost))
+        available=cap-spent-max(100,cap*.1)-snapshot['largestObservedCost']
+        # This is an estimate, not a promise that all profiles cost the same.
+        # Keep 25% per-query headroom on top of the account quota reserve.
+        affordable=max(0,int(available/(cost*1.25)))
+        return min(50,remaining,affordable,local_remaining)
     def __init__(self, max_hourly_queries=120, client_id=None, secret=None, token_provider=None, invalidate_token=None,
                  state_path=None, cache_scope="public"):
         self.token = None
@@ -158,9 +190,45 @@ class Client:
         self.invalidate_token=invalidate_token
         self.budget = Budget(state_path, max_hourly_queries)
         self.cache_scope = cache_scope
+        self.lock=threading.RLock()
+        self.profile_cost=None
+        self.metadata_cost=None
+        self.request_metrics=[]
+
+    def _record_request(self, result, started, profile, sent, error=None):
+        """Bounded cost evidence without identities, query text or credentials."""
+        limit=wcl.rate_limit_data(result)
+        if not limit: limit=getattr(error,'rate_limit',None)
+        current=limit.get('currentRequest') if isinstance(limit,dict) else None
+        cost=current.get('total') if isinstance(current,dict) else None
+        if type(cost) not in (int,float) or not math.isfinite(cost) or cost<0:cost=None
+        data=result.get('data') if isinstance(result,dict) else None
+        character=data.get('characterData') if isinstance(data,dict) else None
+        character=character.get('character') if isinstance(character,dict) else None
+        variants=[key for key in ('damage','healing','performance') if isinstance(character,dict) and character.get(key) is not None]
+        try:payload_bytes=len(json.dumps(result,ensure_ascii=False).encode('utf-8')) if result is not None else None
+        except (ValueError,TypeError):payload_bytes=None
+        sample=dict(kind='profile' if profile else 'realm_lookup',metrics=variants,
+                    at=int(time.time()),seconds=round(max(0,time.monotonic()-started),3),
+                    points=cost,payloadJsonBytes=payload_bytes,sent=sent,
+                    outcome='error' if error else 'success')
+        with self.lock:
+            self.request_metrics.append(sample)
+            del self.request_metrics[:-200]
+
+    def save_request_metrics(self,path):
+        with self.lock: samples=list(self.request_metrics)
+        try:
+            builder.atomic_write(Path(path),json.dumps(dict(version=1,requests=samples,
+                counters=self.budget.snapshot()['counters']),ensure_ascii=False,indent=2))
+        except OSError:
+            pass  # Optional local measurements must never stop profile loading.
 
     def __call__(self, args):
         key = builder.cache_path(Path(), dict({"realm": ""}, **vars(args), _cache_scope=self.cache_scope)).stem
+        # An explicit secondary-metric upgrade is distinct from refreshing the
+        # same payload. Both shapes still have their own persistent cooldown.
+        key += ':primary' if wcl.primary_only_request(args) else ':dual'
         return self._query(key,lambda token:wcl.fetch(args,token,endpoint='user' if self.token_provider else 'client'))
 
     def query_metadata(self,query):
@@ -177,37 +245,71 @@ class Client:
         return self._query(key,fetch,profile=False)
 
     def _query(self,key,fetch,profile=True):
-        now = time.monotonic()
-        if now - self.started >= 3600:
-            self.queries, self.started = 0, now
-        if self.queries >= self.limit:
-            raise ValueError("Local hourly query limit reached; use cache or wait")
-        if self.remaining is not None and now < self.budget_reset and self.remaining < 100:
-            raise ValueError("WCL API budget is low; wait for reset")
-        delay = self.budget.reserve(key, pace=True) if profile else self.budget.reserve(key,pace=True,profile=False)
-        if delay:
-            time.sleep(delay)
-        self.queries += 1
+        started=time.monotonic()
+        with self.lock:
+            now = time.monotonic()
+            if now - self.started >= 3600:
+                self.queries, self.started = 0, now
+            if self.queries >= self.limit:
+                raise ValueError("Local hourly query limit reached; use cache or wait")
+            if self.remaining is not None and now < self.budget_reset and self.remaining < 100:
+                raise ValueError("WCL API budget is low; wait for reset")
+            delay=self.budget.reserve(key,pace=False,profile=profile)
+            self.queries += 1
+        sent=False
         try:
-            self.token = self.token_provider() if self.token_provider else self.token or wcl.access_token(self.client_id,self.secret)
-            result = fetch(self.token)
-        except ValueError as exc:
+            cancel=getattr(self,'cancel',None)
+            if delay:
+                if cancel is not None:
+                    if cancel.wait(delay):raise wcl.ProfileError('Profile loading stopped','retry')
+                else:time.sleep(delay)
+            if cancel is not None and cancel.is_set():raise wcl.ProfileError('Profile loading stopped','retry')
+            self.budget.check_upstream(delay)
+            with self.lock:
+                self.token = self.token_provider() if self.token_provider else self.token or wcl.access_token(self.client_id,self.secret)
+                token=self.token
+            self.budget.check_upstream(delay)
+            sent=True
+            result = fetch(token)
+        except (ValueError,OSError,KeyError,TypeError) as exc:
+            self._record_request(None,started,profile,sent,exc)
+            error_limit=getattr(exc,'rate_limit',None)
+            self.budget.complete(delay,error_limit,sent=sent,
+                                 uncertain=sent and self.budget._request_cost(error_limit) is None)
             self.budget.failure(exc)
             if getattr(exc, "status", None) == 401 or "WCL HTTP 401" in str(exc):
-                self.token = None
+                with self.lock:self.token = None
             if self.invalidate_token and "WCL HTTP 401" in str(exc):
                 self.invalidate_token()
             raise
         limit = wcl.rate_limit_data(result)
+        self._record_request(result,started,profile,sent)
+        self.budget.complete(delay,limit)
         if limit:
-            self.remaining = limit["limitPerHour"] - limit["pointsSpentThisHour"]
-            self.budget_reset = now + limit["pointsResetIn"]
-        self.budget.observe(limit)
+            with self.lock:
+                cost=result.get('data',{}).get('rateLimitData',{}).get('currentRequest',{})
+                cost=cost.get('total') if isinstance(cost,dict) else None
+                if not profile and type(cost) in (int,float) and cost>0 and math.isfinite(cost):
+                    # A short final lookup batch must not lower the estimate
+                    # learned from a full batch of realm aliases.
+                    self.metadata_cost=max(self.metadata_cost or 0,cost)
+                characters=result.get('data',{}).get('characterData')
+                character=characters.get('character') if isinstance(characters,dict) else None
+                ranked=False
+                if isinstance(character,dict) and not character.get('hidden'):
+                    for metric in ('damage','healing','performance'):
+                        try:ranked=ranked or bool(wcl.rankings(character.get(metric))['rankings'])
+                        except (ValueError,KeyError,TypeError):pass
+                if profile and ranked and type(cost) in (int,float) and 0<cost<1000000:
+                    self.profile_cost=max(self.profile_cost or 0,cost)
+                snapshot=self.budget.snapshot()
+                self.remaining=snapshot['limitPerHour']-snapshot['pointsSpentThisHour']
+                self.budget_reset=time.monotonic()+max(0,snapshot['resetAt']-time.time())
         if profile: self.budget.success(key)
         return result
 
 
-def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=24, batch=False, spec_profiles=False, refresh=False, spec_details=True, progress=None, error_codes=False):
+def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours=wcl.PROFILE_CACHE_TTL_HOURS, batch=False, spec_profiles=False, refresh=False, spec_details=True, progress=None, error_codes=False, lazy_specs=False, primary_metric=False):
     if not text.startswith(("MPLQ1\n","MPLQ1\r\n","MPLQ2\n","MPLQ2\r\n")):
         raise ValueError("Copy a MPlusLogs request in WoW first")
     batch=batch or text.startswith(("MPLQ2\n","MPLQ2\r\n"))
@@ -230,9 +332,11 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
         return notify
     for entry in valid_entries:
         entry['_cache_scope'] = getattr(fetcher, 'cache_scope', 'public')
+        entry['include_secondary'] = not primary_metric
     profiles, report = builder.build(valid_entries,cache,ttl_hours=ttl_hours,max_fetch=len(entries) if batch else 20,
-                                     offline=offline,fetcher=fetcher,refresh=refresh,progress=stage_progress('profiles'))
-    if spec_profiles and not batch and len(valid_entries)==1 and profiles:
+                                     offline=offline,fetcher=fetcher,refresh=refresh,progress=stage_progress('profiles'),
+                                     max_workers=getattr(fetcher,'profile_workers',1) if batch else 1)
+    if spec_profiles and not lazy_specs and not batch and len(valid_entries)==1 and profiles:
         entry=valid_entries[0]
         aggregate=dict(entry,spec=None)
         if entry.get('spec'):
@@ -256,7 +360,7 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
         if not any(profile['spec']!='All specs' for profile in profiles):
             reasons='; '.join(sorted({item['error'] for item in report['errors']}))
             raise ValueError('Could not load specialization profiles. '+(reasons or 'WCL did not provide specialization data.'))
-    report['errors'] += [{'character':e['name'],'realm':e['realm'],'error':e['queue_error']} for e in entries if e.get('queue_error')]
+    report['errors'] += [{'character':e['name'],'region':e['region'],'realm':e['realm'],'error':e['queue_error']} for e in entries if e.get('queue_error')]
     for item in report['errors']:
         message = item['error'].lower()
         if any(term in message for term in ('http 429', 'rate limit', 'hourly query limit', 'api budget is low')):
@@ -270,14 +374,14 @@ def process_request(text, mapping, cache, fetcher=None, offline=False, ttl_hours
         raise wcl.ProfileError("No usable profile: " + "; ".join(reasons),detail.get("error_code","unknown"),detail.get("retry_at",0))
     # Check duplicate identities and the addon's import size bound before export.
     if profiles: builder.bundle(profiles)
-    response = ("MPL2\n" if batch else "MPL1\n") + "".join(wcl.export(p, spec_details=spec_details).removeprefix("MPL1\n") for p in profiles)
+    response = ("MPL2\n" if batch else "MPL1\n") + "".join(wcl.export(p, spec_details=spec_details, available_specs=lazy_specs).removeprefix("MPL1\n") for p in profiles)
     if batch:
         errors={}
         for item in report['errors']:
-            errors.setdefault((item['realm'],item['character']),item)
+            errors.setdefault(builder.identity(item['region'],item['realm'],item['character']),item)
         received={builder.identity(p['region'],p['realm'],p['name']) for p in profiles}
         for entry in entries:
-            detail=errors.get((entry['realm'],entry['name']),{})
+            detail=errors.get(builder.identity(entry['region'],entry['realm'],entry['name']),{})
             message=detail.get('error')
             if builder.identity(entry['region'],entry['realm'],entry['name']) not in received and not message:
                 message="Публичные логи M+ не найдены"

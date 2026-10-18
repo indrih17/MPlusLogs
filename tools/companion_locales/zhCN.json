@@ -32,6 +32,7 @@
   "Could not start the update. Try again.": "无法启动更新。请重试。",
   "Coverage": "Coverage",
   "Date": "Date",
+  "Determining character realms: {completed}/{total}": "正在确定角色服务器：{completed}/{total}",
   "Downloading Companion update…": "正在下载 Companion 更新…",
   "Dungeon": "Dungeon",
   "Fill in the fields as shown below. Enable Public Client, then click Create.": "按示例填写字段，启用 Public Client，然后点击 Create。",

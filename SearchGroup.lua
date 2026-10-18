@@ -1,6 +1,37 @@
 local _,MPL=...
 local L=MPL.L
 local sequence=0
+-- Realm resolutions belong to an exact roster, not Blizzard's temporary
+-- listing ID. Keep a small session cache without guessing from names alone.
+local rosterRealms,rosterOrder={},{}
+local function rosterKey(signature)
+    return MPL.Region()..":"..signature
+end
+local function rememberRoster(f)
+    if not f.signature or not f.players then return end
+    local anchored=false
+    for _,p in ipairs(f.players) do
+        if p.leader and type(p.rosterRealm)=="string" then anchored=true; break end
+    end
+    if not anchored then return end
+    local key=rosterKey(f.signature)
+    if not rosterRealms[key] then
+        rosterOrder[#rosterOrder+1]=key
+        if #rosterOrder>20 then rosterRealms[table.remove(rosterOrder,1)]=nil end
+    end
+    local entry={at=GetServerTime(),realms={}}
+    for i,p in ipairs(f.players) do
+        if p.loaded and not p.departed then entry.realms[i]=p.realm end
+    end
+    rosterRealms[key]=entry
+end
+local function restoreRoster(players,signature)
+    local entry=rosterRealms[rosterKey(signature)]
+    if not entry or GetServerTime()-entry.at>=6*3600 then return end
+    for i,p in ipairs(players) do
+        if not p.realm then p.realm=entry.realms[i] end
+    end
+end
 local function safe(value) return not (issecretvalue and issecretvalue(value)) end
 local function enc(s) return tostring(s or ""):gsub("([^A-Za-z0-9%-%._~])",function(c) return string.format("%%%02X",c:byte()) end) end
 local function dec(s) return s:gsub("%%(%x%x)",function(h) return string.char(tonumber(h,16)) end) end
@@ -36,7 +67,7 @@ function MPL.CollectSearchGroup(resultID)
             end
         end
         players[#players+1]={name=name,realm=realm,class=member.classFilename,role=member.assignedRole,
-            rosterRealm=realm or false,
+            rosterRealm=realm or false,leader=member.isLeader==true,
             specID=specID,region=MPL.Region(),origin=realm and "known" or "search",
             minLevel=GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion() or nil}
         signature[#signature+1]=enc(name)..":"..enc(realm)..":"..member.classFilename..":"..member.assignedRole
@@ -58,14 +89,26 @@ local function usable(player)
     if not player.realm then return false end
     local profile=MPL.GetProfile(player.name,player.realm,"All specs",player.role)
     local state=MPL.GetProfileState(player.name,player.realm,"All specs")
-    return profile and not state and not MPL.IsProfileStale(profile)
+    local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
+    return profile and (profile.dual or profile.metric==metric) and not state and not MPL.IsProfileStale(profile)
+end
+
+local function cachedProfile(player)
+    -- A known identity may have useful old data even when it still needs a
+    -- refresh. Never infer an identity from the panel's fallback realm.
+    if not player.realm or player.candidates then return end
+    local profile=MPL.GetProfile(player.name,player.realm,nil,player.role)
+    local state=MPL.GetProfileState(player.name,player.realm,profile and profile.spec)
+    if state and (state.reason=="hidden" or state.reason=="empty" or state.reason=="missing") then return end
+    return profile
 end
 
 local function mergeRoster(f,players,signature)
     local selected=f.players and f.players[f.selected]
+    local reused={}
     for i,new in ipairs(players) do
         for _,old in ipairs(f.players or {}) do
-            if MPL.Normalize(old.name)==MPL.Normalize(new.name) and old.class==new.class
+            if not reused[old] and MPL.Normalize(old.name)==MPL.Normalize(new.name) and old.class==new.class
                 and old.region==new.region
                 and not (f.requestID and new.rosterRealm and not old.rosterRealm)
                 and (not new.rosterRealm or not old.realm or MPL.Normalize(old.realm)==MPL.Normalize(new.rosterRealm))
@@ -73,9 +116,10 @@ local function mergeRoster(f,players,signature)
                 if old.role~=new.role then old.loaded=nil; old.error=nil; old.specID=new.specID
                 else old.specID=new.specID or old.specID end
                 old.role=new.role
+                old.leader=new.leader
                 old.departed=nil
                 if new.rosterRealm then old.realm=new.realm; old.rosterRealm=new.rosterRealm; old.origin="known" end
-                players[i]=old; break
+                players[i]=old; reused[old]=true; break
             end
         end
         local p=players[i]
@@ -135,11 +179,12 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
         members[#members+1]=member
         if member.loaded then resolved[#resolved+1]=member end
     end
+    local cached=not p.loaded and cachedProfile(p)
     MPL.ShowProfile(p.name,p.realm or GetNormalizedRealmName(),nil,true,nil,not p.loaded)
     local panel=MPL.panel
     panel.partyTracked=false
     panel.searchMember=p
-    if not p.loaded then
+    if not p.loaded and not cached then
         -- The fallback realm is only used to initialize the shared panel.
         -- Never display cached logs or submit an ordinary request for it.
         panel.profile=false; panel.class=p.class
@@ -155,12 +200,13 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
         panel.loadButton:SetSize(170,24); panel.loadButton:SetText(L["Load group logs"])
         MPL.RenderProfileStats(panel)
     end
+    if cached and p.error then panel.footer:SetText(p.error) end
     panel.searchChoices=type(panel.searchChoices)=="table" and panel.searchChoices or {}
     for _,b in ipairs(panel.searchChoices) do b:Hide() end
     for i,c in ipairs(p.candidates or {}) do
         local b=panel.searchChoices[i]
         if not b then
-            b=button(panel,100,-330-(i-1)*28,720,"")
+            b=button(panel,100,-255-(i-1)*56,720,"")
             panel.searchChoices[i]=b
         end
         -- Rebind the member when reusing a choice button for another tab.
@@ -168,7 +214,17 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
             p.realm=c.realm; p.candidates=nil; p.error=nil
             MPL.ShowSearchGroupLogs(f.resultID)
         end)
-        b:SetText(c.name.." — "..c.realm); b:Show()
+        b:ClearAllPoints(); b:SetPoint("TOPLEFT",100,-255-(i-1)*56); b:SetSize(720,52)
+        local label=c.name.." — "..c.realm
+        if c.scores then
+            local function value(v) return v and string.format("%.0f",v) or "—" end
+            label=label.."\nWCL: "..L["Tank"].." "..value(c.scores[1]).." / "..L["Healer"].." "..value(c.scores[2]).." / "..L["Damage"].." "..value(c.scores[3])
+                .."  ·  "..L["Best %"].." "..value(c.best).."  ·  "..L["Прохождения"].." "..value(c.runs)
+            label=label.."\n"..L["Специализация"]..": "..(c.specs~="" and c.specs or "—")
+        else
+            label=label.."\n"..L["Role data unavailable; update Companion"]
+        end
+        b:SetText(label); b:Show()
     end
     MPL.panel.groupPlayers=resolved; MPL.panel.searchPlayers=members
     MPL.RenderPlayerTabs(MPL.panel)
@@ -178,7 +234,7 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
     end
 end
 
-function MPL.BeginSearchGroupRequest()
+function MPL.BeginSearchGroupRequest(forceSearch)
     local f=MPL.searchGroupWindow
     if not f then return end
     if not current(f) then
@@ -188,25 +244,34 @@ function MPL.BeginSearchGroupRequest()
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     local rows={"MPLN1"}
-    local levelSearch=false
+    local levelSearch,leaderFirst=false,false
     f.requestPlayers={}; f.requestTargets={}
     for _,p in ipairs(f.players) do
-        if not p.departed and (not f.onlyMissing or not usable(p)) then
+        if not p.departed and (forceSearch or not f.onlyMissing or not usable(p)) then
             local copy={}; for key,value in pairs(p) do copy[key]=value end
+            if forceSearch and copy.origin=="search" then copy.realm=nil end
             f.requestPlayers[#f.requestPlayers+1]=copy
             f.requestTargets[#f.requestTargets+1]=p
         end
     end
     for i,p in ipairs(f.requestPlayers) do
-        local row={"N",i,enc(p.region),enc(p.realm),enc(p.name),enc(p.class),enc(p.role),p.origin}
+        local origin=p.origin
+        if p.leader and p.realm and MPL.CompanionSupports("leaderfirst") then
+            origin="leader"; leaderFirst=true
+        end
+        local row={"N",i,enc(p.region),enc(p.realm),enc(p.name),enc(p.class),enc(p.role),origin}
         if type(p.minLevel)=="number" and p.minLevel>0 then row[#row+1]=p.minLevel; levelSearch=true end
         rows[#rows+1]=table.concat(row,"\t")
     end
     f.requestID=id
     -- Legacy Companions recognize MPLQ2 and can return an explicit capability
     -- upgrade error instead of silently ignoring an unfamiliar request header.
-    f.request="MPLS2\n"..id.."\nMPLC1 namesearch,nameerrors"..(levelSearch and ",levelsearch" or "")
-        ..(MPL.CompanionSupports("errorcodes") and ",errorcodes" or "").."\nMPLQ2\n"..table.concat(rows,"\n").."\n"
+    f.request="MPLS2\n"..id.."\nMPLC1 namesearch,nameerrors,candidateinfo"..(levelSearch and ",levelsearch" or "")
+        ..(leaderFirst and ",leaderfirst" or "")
+        ..(forceSearch and ",rescan" or "")
+        ..(MPL.CompanionSupports("errorcodes") and ",errorcodes" or "")
+        ..(MPL.CompanionSupports("lazyspecs") and ",lazyspecs" or "")
+        ..(MPL.CompanionSupports("primarymetric") and ",primarymetric" or "").."\nMPLQ2\n"..table.concat(rows,"\n").."\n"
     return id,f.request
 end
 
@@ -242,7 +307,7 @@ function MPL.ReceiveSearchGroupReply(text)
         if row[1]=="F" and #row==3 and #row[3]<=400 and not staged[index] then
             local message,code,retry=MPL.DecodeCompanionError(row[3])
             staged[index]={error=MPL.CompanionError((message:gsub("[|%z]","")),code,retry)}
-        elseif ((row[1]=="P" or row[1]=="F") and #row==7) or (row[1]=="C" and #row==6) then
+        elseif ((row[1]=="P" or row[1]=="F") and #row==7) or (row[1]=="C" and (#row==6 or #row==12)) then
             if row[3]~=p.region or MPL.Normalize(row[5])~=MPL.Normalize(p.name) or row[6]~=p.class or not MPL.SafeString(row[4])
                 or #row[4]>200 or row[4]:find("[|%c]")
                 or (p.realm and MPL.Normalize(p.realm)~=MPL.Normalize(row[4])) then return nil,L["Invalid group search reply"] end
@@ -255,7 +320,21 @@ function MPL.ReceiveSearchGroupReply(text)
                 staged[index]=staged[index] or {candidates={}}
                 local list=staged[index].candidates
                 if #list>=6 then return nil,L["Invalid group search reply"] end
-                list[#list+1]={realm=row[4],name=row[5],class=row[6]}
+                local candidate={realm=row[4],name=row[5],class=row[6]}
+                if #row==12 then
+                    local values={}
+                    for field=7,11 do
+                        local value=tonumber(row[field])
+                        local limit=field==10 and 100 or field==11 and 10000000 or 100000000
+                        if row[field]~="" and (not value or value~=value or value<0 or value>limit
+                            or (field==11 and value%1~=0)) then return nil,L["Invalid group search reply"] end
+                        values[field]=value
+                    end
+                    if #row[12]>400 or row[12]:find("[|%c]") then return nil,L["Invalid group search reply"] end
+                    candidate.scores={values[7],values[8],values[9]}
+                    candidate.best=values[10]; candidate.runs=values[11]; candidate.specs=row[12]
+                end
+                list[#list+1]=candidate
             else
                 if staged[index] then return nil,L["Invalid group search reply"] end
                 local parsed=MPL.Parse(row[7]); local count,profile=0
@@ -309,27 +388,42 @@ function MPL.ShowSearchGroup(resultID)
         MPL.searchGroupWindow=f
     end
     if f.resultID~=resultID then
+        rememberRoster(f)
+        restoreRoster(players,signature)
         f.players=nil; f.selected=1; f.requestID=nil; f.onlyMissing=false
         f.resultID=resultID; mergeRoster(f,players,signature)
     elseif f.signature~=signature then mergeRoster(f,players,signature); f.onlyMissing=true end
 end
 
-function MPL.ShowSearchGroupLogs(resultID)
+function MPL.ShowSearchGroupLogs(resultID,forceSearch)
+    if forceSearch and not MPL.CompanionSupports("rescan") then
+        if MPL.panel then MPL.panel.footer:SetText(L["Update Companion to search realms again."]) end
+        return
+    end
     local players=MPL.CollectSearchGroup(resultID)
     if not players then print(L["Group member data is unavailable; try again shortly"]); return end
     MPL.ShowSearchGroup(resultID)
     local f=MPL.searchGroupWindow
     local fresh=true
     for _,player in ipairs(f.players) do
-        if not player.departed and (not player.loaded or not usable(player)) then fresh=false; break end
+        if not player.departed then
+            if usable(player) then player.loaded=true else fresh=false end
+        end
     end
-    if fresh then
+    if fresh and not forceSearch then
         if MPL.downloadWindow then MPL.downloadWindow:Hide() end
         MPL.OpenSearchGroupProfile(f.selected)
         return
     end
     local first=players[1]
+    local selected=f.players[f.selected]
+    if selected and (selected.loaded or cachedProfile(selected)) then
+        -- Keep the dated profile readable while the normal clipboard exchange
+        -- refreshes it. It remains pending until an actual reply is imported.
+        MPL.OpenSearchGroupProfile(f.selected,true)
+    end
     -- The fallback realm only labels the exchange window. Requests are built
     -- from the roster and retain empty realms until Companion resolves them.
-    MPL.ShowDownload(first.name,first.realm or GetNormalizedRealmName(),nil,nil,nil,nil,resultID)
+    f.onlyMissing=true
+    MPL.ShowDownload(first.name,first.realm or GetNormalizedRealmName(),nil,nil,nil,nil,resultID,nil,nil,forceSearch)
 end

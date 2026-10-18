@@ -160,6 +160,8 @@ end
 
 function MPL.Identity(fullName, realm)
     if not MPL.SafeString(fullName) then return end
+    -- An unavailable realm is not evidence that this is a local character.
+    if issecretvalue and issecretvalue(realm) then return end
     local name, suffix = fullName:match("^([^%-]+)%-(.+)$")
     name = name or fullName
     realm = suffix or (MPL.SafeString(realm) and realm) or GetNormalizedRealmName()
@@ -380,10 +382,18 @@ end
 function MPL.ProfileSpecs(name,realm,role)
     local result,seen={},{}
     local key=MPL.Key(name,realm)
+    local function addSpec(spec)
+        if not spec or spec=="All specs" or seen[spec] then return end
+        if role and MPL.ProfileRole({spec=spec}) and MPL.ProfileRole({spec=spec})~=role then return end
+        result[#result+1]=spec; seen[spec]=true
+    end
     local function add(p)
-        if not p or p.spec=="All specs" or seen[p.spec] then return end
-        if role and MPL.ProfileRole(p) and MPL.ProfileRole(p)~=role then return end
-        result[#result+1]=p.spec; seen[p.spec]=true
+        if not p then return end
+        addSpec(p.spec)
+        addSpec(p.primarySpec)
+        for _,entry in ipairs(p.specRanks or {}) do addSpec(entry.spec) end
+        for _,row in ipairs(p.dungeons or {}) do addSpec(row.scoreSpec) end
+        for _,spec in ipairs(p.availableSpecs or {}) do addSpec(spec) end
     end
     add(MPlusLogsDB and MPlusLogsDB.profiles and MPlusLogsDB.profiles[key])
     for _,p in pairs(MPlusLogsDB and MPlusLogsDB.specProfiles and MPlusLogsDB.specProfiles[key] or {}) do add(p) end
@@ -495,7 +505,7 @@ function MPL.Parse(text, batch)
                             season=required(f[6]), spec=required(f[7]), metric=f[8], score=number(f[9]),
                             best=number(f[10],100), median=number(f[11],100), runs=number(f[12],10000000,true),
                             updated=required(f[13]), source=required(f[14]), characterID=number(f[15],1000000000,true),
-                            realmSlug=f[16], dungeons={}}
+                            realmSlug=f[16], dual=false, dungeons={}}
                         if #f==19 or #f==20 then
                             if not ({HEALER=true,TANK=true,DAMAGER=true})[f[17]] then error(L["Неизвестная роль"]) end
                             current.dual=true; current.role=f[17]
@@ -506,6 +516,21 @@ function MPL.Parse(text, batch)
                             current.primarySpec=required(f[#f])
                             if #current.primarySpec>80 then error(L["Некорректная запись профиля"]) end
                         end
+                    elseif f[1] == "M" then
+                        if not current or #f~=2 or f[2]~="dps" or not current.dual
+                            or current.role~="DAMAGER" or current.metric~="dps" or current.secondaryPending
+                            or #current.dungeons>0 or current.otherBest or current.otherMedian then
+                            error(L["Некорректная запись профиля"])
+                        end
+                        current.secondaryPending=true
+                    elseif f[1] == "A" then
+                        if not current or #f~=2 then error(L["Некорректная запись профиля"]) end
+                        local spec=required(f[2])
+                        current.availableSpecs=current.availableSpecs or {}
+                        if #spec>80 or #current.availableSpecs>=16 then error(L["Некорректная запись профиля"]) end
+                        local known=false
+                        for _,value in ipairs(current.availableSpecs) do if value==spec then known=true; break end end
+                        if not known then current.availableSpecs[#current.availableSpecs+1]=spec end
                     elseif f[1] == "R" then
                         if not current or #f~=3 then error(L["Некорректная запись профиля"]) end
                         local spec=required(f[2])
@@ -543,6 +568,9 @@ function MPL.Parse(text, batch)
                             local row=current.dungeons[#current.dungeons]
                             row.otherLevel=number(f[11],100,true); row.otherAmount=number(f[12])
                             row.otherBest=number(f[13],100); row.otherMedian=number(f[14],100)
+                            if current.secondaryPending and (row.otherLevel or row.otherAmount or row.otherBest or row.otherMedian) then
+                                error(L["Некорректная запись данжа"])
+                            end
                         end
                     elseif f[1]=="F" and batch then
                         if current or #f~=5 or not ({eu=true,us=true,kr=true,tw=true,cn=true})[f[2]] then error(L["Некорректный результат загрузки"]) end

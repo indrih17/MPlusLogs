@@ -12,6 +12,8 @@ local function envelope(id, body,includeSpecs,refresh)
     if includeSpecs then add("specprofiles") end
     if refresh then add("refresh") end
     add("specdetails")
+    if MPL.CompanionSupports("lazyspecs") then add("lazyspecs") end
+    if MPL.CompanionSupports("primarymetric") then add("primarymetric") end
     -- Optional extension: never require it from an unrecognized/older helper.
     if MPL.CompanionSupports("errorcodes") then add("errorcodes") end
     for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do add(value) end
@@ -73,7 +75,12 @@ function MPL.SendBatchRequest(players,refresh)
     local available={}
     for _,player in ipairs(players) do
         local state=MPL.GetProfileState(player.name,player.realm,player.spec)
-        if not state or state.reason~="hidden" then available[#available+1]=player end
+        if not state or state.reason~="hidden" then
+            -- The reply belongs to this selection even if a live tab changes.
+            local snapshot={}
+            for key,value in pairs(player) do snapshot[key]=value end
+            available[#available+1]=snapshot
+        end
     end
     if #available==0 then return nil,L["Логи скрыты в Warcraft Logs."] end
     players=available

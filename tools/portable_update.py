@@ -7,6 +7,7 @@ import shutil
 import stat
 import tempfile
 import zipfile
+import zlib
 
 EXECUTABLE = 'MPlusLogs-Companion.exe'
 OWNED = (EXECUTABLE, '_internal', 'realm-slugs.json', 'licenses', 'README.txt', 'COMPANION-README.txt')
@@ -59,7 +60,7 @@ def prepare(archive, data):
         return payload
     except Exception as exc:
         shutil.rmtree(stage)
-        if isinstance(exc, (zipfile.BadZipFile, RuntimeError, NotImplementedError, KeyError, EOFError)):
+        if isinstance(exc, (zipfile.BadZipFile, zlib.error, RuntimeError, NotImplementedError, KeyError, EOFError)):
             raise ValueError('Invalid portable ZIP') from exc
         raise
 

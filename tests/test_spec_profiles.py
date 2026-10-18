@@ -33,13 +33,13 @@ class SpecProfileTests(unittest.TestCase):
     def profile(self, spec=None, role=None):
         return self.mpl.GetProfile("Киндрих", "Гордунни", spec, role)[0]
 
-    def test_companion_to_window_imports_each_logged_spec(self):
+    def test_companion_to_window_discovers_specs_and_loads_only_selected(self):
         self.transport()
         raw=api_fixture(); char=raw['data']['characterData']['character']
         char['damage']=char.pop('performance'); char['healing']=copy.deepcopy(char['damage'])
         # Shape observed in real WCL replies: alternate specs are in allStars,
         # while dungeon ranking rows only contain the best specialization.
-        char['damage']['allStars']=[{'spec':'Elemental','points':3774},{'spec':'Enhancement','points':3000}]
+        char['damage']['allStars']=[{'spec':'Elemental','points':3774,'rank':100},{'spec':'Enhancement','points':3000,'rank':200}]
         char['damage']['rankings'][0]['spec']='Elemental'
         char['damage']['rankings'][0]['bestSpec']='Elemental'
         char['healing']['allStars']=[]
@@ -60,19 +60,25 @@ class SpecProfileTests(unittest.TestCase):
             response=clipboard_protocol.reply(request,{'eu':{'гордунни':'gordunni'}},Path(directory),fetch)
             count,error=self.mpl.ReceiveReply(response,True)
         self.assertIsNotNone(count,msg=error)
-        self.assertEqual(set(calls),{None,'Elemental','Enhancement'})
+        self.assertEqual(calls,[None])
         self.assertEqual(self.mpl.panel.specButton.text,'Все специализации')
         self.assertEqual(self.mpl.panel.profile.spec,'All specs')
         self.assertEqual(self.mpl.panel.profile.dungeons[1].amount,168110)
         self.assertEqual(set(self.mpl.ProfileSpecs('Киндрих','Гордунни').values()),{'Elemental','Enhancement'})
         self.mpl.SelectSpec('Киндрих','Гордунни','Enhancement')
         self.mpl.ShowProfile('Киндрих','Гордунни')
+        self.mpl.ShowDownload('Киндрих','Гордунни',None,None,False)
+        with tempfile.TemporaryDirectory(dir=ROOT,prefix='.test-work-') as directory:
+            response=clipboard_protocol.reply(self.mpl.downloadWindow.request,{'eu':{'гордунни':'gordunni'}},Path(directory),fetch)
+            self.assertEqual(self.mpl.ReceiveReply(response,True),(1,None))
+        self.assertEqual(calls,[None,'Enhancement'])
         self.assertEqual(self.mpl.panel.specButton.text,'Enhancement')
         self.assertEqual(self.mpl.panel.profile.dungeons[1].amount,222222)
 
     def test_expanded_download_rejects_legacy_companion_and_foreign_character(self):
         self.transport()
         self.mpl.ShowDownload('Киндрих','Гордунни',None)
+        self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs',None,True)
         request_id=self.mpl.pendingReply.id
         count,error=self.mpl.ReceiveReply('MPLS1\n'+request_id+'\n'+self.export(),True)
         self.assertIsNone(count)
@@ -465,7 +471,7 @@ class SpecProfileTests(unittest.TestCase):
         self.assertEqual(self.mpl.panel.profile.primarySpec,"Unholy")
         self.assertEqual(self.mpl.panel.specButton.text,"Все специализации")
         self.assertEqual(self.mpl.panel.specButton.detail.text,"Выбрать специализацию логов")
-        self.assertEqual(set(self.mpl.ProfileSpecs("Киндрих","Thrall").values()),set())
+        self.assertEqual(set(self.mpl.ProfileSpecs("Киндрих","Thrall").values()),{'Unholy'})
 
     def test_dual_metric_profile_roundtrips_main_spec(self):
         raw=api_fixture(); char=raw["data"]["characterData"]["character"]

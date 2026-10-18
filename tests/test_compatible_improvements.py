@@ -163,12 +163,13 @@ class SearchCompatibilityTests(unittest.TestCase):
         self.assertNotIn("MPLERR1",unquote(reply))
         self.assertEqual(count,2)
 
-    def test_new_group_search_addon_old_companion(self):
+    def test_new_group_search_requires_companion_with_candidate_details(self):
         old=CompatibilityTests.old_companion(self)
-        for _ in range(2):
-            request,_,count=self.response(helper=old)
-            self.assertNotIn("errorcodes",request)
-            self.assertEqual(count,2)
+        request,reply,result=self.response(helper=old)
+        self.assertIn("candidateinfo",request)
+        self.assertTrue(reply.startswith("MPLE1\n"))
+        self.assertIsNone(result[0])
+        self.assertIn("Companion",result[1])
 
     def test_new_group_search_uses_codes_after_discovery(self):
         self.response()
@@ -238,26 +239,27 @@ class PublishedSearchMenuTests(unittest.TestCase):
         from test_name_search import NameSearchTests
         NameSearchTests.setUp(self)
 
-    def test_unknown_or_older_helper_keeps_the_leader_profile(self):
+    def test_unknown_or_older_helper_preserves_roster_and_requests_upgrade(self):
         for known in (False,True):
             with self.subTest(known=known):
                 if known: self.setUp()
                 self.mpl.companionInfo=self.lua.table_from(dict(capabilities=self.lua.table_from({}))) if known else None
                 self.lua.execute('buttons={}; Menu.callbacks.MENU_LFG_FRAME_SEARCH_ENTRY(owner,root); buttons[1]()')
-                self.assertEqual(self.mpl.panel.name,"Frákkie")
-                self.mpl.panel.loadButton.scripts.OnClick(self.mpl.panel.loadButton)
+                # Session capabilities disappear after reload. Preserve the
+                # user's group request and let the published helper negotiate.
                 request=self.mpl.downloadWindow.request
-                self.assertNotIn("namesearch",request)
+                self.assertIn("namesearch",request)
+                self.assertIn("MPLQ2\nMPLN1\n",request)
                 old=PublishedCompatibilityTests.old_companion(self)
                 def fetch(args):
-                    raw=dual()
-                    raw['data']['characterData']['character']['name']=args.name
-                    for metric in ('damage','healing'):
-                        raw['data']['characterData']['character'][metric]['rankings'][0]['bestSpec']='Windwalker'
-                    return raw
+                    self.fail("An unsupported group request must not query WCL")
                 response=old.reply(request,realm_resolver.load_mappings(),self.cache,fetch)
-                self.assertTrue(response.startswith("MPLS1\n"),response[:120])
-                self.assertEqual(self.mpl.ReceiveReply(response,True),(2,None))
+                self.assertTrue(response.startswith("MPLE1\n"),response[:120])
+                count,error=self.mpl.ReceiveSearchGroupReply(response)
+                self.assertIsNone(count)
+                self.assertIn("Companion",error)
+                self.assertIsNotNone(self.mpl.searchGroupWindow.requestID)
+                self.assertEqual(len(self.mpl.searchGroupWindow.requestPlayers),2)
 
 
 class SettingsRecoveryTests(unittest.TestCase):

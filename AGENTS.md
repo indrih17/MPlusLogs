@@ -1,3 +1,26 @@
+# MPlusLogs agent collaboration
+
+Agents may independently spawn and delegate work to as many subagents as useful,
+within the environment's available concurrency and resource limits, without
+asking the user for permission. Subagents may delegate further under the same
+rule. Choose the number and scope of agents to improve the quality of the result;
+the user prioritizes thoughtful, well-founded work over minimizing agent count.
+
+Give each agent a clear task and file ownership when edits run in parallel.
+The coordinating agent remains responsible for reconciling findings, reviewing
+the combined changes, resolving conflicts, and validating the complete result.
+
+Keep track of every active delegated task until its result has been reviewed
+and integrated or the user explicitly pauses or cancels it. Check progress and
+results at meaningful intervals, address blockers, and follow up on unfinished
+work. Delegating a task does not complete the coordinator's responsibility.
+
+Treat additional user questions and side topics as part of the ongoing work
+unless the user explicitly changes the objective. After handling them, return
+to the main task and check the delegated work. Preserve the objective, pending
+tasks, and next steps across turns and context compaction; report completion
+only after the combined result has been validated.
+
 # MPlusLogs release workflow
 
 Ask for explicit user confirmation before each push or publication to

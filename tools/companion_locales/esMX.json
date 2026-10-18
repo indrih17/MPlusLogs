@@ -32,6 +32,7 @@
   "Could not start the update. Try again.": "No se pudo iniciar la actualización. Inténtalo de nuevo.",
   "Coverage": "Coverage",
   "Date": "Date",
+  "Determining character realms: {completed}/{total}": "Identificando los reinos de los personajes: {completed}/{total}",
   "Downloading Companion update…": "Descargando actualización de Companion…",
   "Dungeon": "Dungeon",
   "Fill in the fields as shown below. Enable Public Client, then click Create.": "Rellena los campos según el ejemplo. Activa Public Client y pulsa Create.",

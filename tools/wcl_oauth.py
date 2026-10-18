@@ -24,7 +24,7 @@ def callback_code(path, state):
         raise ValueError("Unexpected callback path")
     params = parse_qs(parsed.query)
     received = params.get("state", [])
-    if len(received) != 1 or not secrets.compare_digest(received[0], state):
+    if len(received) != 1 or not received[0].isascii() or not secrets.compare_digest(received[0], state):
         raise ValueError("Invalid OAuth state")
     if "error" in params:
         raise PermissionError("Вход отменён на сайте Warcraft Logs.")
@@ -35,19 +35,30 @@ def callback_code(path, state):
 
 
 def token_record(response, previous=None):
-    if not isinstance(response, dict) or not isinstance(response.get("access_token"), str) or not response["access_token"]:
+    if (not isinstance(response, dict) or not isinstance(response.get("access_token"), str)
+            or not response["access_token"] or not response["access_token"].isascii()
+            or any(ord(c) <= 32 or ord(c) == 127 for c in response["access_token"])):
         raise ValueError("Warcraft Logs не вернул токен. Повторите вход.")
     if not isinstance(response.get("token_type", "Bearer"), str) or response.get("token_type", "Bearer").lower() != "bearer":
         raise ValueError("Unsupported OAuth token type")
     try:
+        if isinstance(response["expires_in"], bool):
+            raise ValueError("Invalid token expiry")
         lifetime = int(response["expires_in"])
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, OverflowError):
         raise ValueError("Warcraft Logs не сообщил срок действия токена.") from None
     if lifetime <= 0:
         raise ValueError("OAuth token already expired")
+    now = time.time()
+    if lifetime > 253402300799 - now:
+        raise ValueError("Invalid OAuth token expiry")
+    refresh = response.get("refresh_token")
+    if refresh is not None and (not isinstance(refresh, str) or not refresh.isascii()
+                                or any(ord(c) <= 32 or ord(c) == 127 for c in refresh)):
+        raise ValueError("Invalid OAuth refresh token")
     record = {"access_token": response["access_token"],
-            "refresh_token": response.get("refresh_token") or (previous or {}).get("refresh_token"),
-            "expires_at": time.time() + lifetime}
+            "refresh_token": refresh or (previous or {}).get("refresh_token"),
+            "expires_at": now + lifetime}
     # Refreshing credentials does not change the authenticated account.
     for key in ("_account_id", "_api_budget"):
         if key in (previous or {}):
