@@ -1,5 +1,6 @@
 """Locale completeness, safe placeholders, language switching and packaged assets."""
 import ast
+import gc
 import importlib.machinery
 import importlib.util
 import json
@@ -62,6 +63,9 @@ class CompanionLocalizationTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform=="win32","Windows GUI")
     def test_open_window_changes_language_and_preserves_explicit_sound(self):
+        # Run after the test frame and its widget references have been released.
+        # Tcl interpreters must be collected on the thread that created them.
+        self.addCleanup(gc.collect)
         import tkinter as tk
         loader = importlib.machinery.SourceFileLoader("localized_gui_test",str(ROOT / "tools/companion_gui.pyw"))
         spec = importlib.util.spec_from_loader(loader.name,loader)

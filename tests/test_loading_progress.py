@@ -1,5 +1,6 @@
 """Loading progress follows real work, including cache, failures and extra specs."""
 import copy
+import gc
 import importlib.machinery
 import importlib.util
 from pathlib import Path
@@ -78,6 +79,7 @@ class LoadingProgressTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == 'win32', 'Windows GUI')
     def test_gui_displays_progress_switches_language_and_clears_stopped_work(self):
+        self.addCleanup(gc.collect)
         import tkinter as tk
         loader = importlib.machinery.SourceFileLoader('loading_gui_test', str(ROOT / 'tools/companion_gui.pyw'))
         spec = importlib.util.spec_from_loader(loader.name, loader)

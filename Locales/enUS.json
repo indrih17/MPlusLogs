@@ -311,5 +311,13 @@
   "Load DPS": "Load DPS",
   "Damage data loads on request. Click Load DPS.": "Damage data loads on request. Click Load DPS.",
   "Shift-click to search realms again.": "Shift-click to search realms again.",
-  "Update Companion to search realms again.": "Update Companion to search realms again."
+  "Update Companion to search realms again.": "Update Companion to search realms again.",
+  "Hide the settings button in the log window": "Hide the settings button in the log window",
+  "This Companion did not report its version. Check for updates.": "This Companion did not report its version. Check for updates.",
+  "Open Companion": "Open Companion",
+  "You can still open MPlusLogs settings with /mpl settings.": "You can still open MPlusLogs settings with /mpl settings.",
+  "Click Open Companion, then copy the command (Ctrl+C).\nIf no window opens, open Companion from the system tray.": "Click Open Companion, then copy the command (Ctrl+C).\nIf no window opens, open Companion from the system tray.",
+  "Your Companion: %s. Recommended version: %s.": "Your Companion: %s. Recommended version: %s.",
+  "Install the latest Companion for faster log loading and popup notifications.": "Install the latest Companion for faster log loading and popup notifications.",
+  "Settings": "Settings"
 }

@@ -311,5 +311,13 @@
   "Load DPS": "加载 DPS",
   "Damage data loads on request. Click Load DPS.": "伤害数据按需加载。点击加载 DPS。",
   "Shift-click to search realms again.": "按住 Shift 点击以重新搜索服务器。",
-  "Update Companion to search realms again.": "更新 Companion 以重新搜索服务器。"
+  "Update Companion to search realms again.": "更新 Companion 以重新搜索服务器。",
+  "Hide the settings button in the log window": "在日志窗口中隐藏设置按钮",
+  "This Companion did not report its version. Check for updates.": "此 Companion 未报告版本。请检查更新。",
+  "Open Companion": "打开 Companion",
+  "You can still open MPlusLogs settings with /mpl settings.": "仍可使用 /mpl settings 打开 MPlusLogs 设置。",
+  "Click Open Companion, then copy the command (Ctrl+C).\nIf no window opens, open Companion from the system tray.": "点击打开 Companion，然后复制命令 (Ctrl+C)。\n若未打开窗口，请从系统托盘打开 Companion。",
+  "Your Companion: %s. Recommended version: %s.": "当前 Companion：%s。推荐版本：%s。",
+  "Install the latest Companion for faster log loading and popup notifications.": "安装最新版 Companion，可更快加载日志并接收弹出通知。",
+  "Settings": "设置"
 }

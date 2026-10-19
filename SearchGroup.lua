@@ -45,12 +45,52 @@ local function fullIdentity(full)
     return name or full,realm
 end
 
+local function listingKeys(info)
+    if not MPL.SafeString(info.name) or not safe(info.activityIDs) or type(info.activityIDs)~="table"
+        or not C_LFGList.GetActivityInfoTable then return end
+    local mythic=false
+    for _,id in ipairs(info.activityIDs) do
+        if not safe(id) then return end
+        local activity=C_LFGList.GetActivityInfoTable(id)
+        if type(activity)~="table" or not safe(activity) or not safe(activity.isMythicPlusActivity)
+            or not activity.isMythicPlusActivity then return end
+        mythic=true
+    end
+    if not mythic then return end
+    local title=info.name
+    local minimum,maximum
+    local position=1
+    while position<=#title do
+        local first,last,digits=title:find("(%d+)",position)
+        if not first then break end
+        local start=first
+        if title:sub(first-1,first-1)=="+" then start=first-1 end
+        local before=title:sub(start-1,start-1)
+        local low,high=tonumber(digits),tonumber(digits)
+        local rest=title:sub(last+1)
+        local range,upper=rest:match("^(%s*%-%s*%+?(%d+))")
+        if range then high=tonumber(upper); last=last+#range end
+        local after=title:sub(last+1,last+1)
+        local prefix=title:sub(1,start-1):lower()
+        local incidental=prefix:match("ilvl%s*$") or prefix:match("itemlevel%s*$")
+            or prefix:match("rio%s*$") or prefix:match("rating%s*$")
+        if not before:match("[%w%.:/%+%-]") and not after:match("[%w%.:/%+%-]")
+            and not incidental and low>=2 and high<=40 and low<=high then
+            if minimum and (minimum~=low or maximum~=high) then return end
+            minimum,maximum=low,high
+        end
+        position=last+1
+    end
+    return minimum,maximum
+end
+
 function MPL.CollectSearchGroup(resultID)
     if InCombatLockdown() or not C_LFGList.GetSearchResultPlayerInfo then return end
     local info=C_LFGList.GetSearchResultInfo(resultID)
     if type(info)~="table" or not safe(info) or not safe(info.numMembers)
         or type(info.numMembers)~="number" or info.numMembers<1 or info.numMembers>5 then return end
     local players,signature={},{}
+    local keyMin,keyMax=listingKeys(info)
     local leaderName,leaderRealm=fullIdentity(info.leaderName)
     for i=1,info.numMembers do
         local member=C_LFGList.GetSearchResultPlayerInfo(resultID,i)
@@ -69,10 +109,11 @@ function MPL.CollectSearchGroup(resultID)
         players[#players+1]={name=name,realm=realm,class=member.classFilename,role=member.assignedRole,
             rosterRealm=realm or false,leader=member.isLeader==true,
             specID=specID,region=MPL.Region(),origin=realm and "known" or "search",
-            minLevel=GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion() or nil}
+            minLevel=GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion() or nil,
+            keyMin=keyMin,keyMax=keyMax}
         signature[#signature+1]=enc(name)..":"..enc(realm)..":"..member.classFilename..":"..member.assignedRole
     end
-    return players,table.concat(signature,";")
+    return players,table.concat(signature,";").."|keys:"..tostring(keyMin or "")..":"..tostring(keyMax or "")
 end
 
 local function button(parent,x,y,width,text,fn)
@@ -110,12 +151,14 @@ local function mergeRoster(f,players,signature)
         for _,old in ipairs(f.players or {}) do
             if not reused[old] and MPL.Normalize(old.name)==MPL.Normalize(new.name) and old.class==new.class
                 and old.region==new.region
+                and (new.rosterRealm or (old.keyMin==new.keyMin and old.keyMax==new.keyMax))
                 and not (f.requestID and new.rosterRealm and not old.rosterRealm)
                 and (not new.rosterRealm or not old.realm or MPL.Normalize(old.realm)==MPL.Normalize(new.rosterRealm))
                 and (not old.rosterRealm or not new.rosterRealm or MPL.Normalize(old.rosterRealm)==MPL.Normalize(new.rosterRealm)) then
                 if old.role~=new.role then old.loaded=nil; old.error=nil; old.specID=new.specID
                 else old.specID=new.specID or old.specID end
                 old.role=new.role
+                old.keyMin=new.keyMin; old.keyMax=new.keyMax
                 old.leader=new.leader
                 old.departed=nil
                 if new.rosterRealm then old.realm=new.realm; old.rosterRealm=new.rosterRealm; old.origin="known" end
@@ -244,7 +287,7 @@ function MPL.BeginSearchGroupRequest(forceSearch)
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     local rows={"MPLN1"}
-    local levelSearch,leaderFirst=false,false
+    local levelSearch,leaderFirst,keyContext=false,false,false
     f.requestPlayers={}; f.requestTargets={}
     for _,p in ipairs(f.players) do
         if not p.departed and (forceSearch or not f.onlyMissing or not usable(p)) then
@@ -261,6 +304,9 @@ function MPL.BeginSearchGroupRequest(forceSearch)
         end
         local row={"N",i,enc(p.region),enc(p.realm),enc(p.name),enc(p.class),enc(p.role),origin}
         if type(p.minLevel)=="number" and p.minLevel>0 then row[#row+1]=p.minLevel; levelSearch=true end
+        if p.keyMin and p.keyMax then
+            row[9]=p.minLevel or ""; row[10]=p.keyMin; row[11]=p.keyMax; keyContext=true
+        end
         rows[#rows+1]=table.concat(row,"\t")
     end
     f.requestID=id
@@ -268,6 +314,7 @@ function MPL.BeginSearchGroupRequest(forceSearch)
     -- upgrade error instead of silently ignoring an unfamiliar request header.
     f.request="MPLS2\n"..id.."\nMPLC1 namesearch,nameerrors,candidateinfo"..(levelSearch and ",levelsearch" or "")
         ..(leaderFirst and ",leaderfirst" or "")
+        ..(keyContext and ",keycontext" or "")
         ..(forceSearch and ",rescan" or "")
         ..(MPL.CompanionSupports("errorcodes") and ",errorcodes" or "")
         ..(MPL.CompanionSupports("lazyspecs") and ",lazyspecs" or "")
@@ -351,6 +398,7 @@ function MPL.ReceiveSearchGroupReply(text)
     for i in ipairs(f.requestPlayers) do if not staged[i] then return nil,L["Invalid group search reply"] end end
     local count=MPL.StoreProfiles(profiles)
     MPlusLogsDB.companionReplySeen=true
+    if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(version) end
     for i,result in ipairs(staged) do
         local p=f.requestTargets[i]
         p.error=result.error; p.candidates=result.candidates

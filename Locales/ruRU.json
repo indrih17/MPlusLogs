@@ -311,5 +311,13 @@
   "Load DPS": "Загрузить DPS",
   "Damage data loads on request. Click Load DPS.": "Данные об уроне загружаются по запросу. Нажмите «Загрузить DPS».",
   "Shift-click to search realms again.": "Shift-клик — повторный поиск серверов.",
-  "Update Companion to search realms again.": "Обновите Companion для повторного поиска серверов."
+  "Update Companion to search realms again.": "Обновите Companion для повторного поиска серверов.",
+  "Hide the settings button in the log window": "Скрыть кнопку настроек в окне логов",
+  "This Companion did not report its version. Check for updates.": "Этот Companion не сообщил свою версию. Проверьте обновления.",
+  "Open Companion": "Открыть Companion",
+  "You can still open MPlusLogs settings with /mpl settings.": "Настройки MPlusLogs по-прежнему можно открыть командой /mpl settings.",
+  "Click Open Companion, then copy the command (Ctrl+C).\nIf no window opens, open Companion from the system tray.": "Нажмите «Открыть Companion» и скопируйте команду (Ctrl+C).\nЕсли окно не открылось, откройте Companion через значок в трее.",
+  "Your Companion: %s. Recommended version: %s.": "У вас Companion %s. Рекомендуемая версия: %s.",
+  "Install the latest Companion for faster log loading and popup notifications.": "Установите свежий Companion: быстрее загрузка логов и новые всплывающие уведомления.",
+  "Settings": "Настройки"
 }

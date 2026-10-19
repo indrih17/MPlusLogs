@@ -4,11 +4,17 @@ from urllib.parse import quote
 import clipboard_companion as bridge
 import companion_update
 
-CAPABILITIES = {"dual", "batch", "updater", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "nameerrors", "errorcodes", "lazyspecs", "candidateinfo", "rescan", "primarymetric", "leaderfirst"}
+CAPABILITIES = {"dual", "batch", "updater", "opencompanion", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "keycontext", "nameerrors", "errorcodes", "lazyspecs", "candidateinfo", "rescan", "primarymetric", "leaderfirst"}
+
+
+def is_open_updates_command(text):
+    return text in {"MPLUI1 OPEN_UPDATES", "MPLUI1 OPEN_UPDATES\n", "MPLUI1 OPEN_UPDATES\r\n"}
 
 
 def describe_clipboard(text):
     """Bounded metadata only; never record unrelated clipboard contents."""
+    if is_open_updates_command(text):
+        return {"kind":"open_updates","chars":len(text)}
     request=unwrap_request(text)
     if request:
         return {"kind":"request","request_id":request[0],"chars":len(text)}

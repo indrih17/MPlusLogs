@@ -26,6 +26,7 @@ function MPL.RefreshSettingsDisplays()
     if GameTooltip then GameTooltip.mplKey=nil; GameTooltip:Hide() end
     if not MPL.GetOption("stalePopup") and MPL.staleWindow then MPL.staleWindow:Hide() end
     local f=MPL.panel
+    if f and f.settingsButton then f.settingsButton:SetShown(not MPL.GetOption("hideLogSettings")) end
     if f and f:IsShown() then
         local sent=f.inviteSent
         MPL.ShowProfile(f.name,f.realm,f.applicant,true)
@@ -66,6 +67,8 @@ function MPL.RegisterSettings()
         options:Add("current",L["Текущий"]); options:Add("logs",L["По логам"])
         return options:GetData()
     end,L["Текущий — специализация из данных заявки или группы. По логам — специализация по сохранённой истории WCL; может отличаться от текущей."])
+    Settings.CreateCheckbox(category,setting("hideLogSettings",Settings.VarType.Boolean,L["Hide the settings button in the log window"],false),
+        L["You can still open MPlusLogs settings with /mpl settings."])
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Где ещё показывать логи М+"]))
     Settings.CreateCheckbox(category,setting("showInRaids",Settings.VarType.Boolean,L["Показывать логи М+ в рейдах"],false),
         L["Показывать логи M+ в заявках и поиске рейдовых групп."])

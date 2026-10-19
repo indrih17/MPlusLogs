@@ -229,6 +229,27 @@ local function buildPanel()
     f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
     panelFill(f,1,-1,938,36,0.105,0.06,0.12)
     f.title:SetTextColor(0.9,0.94,0.96)
+    do
+        local settings=CreateFrame("Button",nil,f,"BackdropTemplate")
+        settings:SetSize(104,22); settings:SetPoint("TOPRIGHT",-38,-7)
+        settings:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+        settings:SetBackdropColor(0.16,0.10,0.21,1)
+        settings:SetBackdropBorderColor(0.40,0.29,0.51,1)
+        settings.caption=label(settings,0,0,104,L["Settings"],"GameFontHighlight")
+        settings.caption:ClearAllPoints(); settings.caption:SetPoint("CENTER"); settings.caption:SetJustifyH("CENTER")
+        settings:SetScript("OnClick",function() MPL.OpenSettings() end)
+        settings:SetScript("OnEnter",function()
+            settings:SetBackdropBorderColor(0.75,0.55,0.96,1)
+            settings.caption:SetTextColor(1,0.82,0)
+        end)
+        settings:SetScript("OnLeave",function()
+            settings:SetBackdropBorderColor(0.40,0.29,0.51,1)
+            settings.caption:SetTextColor(1,1,1)
+        end)
+        settings:SetShown(not MPL.GetOption("hideLogSettings"))
+        f.settingsButton=settings
+        f.title:SetWidth(740)
+    end
     f.character = label(f,20,-48,400,"","GameFontHighlightLarge")
     f.character:SetWordWrap(false)
     f.currentSpec=CreateFrame("Frame",nil,f,"BackdropTemplate")
@@ -863,27 +884,35 @@ function MPL.ShowStaleNotice(name,realm,profile,lastDate)
     f:Show()
 end
 
-function MPL.ShowCompanionUpdates()
+function MPL.ShowCompanionUpdates(notice)
     if not MPL.companionUpdateWindow then
-        local f=window("MPlusLogsCompanionUpdates",L["Обновления Companion"],600,290)
-        local message=label(f,24,-48,552,L["Один раз установите Companion с проверкой обновлений. Дальше он сам предложит обновление; читать changelog аддона не нужно. Если Companion уже проверяет обновления, повторная установка не нужна."])
-        message:SetHeight(76); message:SetJustifyV("TOP")
-        label(f,24,-130,552,L["Скопируйте ссылку (Ctrl+C) и откройте её в браузере:"])
+        local f=window("MPlusLogsCompanionUpdates",L["Обновления Companion"],620,390)
+        f.message=label(f,24,-48,572,"","GameFontHighlightLarge")
+        f.message:SetHeight(64); f.message:SetJustifyV("TOP")
+        local benefits=label(f,24,-115,572,L["Install the latest Companion for faster log loading and popup notifications."],"GameFontHighlightLarge")
+        benefits:SetHeight(44); benefits:SetJustifyV("TOP")
+        f.instructions=label(f,24,-165,572,"","GameFontHighlightLarge")
+        f.instructions:SetHeight(80); f.instructions:SetJustifyV("TOP")
         f.edit=CreateFrame("EditBox",nil,f,"InputBoxTemplate")
-        f.edit:SetSize(548,28); f.edit:SetPoint("TOPLEFT",28,-158); f.edit:SetAutoFocus(false)
+        f.edit:SetSize(568,28); f.edit:SetPoint("TOPLEFT",28,-264); f.edit:SetAutoFocus(false)
         f.edit:SetScript("OnEscapePressed",function() f:Hide() end)
         f:SetScript("OnHide",function() f.edit:ClearFocus() end)
-        button(f,L["Понятно"],390,24,186,function()
-            MPlusLogsDB=MPlusLogsDB or {}
-            MPlusLogsDB.companionUpdaterNoticeSeen=true
-            f:Hide()
+        f.openCompanion=button(f,L["Open Companion"],24,24,270,function()
+            f.edit:SetFocus(); f.edit:HighlightText()
         end)
+        button(f,L["Позже"],326,24,270,function() f:Hide() end)
         MPL.companionUpdateWindow=f
     end
     local f=MPL.companionUpdateWindow
+    local recommended=notice and notice.recommended or MPL.recommendedCompanionVersion
+    if notice and notice.installed then
+        f.message:SetText(string.format(L["Your Companion: %s. Recommended version: %s."],notice.installed,recommended))
+    else
+        f.message:SetText(L["This Companion did not report its version. Check for updates."])
+    end
+    f.edit:SetText("MPLUI1 OPEN_UPDATES")
+    f.instructions:SetText(L["Click Open Companion, then copy the command (Ctrl+C).\nIf no window opens, open Companion from the system tray."])
     f:Show()
-    f.edit:SetText("https://github.com/indrih17/MPlusLogs/releases/tag/companion-channel")
-    f.edit:SetFocus(); f.edit:HighlightText()
 end
 
 function MPL.ShowCompanionDownload()

@@ -46,17 +46,17 @@ class SettingsTests(unittest.TestCase):
     def test_native_category_and_saved_settings(self):
         self.install(); self.mock_settings(); self.mpl.RegisterSettings(); self.mpl.RegisterSettings()
         settings=self.lua.globals().Settings
-        self.assertEqual(len(settings.controls),9)
+        self.assertEqual(len(settings.controls),10)
         self.assertEqual(self.lua.globals().registeredCategory,'MPlusLogs')
         values=settings['values']
         self.assertIsNone(values.MPLUSLOGS_showInMythicPlus)
         self.assertEqual(settings.layout[3].template,'MPlusLogsPercentileDescriptionTemplate')
-        self.assertEqual(settings.layout[8].section,'Где ещё показывать логи М+')
+        self.assertEqual(settings.layout[9].section,'Где ещё показывать логи М+')
         for index,(key,name) in enumerate([
             ('showInRaids','Показывать логи М+ в рейдах'),
             ('showInPvp','Показывать логи М+ в PvP'),
             ('showInOtherGroups','Показывать логи М+ в других группах'),
-        ],7):
+        ],8):
             self.assertEqual(settings.controls[index].key,'MPLUSLOGS_'+key)
             self.assertEqual(settings.controls[index].name,name)
         for key,default in [('showInRaids',False),('showInPvp',False),('showInOtherGroups',False)]:
@@ -78,6 +78,34 @@ class SettingsTests(unittest.TestCase):
         values.MPLUSLOGS_percentile['set']('median')
         self.assertEqual(self.mpl.GetOption('percentile'),'median')
         self.mpl.OpenSettings(); self.assertEqual(self.lua.globals().openedCategory,97)
+
+    def test_log_header_button_opens_settings_and_can_be_hidden_immediately(self):
+        self.install(); self.mock_settings()
+        self.mpl.ShowProfile('Alice','Гордунни')
+        panel=self.mpl.panel
+        button=panel.settingsButton
+        self.assertTrue(button.shown)
+        self.assertEqual(button.caption.text,'Настройки')
+        button.scripts.OnClick()
+        self.assertEqual(self.lua.globals().openedCategory,97)
+        setting=self.lua.globals().Settings['values'].MPLUSLOGS_hideLogSettings
+        self.assertIs(setting['default'],False)
+        setting['set'](True)
+        self.assertFalse(button.shown)
+        self.assertTrue(panel.shown)
+        self.assertTrue(self.lua.globals().MPlusLogsDB.options.hideLogSettings)
+        self.mpl.OpenSettings()
+        setting['set'](False)
+        self.assertTrue(button.shown)
+        self.assertFalse(self.mpl.SetOption('hideLogSettings','invalid'))
+
+    def test_saved_hidden_header_setting_is_used_when_panel_is_created(self):
+        self.install()
+        self.lua.execute('MPlusLogsDB.options={hideLogSettings=true}')
+        self.mpl.ShowProfile('Alice','Гордунни')
+        self.assertFalse(self.mpl.panel.settingsButton.shown)
+        self.mpl.SetOption('hideLogSettings',False)
+        self.assertTrue(self.mpl.panel.settingsButton.shown)
 
     def test_hps_median_switch_updates_rows_summary_and_tooltips_without_refetch(self):
         self.install(); self.mpl.InstallBatchButton()

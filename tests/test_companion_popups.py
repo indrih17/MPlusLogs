@@ -1,5 +1,6 @@
 """Popup lifetime, hover, queued replies and deliberate activation."""
 from pathlib import Path
+import gc
 import sys
 import tkinter as tk
 import unittest
@@ -22,6 +23,9 @@ class PopupTests(unittest.TestCase):
         self.root.update_idletasks()
         self.root.destroy()
         self.native.stop()
+        # Mock call arguments also retain the presented Tk window/root.
+        self.popup = self.root = self.presenter = self.native = self.activate = None
+        gc.collect()
 
     def test_card_shows_brand_text_and_expires_without_activating_owner(self):
         self.popup.show('MPlusLogs Companion','Reply ready: Ctrl+V')

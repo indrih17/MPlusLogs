@@ -311,5 +311,13 @@
   "Load DPS": "Carregar DPS",
   "Damage data loads on request. Click Load DPS.": "Os dados de dano são carregados sob demanda. Clique em Carregar DPS.",
   "Shift-click to search realms again.": "Shift-clique para buscar reinos novamente.",
-  "Update Companion to search realms again.": "Atualize o Companion para buscar reinos novamente."
+  "Update Companion to search realms again.": "Atualize o Companion para buscar reinos novamente.",
+  "Hide the settings button in the log window": "Ocultar o botão de configurações na janela de logs",
+  "This Companion did not report its version. Check for updates.": "Este Companion não informou sua versão. Verifique as atualizações.",
+  "Open Companion": "Abrir Companion",
+  "You can still open MPlusLogs settings with /mpl settings.": "Você ainda pode abrir as configurações do MPlusLogs com /mpl settings.",
+  "Click Open Companion, then copy the command (Ctrl+C).\nIf no window opens, open Companion from the system tray.": "Clique em Abrir Companion e copie o comando (Ctrl+C).\nSe nenhuma janela abrir, abra Companion pela bandeja do sistema.",
+  "Your Companion: %s. Recommended version: %s.": "Seu Companion: %s. Versão recomendada: %s.",
+  "Install the latest Companion for faster log loading and popup notifications.": "Instale o Companion mais recente para carregar logs mais rápido e receber notificações.",
+  "Settings": "Configurações"
 }

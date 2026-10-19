@@ -131,6 +131,7 @@ end
 
 function MPL.ReceiveReply(text, strict)
     local pendingReply=MPL.pendingReply
+    local replyVersion
     if text:match("^MPLS2[\r\n]") then
         local id=text:match("^MPLS2\r?\n([^\r\n]+)")
         if not pendingReply or id~=pendingReply.id then return nil,L["Это ответ на другой запрос"] end
@@ -164,6 +165,7 @@ function MPL.ReceiveReply(text, strict)
             local available={}
             for capability in capabilities:gmatch("[a-z]+") do available[capability]=true end
             MPL.companionInfo={version=version,capabilities=available}
+            replyVersion=version
             if pendingReply.includeSpecs and not available.specprofiles then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             if pendingReply.refresh and not available.refresh then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             for _,capability in ipairs(MPL.requiredCompanionCapabilities or {}) do
@@ -207,6 +209,7 @@ function MPL.ReceiveReply(text, strict)
                 recordProfileFailure(player.name,player.realm,player.spec,failure.error,failure.errorCode,failure.retryAt)
             end
             companionReplied()
+            if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(replyVersion) end
             MPL.pendingReply=nil
             MPL.ShowBatchResults(pendingReply.players,result.profiles,result.failures,count)
             local f=MPL.panel
@@ -234,6 +237,7 @@ function MPL.ReceiveReply(text, strict)
         local count,importError=MPL.Import(body)
         if count then
             companionReplied()
+            if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(replyVersion) end
             if MPL.profileStates then MPL.profileStates[expected]=nil end
             if MPlusLogsDB.profileStates then MPlusLogsDB.profileStates[expected]=nil end
             MPL.pendingReply=nil; MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context,true)

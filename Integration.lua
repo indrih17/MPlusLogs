@@ -428,6 +428,7 @@ events:RegisterEvent("PARTY_LEADER_CHANGED"); events:RegisterEvent("GROUP_ROSTER
 events:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
 events:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED"); events:RegisterEvent("INSPECT_READY")
 events:SetScript("OnEvent",function(_,event,loaded)
+    if event=="PLAYER_REGEN_ENABLED" and MPL.TryCompanionUpdateNotice then MPL.TryCompanionUpdateNotice() end
     if (event=="GROUP_ROSTER_UPDATE" or event=="PLAYER_REGEN_ENABLED") and not InCombatLockdown() then
         local panel=MPL.panel
         if panel and panel:IsShown() and panel.partyTracked and not (IsInRaid and IsInRaid()) then
@@ -508,6 +509,8 @@ SLASH_MPLUSLOGS2 = "/mpluslogs"
 SlashCmdList.MPLUSLOGS = function(text)
     text = strtrim(text or "")
     if text == "settings" then MPL.OpenSettings()
+    elseif text == "testupdate" then
+        MPL.ShowCompanionUpdates({installed="1.0.23",recommended=MPL.recommendedCompanionVersion})
     elseif text == "import" then MPL.ShowImport()
     elseif text == "applicants" then MPL.ShowBatchDownload()
     elseif text == "testimport" then MPL.ShowImportTest()

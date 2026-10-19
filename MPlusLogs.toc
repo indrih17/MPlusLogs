@@ -3,7 +3,7 @@
 ## Notes: Mythic+ Warcraft Logs profiles for group recruitment.
 ## Author: indri
 ## X-Wago-ID: qKQgAENx
-## Version: 0.5.29
+## Version: 0.5.30
 ## SavedVariables: MPlusLogsDB
 ## OptionalDeps: BlizzMove
 ## Category: Dungeons & Raids
@@ -25,6 +25,7 @@ Data.lua
 Database.lua
 Snapshot.lua
 Transport.lua
+CompanionUpdate.lua
 UI.lua
 ImportTest.lua
 SearchGroup.lua

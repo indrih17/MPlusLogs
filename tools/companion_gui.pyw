@@ -511,6 +511,9 @@ class App:
                     event = clipboard_protocol.describe_clipboard(text)
                     event.update(sequence=sequence, time=time.time())
                     self.clipboard_events = (self.clipboard_events + [event])[-12:]
+                    if clipboard_protocol.is_open_updates_command(text):
+                        post("open_updates",None)
+                        continue
                     if not clipboard_protocol.unwrap_request(text):
                         if text.startswith(("MPLQ1", "MPLQ2")) or (text.startswith("MPLS1") and "MPLQ" in text):
                             post("status", "Запрос скопирован не полностью. Выделите поле в WoW (Ctrl+A), затем Ctrl+C.")
@@ -604,6 +607,12 @@ class App:
                 self.refresh_api_display()
             elif kind == "show":
                 self.show()
+            elif kind == "open_updates":
+                self.show()
+                self.settings()
+                self.settings_window.lift()
+                self.settings_window.focus_force()
+                self.check_updates(manual=True)
             elif kind == "update_downloading":
                 self.update_status.set("Downloading Companion update…")
                 self.set_update_check_state("downloading")

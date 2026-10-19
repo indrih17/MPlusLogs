@@ -1,5 +1,6 @@
 """Personal setup, transactional migration and quota provenance; no live login."""
 import importlib.machinery
+import gc
 import importlib.util
 import json
 import os
@@ -79,6 +80,8 @@ class PersonalSetupTests(unittest.TestCase):
         loader.exec_module(cls.gui)
 
     def setUp(self):
+        # Registered first so patches retaining App methods are stopped first.
+        self.addCleanup(self.release_tk_references)
         self.temp=tempfile.TemporaryDirectory(dir=ROOT,prefix='.test-work-')
         self.addCleanup(self.temp.cleanup)
         self.shared=json.loads((ROOT/'tools/oauth_client.json').read_text())['client_id']
@@ -98,6 +101,10 @@ class PersonalSetupTests(unittest.TestCase):
         self.app.last_heartbeat=time.time()
         p=patch.object(self.app,'start'); p.start(); self.addCleanup(p.stop)
         self.addCleanup(self.app.exit)
+
+    def release_tk_references(self):
+        self.app = self.root = None
+        gc.collect()
 
     def test_removed_service_settings_cannot_redirect_wcl_login_or_restore_service_tokens(self):
         for old_service_session in (False,True):

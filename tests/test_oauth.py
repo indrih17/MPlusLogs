@@ -1,5 +1,6 @@
 """Security and lifecycle checks for OAuth; never contact WCL or use real credentials."""
 import importlib.util
+import gc
 import importlib.machinery
 import json
 from pathlib import Path
@@ -235,6 +236,7 @@ class WindowsLifecycleTests(unittest.TestCase):
         self.assertIsNone(tray.hwnd)
 
     def test_gui_start_hide_show_sign_out_exit(self):
+        self.addCleanup(gc.collect)
         import tkinter as tk
         loader = importlib.machinery.SourceFileLoader("companion_gui_test", str(ROOT / "tools/companion_gui.pyw"))
         spec = importlib.util.spec_from_loader(loader.name, loader)
