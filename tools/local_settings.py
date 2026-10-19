@@ -72,7 +72,7 @@ def validate_config(config):
     for key,allowed in choices.items():
         if key in result and (not isinstance(result[key],str) or result[key] not in allowed):
             result.pop(key)
-    for key in ("sound","autostart","retail_autostart"):
+    for key in ("sound","notifications","autostart","retail_autostart"):
         if key in result and type(result[key]) is not bool: result.pop(key)
     for key in ("oauth_client_id","personal_client_id","client_id"):
         value=result.get(key)
@@ -101,7 +101,7 @@ def validate_config(config):
 
 def save_config(config):
     """Persist preferences and DPAPI-protected OAuth tokens, never plaintext tokens."""
-    data={key:config[key] for key in ("oauth_client_id","sound","autostart","retail_autostart","theme","language","personal_client_id","api_mode") if key in config}
+    data={key:config[key] for key in ("oauth_client_id","sound","notifications","autostart","retail_autostart","theme","language","personal_client_id","api_mode") if key in config}
     if config.get("oauth"):
         data["oauth_dpapi"]=base64.b64encode(crypt(json.dumps(config["oauth"]).encode(),True)).decode()
     PATH.parent.mkdir(parents=True,exist_ok=True)

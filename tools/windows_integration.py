@@ -1,7 +1,8 @@
-"""Windows tray, per-session single instance and opt-in per-user startup. Stdlib only."""
+"""Windows tray, per-session single instance and opt-in per-user startup."""
 import ctypes
 from ctypes import wintypes as wt
 from pathlib import Path
+import queue
 import subprocess
 import sys
 import threading
@@ -123,6 +124,7 @@ class Tray:
     """Own native message loop; send only queue messages to Tk's main thread."""
     def __init__(self, messages):
         self.messages = messages
+        self.notification_queue = queue.Queue()
         self.hwnd = None
         self.error = None
         self.ready = threading.Event()
@@ -209,8 +211,11 @@ class Tray:
                 shell.Shell_NotifyIconW(1, ctypes.byref(data))
                 return 0
             if message == icon_message + 2:
-                title, text = self.notification
-                data.title, data.info, data.infoFlags = title[:63], text[:255], 1
+                try:
+                    title, text, info_flags = self.notification_queue.get_nowait()
+                except queue.Empty:
+                    return 0
+                data.title, data.info, data.infoFlags = title[:63], text[:255], info_flags
                 data.flags = 16
                 shell.Shell_NotifyIconW(1, ctypes.byref(data))
                 data.flags = 1 | 2 | 4
@@ -289,9 +294,9 @@ class Tray:
             user.PostMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
             user.PostMessageW(self.hwnd, 0x8002, 0, 0)
 
-    def notify(self, title, text):
-        self.notification = (title, text)
+    def notify(self, title, text, *, silent=False):
         if self.hwnd:
+            self.notification_queue.put((title, text, 1 | (0x10 if silent else 0)))
             user = ctypes.WinDLL("user32", use_last_error=True)
             user.PostMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
             user.PostMessageW(self.hwnd, 0x8003, 0, 0)

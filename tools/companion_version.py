@@ -10,8 +10,8 @@ RUNTIME = ("companion_gui.pyw", "companion_i18n.py", "companion_update.py", "com
            "companion_location.py", "portable_update.py",
            "clipboard_companion.py", "clipboard_history.py", "clipboard_protocol.py", "build_database.py", "realm_resolver.py",
            "name_search.py", "name_search_api.py",
-           "wcl_sync.py", "wcl_oauth.py", "local_settings.py", "windows_integration.py", "retail_launcher.py",
-           "appearance.py", "release_smoke.py", "requirements.txt", "oauth_client.json", "build_release.py",
+           "wcl_sync.py", "wcl_oauth.py", "local_settings.py", "windows_integration.py", "companion_notifications.py", "retail_launcher.py",
+           "appearance.py", "companion_audio.py", "release_smoke.py", "requirements.txt", "oauth_client.json", "build_release.py",
            "api_budget.py", "personal_api.py", "cache_maintenance.py")
 
 
@@ -32,7 +32,7 @@ def source_hash():
         if not path.is_file():
             continue
         content = path.read_bytes()
-        if path.suffix not in {".png", ".ico"}:
+        if path.suffix not in {".png", ".ico", ".wav"}:
             content = content.replace(b"\r\n", b"\n")
         if path.name in {"companion.iss", "COMPANION-README.txt"}:
             content = re.sub(rb"\b\d+\.\d+\.\d+\b", b"VERSION", content)

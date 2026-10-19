@@ -18,6 +18,8 @@ import wcl_oauth
 import windows_integration as windows
 import appearance
 import companion_i18n as i18n
+import companion_notifications
+import companion_audio
 import companion_update as updates
 import personal_api
 
@@ -57,6 +59,7 @@ class App:
         self.status = self.textvar("Войдите в Warcraft Logs, чтобы загружать данные.")
         self.account = self.textvar("Warcraft Logs не подключён")
         self.sound = tk.BooleanVar()
+        self.notifications = tk.BooleanVar()
         try:
             self.config = local_settings.load()
         except (ValueError, OSError, KeyError, TypeError):
@@ -76,6 +79,7 @@ class App:
             self.config.pop("oauth_dpapi", None)
         self.client_id = self.config.get("personal_client_id", "") if self.api_mode == "personal" else self.shared_client_id
         self.sound.set(self.config.get("sound", True))
+        self.notifications.set(self.config.get("notifications", True))
         theme = self.config.get("theme", "system")
         self.theme = tk.StringVar(value=theme if theme in {"system","light","dark"} else "system")
         self.applied_theme = None
@@ -129,6 +133,7 @@ class App:
         self.version_text = self.textvar("Local preview / not published" if self.preview else "Companion version: " + updates.current_version())
         ttk.Label(frame, textvariable=self.version_text, style="Muted.TLabel").pack(anchor="w", pady=(12, 0))
         self.update_status = self.textvar("")
+        self.notification_test_status = self.textvar("")
         ttk.Label(frame, textvariable=self.update_status, wraplength=440).pack(anchor="w")
         self.update_button = ttk.Button(frame, textvariable=self.textvar("Install update and restart"), command=self.install_update)
         outcome = updates.last_result()
@@ -136,6 +141,7 @@ class App:
             self.failed_update_version = outcome["expected_version"]
             self.update_status.set("Companion update failed. Open the installation log in Settings.")
         self.refresh_theme()
+        self.popup = companion_notifications.PopupNotifications(root,self.show,lambda:self.applied_theme)
         self.tray = None
         try:
             self.tray = windows.Tray(self.messages)
@@ -342,6 +348,10 @@ class App:
                             variable=self.startup_mode, command=self.save_preferences).pack(anchor="w", pady=3)
         ttk.Label(frame, textvariable=self.textvar('Фоновое ожидание запуска Retail. Classic и PTR\nне запускают помощник.'), style="Muted.TLabel").pack(anchor="w", pady=(0,8))
         ttk.Checkbutton(frame, textvariable=self.textvar('Звук готовности ответа'), variable=self.sound, command=self.save_preferences).pack(anchor="w", pady=6)
+        ttk.Button(frame,textvariable=self.textvar('Прослушать звук'),command=companion_audio.play_ready).pack(anchor="w",pady=(0,4))
+        ttk.Checkbutton(frame, textvariable=self.textvar('Всплывающие уведомления'), variable=self.notifications, command=self.save_preferences).pack(anchor="w", pady=6)
+        ttk.Button(frame,textvariable=self.textvar('Проверить уведомление'),command=self.test_notification).pack(anchor="w",pady=(0,4))
+        ttk.Label(frame,textvariable=self.notification_test_status,wraplength=440,style="Muted.TLabel").pack(anchor="w")
         account_actions = ttk.Frame(frame)
         account_actions.pack(fill="x", pady=(12, 0))
         ttk.Label(account_actions, text="Warcraft Logs", font=("Segoe UI", 10, "bold")).pack(anchor="w")
@@ -358,6 +368,22 @@ class App:
         window.update_idletasks()
         self.refresh_theme(force=True)
 
+    def show_notification(self,title,text):
+        if not self.notifications.get():return False
+        try:
+            self.popup.show(title,text)
+            return True
+        except (OSError,tk.TclError) as exc:
+            self.notification_test_status.set('Не удалось показать уведомление: '+str(exc))
+            return False
+
+    def test_notification(self):
+        if not self.notifications.get():
+            self.notification_test_status.set('Сначала включите всплывающие уведомления.')
+            return
+        if self.show_notification('MPlusLogs Companion',i18n.tr('Это тестовое уведомление MPlusLogs Companion.')):
+            self.notification_test_status.set('Показано тестовое уведомление Companion.')
+
     def save_preferences(self):
         previous = windows.autostart_enabled()
         previous_retail = windows.retail_autostart_enabled()
@@ -370,9 +396,10 @@ class App:
             # superseded by a concurrent OAuth refresh.
             windows.ensure_retail_watcher()
             with self.config_lock:
-                config = dict(self.config, sound=self.sound.get(), autostart=mode == "windows", retail_autostart=mode == "retail", theme=self.theme.get(), language=self.language.get())
+                config = dict(self.config, sound=self.sound.get(), notifications=self.notifications.get(), autostart=mode == "windows", retail_autostart=mode == "retail", theme=self.theme.get(), language=self.language.get())
                 local_settings.save_config(config)
                 self.config = config
+                if not self.notifications.get():self.popup.close()
         except (ValueError, OSError) as exc:
             try:
                 windows.set_autostart(previous)
@@ -531,8 +558,7 @@ class App:
                 self.available_update, self.update_installer = value
                 self.update_status.set("Companion update is ready.")
                 self.update_button.pack(anchor="w", pady=(6, 0))
-                if self.tray:
-                    self.tray.notify("MPlusLogs Companion " + value[0]["version"], i18n.tr("Companion update is ready."))
+                self.show_notification("MPlusLogs Companion " + value[0]["version"],i18n.tr("Companion update is ready."))
             elif kind == "update_current":
                 self.update_status.set("Companion is up to date.")
             elif kind == "update_error":
@@ -590,8 +616,10 @@ class App:
                 self.show()
             else:
                 self.status.set(value)
-                if kind == "ready" and self.sound.get():
-                    self.root.bell()
+                if kind == "ready":
+                    self.show_notification("MPlusLogs Companion",self.status.get())
+                    if self.sound.get():
+                        companion_audio.play_ready()
         if not self.installing_update:
             self.start()
         self.root.update_idletasks()
@@ -601,12 +629,15 @@ class App:
         if time.time() - self.last_heartbeat >= 1:
             self.last_heartbeat = time.time()
             self.refresh_api_display()
+            notification=self.popup.status
+            if not isinstance(notification,dict): notification=None
             try:
                 build_database.atomic_write(DATA_ROOT / "companion-status.json", json.dumps({
                     "updated": self.last_heartbeat, "pid": os.getpid(), "status": self.status.get(),
                     "worker_alive": bool(self.worker and self.worker.is_alive()), "diagnostic": self.mode_diagnostic,
                     "clipboard_sequence": self.clipboard_sequence, "clipboard_events": self.clipboard_events,
-                    "oauth_connected": bool(self.session), "tray": bool(self.tray)}, ensure_ascii=False, indent=2))
+                    "oauth_connected": bool(self.session), "tray": bool(self.tray),
+                    "notification": notification}, ensure_ascii=False, indent=2))
             except OSError:
                 pass
         self.root.after(200, self.poll)
@@ -687,6 +718,7 @@ class App:
 
     def exit(self):
         self.exiting = True
+        self.popup.close()
         self.want_running = False
         self.stop.set()
         self.auth_cancel.set()

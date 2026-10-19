@@ -26,6 +26,12 @@ def run(report_path):
     assert not companion_location.inside_addons(r'C:\Programs\MPlusLogs Companion')
     companion_update.version_tuple(companion_update.current_version())
     import companion_i18n
+    import companion_notifications
+    import companion_audio
+    import wave
+    with wave.open(str(companion_audio.READY_SOUND),'rb') as sound:
+        assert sound.getnchannels()==1 and sound.getsampwidth()==2
+        assert 0.1<sound.getnframes()/sound.getframerate()<1
     for language in companion_i18n.LANGUAGES:
         assert companion_i18n.catalog(language)["Настройки"]
     import retail_launcher  # Also verify the dynamically imported watcher is bundled.
