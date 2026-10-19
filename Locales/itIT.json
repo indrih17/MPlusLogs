@@ -231,7 +231,7 @@
   "Повторный результат загрузки": "Risultato download ripetuto",
   "Подготовка запроса…": "Preparazione della richiesta...",
   "Подземелье": "Spedizione",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Richiesta copiata. Assicurati che MPlusLogs Companion sia in esecuzione e abbia effettuato l'accesso a Warcraft Logs. Attendi finché la risposta non è pronta, quindi premi |cffffd100Ctrl+V|r in questa finestra.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Premi |cffffd100Ctrl+V|r in questa finestra dopo il segnale acustico o la notifica di Companion. MPlusLogs Companion deve essere avviato e connesso a Warcraft Logs.",
   "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Attendi un momento, poi premi |cffffd100Ctrl+V|r.\nSe non ricevi risposta, verifica che MPlusLogs Companion sia in esecuzione.",
   "Подробности: ": "Dettagli: ",
   "Позже": "Successivamente",

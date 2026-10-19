@@ -2,7 +2,7 @@ local _, MPL = ...
 
 -- Recommend an already published release. Raise this with the next addon release
 -- after its matching Companion is available; Companion-only releases stay independent.
-MPL.recommendedCompanionVersion = "1.0.26"
+MPL.recommendedCompanionVersion = "1.0.27"
 
 local function versionParts(version)
     if type(version)~="string" then return end

@@ -213,7 +213,11 @@ function MPL.ReceiveReply(text, strict)
             MPL.pendingReply=nil
             MPL.ShowBatchResults(pendingReply.players,result.profiles,result.failures,count)
             local f=MPL.panel
-            if pendingReply.groupPlayers and f and f.groupPlayers==pendingReply.groupPlayers and f:IsShown() then
+            -- Roster events replace the live player table while this snapshot
+            -- is in flight. Match the displayed character, not table identity.
+            if pendingReply.groupPlayers and f and type(f.groupPlayers)=="table"
+                and (f.groupPlayers==pendingReply.groupPlayers or pendingReply.expected[MPL.Key(f.name,f.realm)])
+                and f:IsShown() then
                 f.groupFailures=result.failures
                 MPL.ShowProfile(f.name,f.realm,f.applicant,true,true)
             end

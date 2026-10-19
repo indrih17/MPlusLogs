@@ -261,8 +261,13 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
         local label=c.name.." — "..c.realm
         if c.scores then
             local function value(v) return v and string.format("%.0f",v) or "—" end
-            label=label.."\nWCL: "..L["Tank"].." "..value(c.scores[1]).." / "..L["Healer"].." "..value(c.scores[2]).." / "..L["Damage"].." "..value(c.scores[3])
-                .."  ·  "..L["Best %"].." "..value(c.best).."  ·  "..L["Прохождения"].." "..value(c.runs)
+            local roles={}
+            for index,role in ipairs({"Tank","Healer","Damage"}) do
+                local score=c.scores[index]
+                if score and score>0 then roles[#roles+1]=L[role].." "..value(score) end
+            end
+            label=label.."\nWCL: "..(#roles>0 and table.concat(roles," / ") or "—")
+                .."  /  "..L["Best %"].." "..value(c.best).."  /  "..L["Прохождения"].." "..value(c.runs)
             label=label.."\n"..L["Специализация"]..": "..(c.specs~="" and c.specs or "—")
         else
             label=label.."\n"..L["Role data unavailable; update Companion"]

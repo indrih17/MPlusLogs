@@ -82,8 +82,18 @@ local function companionError(errorText,code,retryAt)
     return errorText
 end
 MPL.CompanionError=companionError
+local function readableFont(field)
+    -- Latin clients use Friz Quadrata without Cyrillic glyphs. Player/realm
+    -- names can still be Russian; use WoW's matching Cyrillic face locally.
+    -- Keep Asian, Russian and addon-customized fonts and all text styling.
+    local font,size,flags=field:GetFont()
+    if font and font:lower():gsub("/","\\")=="fonts\\frizqt__.ttf" then
+        field:SetFont("Fonts\\FRIZQT___CYR.TTF",size,flags)
+    end
+end
 local function label(parent, x, y, width, text, template)
     local f = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlightSmall")
+    readableFont(f)
     f:SetPoint("TOPLEFT", x, y); f:SetWidth(width); f:SetJustifyH("LEFT"); f:SetText(text or "")
     return f
 end
@@ -357,10 +367,23 @@ local function buildPanel()
     f.metricHeading=f.headings[7]
     f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary}
     f.footer = label(f,20,-606,900)
-    button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
+    f.wclButton=button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
     f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function()
         if type(f.searchMember)=="table" and IsShiftKeyDown and IsShiftKeyDown() then
             MPL.ShowSearchGroupLogs(f.searchMember.searchResultID,true); return
+        end
+        -- Recover a missed redraw from saved logs before cooldowns or another
+        -- exchange can prevent this tab from displaying an imported profile.
+        if not f.searchMember then
+            local cached=MPL.GetProfile(f.name,f.realm)
+            if cached and cached~=f.profile then
+                local metric=f.viewMetric
+                MPL.ShowProfile(f.name,f.realm,f.applicant,true,true)
+                if f.profile then
+                    f.viewMetric=metric; MPL.RenderProfileStats(f); MPL.UpdateProfileLoadButton()
+                    return
+                end
+            end
         end
         if missingMetric(f.profile,f.viewMetric) then
             MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,false,false,nil,nil,f.viewMetric); return
@@ -650,6 +673,7 @@ function MPL.RenderPlayerTabs(f)
             tab=CreateFrame("Button",nil,f,"BackdropTemplate")
             tab:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
             local caption=tab:CreateFontString(nil,"OVERLAY","GameFontNormal")
+            readableFont(caption)
             caption:SetPoint("LEFT",10,0); caption:SetPoint("RIGHT",-10,0)
             caption:SetJustifyH("CENTER"); caption:SetWordWrap(false)
             tab:SetFontString(caption)
@@ -1091,6 +1115,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
             f.phase="copy"; f.request=request
             f.steps:SetText(L["|cffffd1001. Отправка запроса|r    /    |cff8888882. Получение логов|r"])
             f.setStatus(L["Запрос: Ctrl+A выделить, Ctrl+C скопировать"]
+                .."\n"..L["Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload."]
                 ..(skipped and skipped>0 and ("\n"..L["Актуальные данные: "]..skipped..L[" из "]..total) or ""))
             setText(request)
         end

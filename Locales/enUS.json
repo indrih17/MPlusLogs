@@ -231,7 +231,7 @@
   "Повторный результат загрузки": "Repeated download result",
   "Подготовка запроса…": "Preparing the request...",
   "Подземелье": "Dungeon",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Request copied. Make sure MPlusLogs Companion is running and signed in to Warcraft Logs. Wait until the response is ready, then press |cffffd100Ctrl+V|r in this window.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Press |cffffd100Ctrl+V|r in this window after the Companion sound signal or pop-up notification. Make sure MPlusLogs Companion is running and signed in to Warcraft Logs.",
   "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Wait a moment, then press |cffffd100Ctrl+V|r.\nIf there is no response, make sure MPlusLogs Companion is running.",
   "Подробности: ": "Details: ",
   "Позже": "Later",

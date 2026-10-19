@@ -164,6 +164,57 @@ class NameSearchRoleTests(unittest.TestCase):
         result=self.response(client,role='HEALER',class_name='SHAMAN',name='Stormek',key_range=(18,18))
         self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],['C','C'])
 
+    def empty_season_client(self,empty=('draenor',)):
+        class EmptySeason(RoleClient):
+            def __call__(self,args):
+                raw=super().__call__(args)
+                if args.server_slug in empty:
+                    char=raw['data']['characterData']['character']
+                    for field in ('damage','healing'):
+                        char[field]['rankings']=[]
+                        char[field]['allStars']=[]
+                        char[field]['throughputRankings']={}
+                return raw
+        return EmptySeason(specs=('Arms','Arms'))
+
+    def test_empty_season_is_excluded_only_above_ten(self):
+        for key_range in (None,(10,10),(10,11),(11,11),(18,19)):
+            with self.subTest(key_range=key_range):
+                result=self.response(self.empty_season_client(),key_range=key_range)
+                kinds=[r.split('\t')[0] for r in result.splitlines()[1:]]
+                self.assertEqual(kinds,['P'] if key_range and key_range[0]>10 else ['C','C'])
+                if kinds==['P']: self.assertIn('\tSilvermoon\t',result)
+
+    def test_empty_high_key_search_never_falls_back_to_empty_identity(self):
+        result=self.response(self.empty_season_client(empty=('draenor','silvermoon')),key_range=(11,11))
+        self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],['F'])
+
+    def test_known_empty_realm_still_returns_no_logs(self):
+        result=self.response(self.empty_season_client(empty=('silvermoon',)),realm='silvermoon',key_range=(11,11),error_details=True)
+        self.assertTrue(result.splitlines()[1].startswith('F\t1\teu\tSilvermoon\t'),result)
+
+    def test_high_key_search_preserves_leaderboard_without_uploads(self):
+        class Leaderboard(RoleClient):
+            def __call__(self,args):
+                raw=super().__call__(args)
+                for field in ('damage','healing'):
+                    data=raw['data']['characterData']['character'][field]
+                    for row in data['rankings']: row['bestRank']={'ilvl':18}
+                    for run in data['throughputRankings'].values(): run['best_level']=18
+                return raw
+        result=self.response(Leaderboard(specs=('Arms','Arms'),empty=('draenor',)),key_range=(18,18))
+        self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],['C','C'])
+
+    def test_hidden_candidate_blocks_high_key_autoselection(self):
+        class Hidden(RoleClient):
+            def __call__(self,args):
+                raw=super().__call__(args)
+                if args.server_slug=='draenor': raw['data']['characterData']['character']['hidden']=True
+                return raw
+        result=self.response(Hidden(),key_range=(18,18),error_codes=True)
+        self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],['F'])
+        self.assertIn('hidden',unquote(result))
+
     def test_known_realm_overrides_key_and_role(self):
         client=self.shaman_client({'silvermoon':(3651,0),'tarren-mill':(1457,2425)},
                                   {'silvermoon':18,'tarren-mill':21})

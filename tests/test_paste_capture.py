@@ -34,6 +34,16 @@ class PasteCaptureTests(unittest.TestCase):
         self.assertEqual(self.mpl.lastBatchResult.count,1)
         self.assertFalse(f.shown)
 
+    def test_ready_signal_guidance_is_visible_before_and_after_copy(self):
+        self.mpl.ShowDownload('Alice','Гордунни',None)
+        f=self.mpl.downloadWindow
+        for copied in (False, True):
+            if copied:
+                f.edit.scripts.OnKeyDown(f.edit,'C')
+            self.assertIn('Ctrl+V', f.status.text)
+            self.assertIn('звукового сигнала', f.status.text)
+            self.assertIn('всплывающего уведомления', f.status.text)
+
     def test_regular_single_player_recovers_after_invalid_paste(self):
         self.mpl.ShowDownload('Alice','Гордунни',None)
         f=self.mpl.downloadWindow

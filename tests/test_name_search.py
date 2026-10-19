@@ -530,6 +530,31 @@ class NameSearchTests(unittest.TestCase):
         self.mpl.OpenSearchGroupProfile(2)
         self.assertIn(self.mpl.L['Role data unavailable; update Companion'],self.mpl.panel.searchChoices[1].text)
 
+    def test_realm_choices_hide_empty_roles_and_use_font_safe_separators(self):
+        player=self.mpl.searchGroupWindow.players[2]
+        player.candidates=self.lua.table_from([
+            self.lua.table_from(dict(name='Noyi',realm='Burning Legion',
+                scores=self.lua.table_from([0,0,3997]),best=24,runs=166,specs='Arms,Protection')),
+            self.lua.table_from(dict(name='Noyi',realm='Draenor',
+                scores=self.lua.table(),specs='')),
+            self.lua.table_from(dict(name='Noyi',realm='Other',
+                scores=self.lua.table_from([2000,1500,0]),best=0,runs=1,specs='Protection')),
+        ])
+        self.mpl.OpenSearchGroupProfile(2)
+        choices=self.mpl.panel.searchChoices
+        first=choices[1].text
+        self.assertNotIn(self.mpl.L['Tank'],first)
+        self.assertNotIn(self.mpl.L['Healer'],first)
+        self.assertIn(self.mpl.L['Damage']+' 3997',first)
+        for choice in choices.values():
+            self.assertNotIn('·',choice.text)
+        self.assertNotIn(self.mpl.L['Tank'],choices[2].text)
+        self.assertNotIn(self.mpl.L['Healer'],choices[2].text)
+        self.assertIn(self.mpl.L['Tank']+' 2000',choices[3].text)
+        self.assertIn(self.mpl.L['Healer']+' 1500',choices[3].text)
+        self.assertNotIn(self.mpl.L['Damage'],choices[3].text)
+        self.assertIn('Best % 0',choices[3].text)
+
     def test_empty_season_profile_does_not_prove_a_different_identity(self):
         class EmptySeason(Client):
             def __call__(self,args):

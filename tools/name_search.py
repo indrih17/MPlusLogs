@@ -290,6 +290,14 @@ def _member_rows(member,mapping,raw_profiles,prepared,lookup_error,
                     profile=wcl.normalize(raw,args)
                 except wcl.NoSeasonLogs:
                     detail.setdefault('no_season_logs',[]).append(identity['realm'])
+                # Above +10, a public character with neither season logs nor
+                # completed-key evidence is not a useful identity candidate.
+                # Hidden profiles and API/schema failures raise before here;
+                # leaderboard-only characters still have completed-key evidence.
+                if (not member['realm'] and (member.get('key_min') or 0)>10
+                        and profile is None and evidence['best_level'] is None):
+                    detail.setdefault('empty_high_key_excluded',[]).append(identity['realm'])
+                    continue
                 matches.append((identity,profile,fetched_at,evidence))
         if not matches:
             raise ValueError('No matching character found for this name and class')

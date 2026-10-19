@@ -231,7 +231,7 @@
   "Повторный результат загрузки": "Resultado de descarga repetida",
   "Подготовка запроса…": "Preparando una solicitud...",
   "Подземелье": "Mazmorra",
-  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Solicitud copiada. Asegúrese de que MPlusLogs Companion se esté ejecutando y haya iniciado sesión en Warcraft Logs. Espere hasta que la respuesta esté lista, luego presione |cffffd100Ctrl+V|r en esta ventana.",
+  "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nCompanion должен быть запущен, а вход выполнен. После настройки сначала введите /reload.": "Pulsa |cffffd100Ctrl+V|r en esta ventana después del sonido o de la notificación emergente de Companion. MPlusLogs Companion debe estar abierto y conectado a Warcraft Logs.",
   "Подождите немного и нажмите |cffffd100Ctrl+V|r.\nЕсли ответа нет, проверьте, что MPlusLogs Companion запущен.": "Espera un momento y pulsa |cffffd100Ctrl+V|r.\nSi no hay respuesta, comprueba que MPlusLogs Companion esté abierto.",
   "Подробности: ": "Detalles: ",
   "Позже": "Más tarde",

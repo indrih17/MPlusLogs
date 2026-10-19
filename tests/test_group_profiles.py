@@ -15,6 +15,44 @@ class GroupProfileTests(unittest.TestCase):
     fetch = test_batch.BatchTests.fetch
     flush = test_batch.BatchTests.flush
 
+    def test_roster_update_during_download_refreshes_visible_profile(self):
+        self.party()
+        self.lua.execute('''
+            eventFrames={}
+            local original=CreateFrame
+            CreateFrame=function(...) local f=original(...); eventFrames[#eventFrames+1]=f; return f end
+        ''')
+        self.lua.execute('return assert(loadstring(...))', (test_addon.ROOT/'Integration.lua').read_text(encoding='utf-8'))('MPlusLogs', self.mpl)
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty(), None, True)
+        panel = self.mpl.panel
+        panel.playerTabs[3].scripts.OnClick()
+        self.lua.globals().eventFrames[1].scripts.OnEvent(None, 'GROUP_ROSTER_UPDATE')
+        response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, self.fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response, True), 5)
+        self.assertEqual(panel.name, 'Member2')
+        self.assertTrue(panel.profile, 'Imported logs left the visible group tab empty')
+        self.assertTrue(panel.scroll.shown)
+        self.assertEqual(len(panel.groupPlayers), 5)
+
+    def test_load_button_recovers_cached_profile_before_group_cooldown(self):
+        self.party()
+        self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
+        panel = self.mpl.panel
+        response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, self.fetch)
+        # Replace the roster snapshot while the original exchange is pending.
+        panel.groupPlayers = self.mpl.CollectParty()
+        self.assertEqual(self.mpl.ReceiveReply(response, True), 5)
+        self.lua.execute('''
+            local MPL=...
+            GetServerTime=function() return MPL.ProfileDate(MPL.GetProfile("Alice","Гордунни")) end
+            MPL.panel.profile=false; MPL.panel.scroll:Hide(); MPL.panel.emptyMessage:Show()
+        ''', self.mpl)
+        panel.loadButton.scripts.OnClick()
+        self.assertTrue(panel.profile, 'Load must re-read saved logs before checking cooldown')
+        self.assertTrue(panel.scroll.shown)
+        self.assertFalse(panel.emptyMessage.shown)
+        self.assertIsNone(self.mpl.pendingReply)
+
     def party(self):
         self.lua.execute('''
             UnitExists=function(unit) return unit=="player" or unit:match("^party[1-4]$")~=nil end
