@@ -72,7 +72,7 @@ def validate_config(config):
     for key,allowed in choices.items():
         if key in result and (not isinstance(result[key],str) or result[key] not in allowed):
             result.pop(key)
-    for key in ("sound","notifications","autostart","retail_autostart"):
+    for key in ("sound","notifications","notifications_initialized","autostart","retail_autostart"):
         if key in result and type(result[key]) is not bool: result.pop(key)
     for key in ("oauth_client_id","personal_client_id","client_id"):
         value=result.get(key)
@@ -99,11 +99,35 @@ def validate_config(config):
     return result
 
 
+def initialize_notifications(config):
+    """Enable popups once for new and existing users, then respect their choice."""
+    if config.get("notifications_initialized") is True:
+        return config
+    set_notifications(True)
+    return dict(config,notifications=True,notifications_initialized=True)
+
+
+def set_notifications(enabled):
+    """Save an explicit installer choice without loading protected credentials."""
+    if type(enabled) is not bool:
+        raise ValueError("Notification preference must be a boolean")
+    # Patch only preferences; keep stored encrypted credentials unchanged.
+    data=json.loads(PATH.read_text(encoding="utf-8")) if PATH.exists() else {}
+    if not isinstance(data,dict):
+        raise ValueError("Invalid MPlusLogs settings")
+    data.update(notifications=enabled,notifications_initialized=True)
+    _write_config(data)
+
+
 def save_config(config):
     """Persist preferences and DPAPI-protected OAuth tokens, never plaintext tokens."""
-    data={key:config[key] for key in ("oauth_client_id","sound","notifications","autostart","retail_autostart","theme","language","personal_client_id","api_mode") if key in config}
+    data={key:config[key] for key in ("oauth_client_id","sound","notifications","notifications_initialized","autostart","retail_autostart","theme","language","personal_client_id","api_mode") if key in config}
     if config.get("oauth"):
         data["oauth_dpapi"]=base64.b64encode(crypt(json.dumps(config["oauth"]).encode(),True)).decode()
+    _write_config(data)
+
+
+def _write_config(data):
     PATH.parent.mkdir(parents=True,exist_ok=True)
     tmp=PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")

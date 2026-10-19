@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.0.24"
+  #define AppVersion "1.0.25"
 #endif
 
 [Setup]
@@ -42,6 +42,9 @@ english.StartupWindows=Start automatically when I sign in to Windows
 english.StartupRetail=Start automatically with WoW Retail
 english.StartupManual=Do not start automatically; I will open it myself
 english.StartupRegistryWarning=Windows could not save the automatic start setting. Open MPlusLogs Companion settings to choose it manually.
+english.Notifications=Show popup notifications from MPlusLogs Companion
+english.NotificationsGroup=Notifications:
+english.NotificationsWarning=Could not save the notification setting. You can change it in MPlusLogs Companion settings.
 english.UnsafeInstallDirectory=Do not install Companion inside an individual addon folder (for example AddOns\MPlusLogs). Choose AddOns itself, a separate Companion folder, or %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 russian.StartupPageTitle=Когда запускать MPlusLogs Companion
 russian.StartupPageDescription=Выберите, когда MPlusLogs Companion должен быть готов к загрузке логов.
@@ -50,9 +53,13 @@ russian.StartupWindows=Запускать автоматически при вх
 russian.StartupRetail=Запускать автоматически вместе с WoW Retail
 russian.StartupManual=Не запускать автоматически — я буду открывать программу сам
 russian.StartupRegistryWarning=Windows не сохранила настройку автозапуска. Выберите её вручную в настройках MPlusLogs Companion.
+russian.Notifications=Показывать всплывающие уведомления MPlusLogs Companion
+russian.NotificationsGroup=Уведомления:
+russian.NotificationsWarning=Не удалось сохранить настройку уведомлений. Измените её в настройках MPlusLogs Companion.
 russian.UnsafeInstallDirectory=Не устанавливайте Companion в папку отдельного аддона (например AddOns\MPlusLogs). Выберите саму папку AddOns, отдельную папку Companion или %LOCALAPPDATA%\Programs\MPlusLogs Companion.
 
 [Tasks]
+Name: "notifications"; Description: "{cm:Notifications}"; GroupDescription: "{cm:NotificationsGroup}"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
@@ -226,10 +233,26 @@ begin
     MsgBox(CustomMessage('StartupRegistryWarning'), mbError, MB_OK);
 end;
 
+procedure ApplyNotificationChoice;
+var
+  Choice: String;
+  ExitCode: Integer;
+begin
+  if WizardIsTaskSelected('notifications') then Choice := 'on'
+  else Choice := 'off';
+  if not Exec(ExpandConstant('{app}\MPlusLogs-Companion.exe'),
+      '--set-notifications ' + Choice, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then begin
+    MsgBox(CustomMessage('NotificationsWarning'), mbError, MB_OK);
+  end else if ExitCode <> 0 then
+    MsgBox(CustomMessage('NotificationsWarning'), mbError, MB_OK);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and (ExpandConstant('{param:UPDATECOMPANION|0}') <> '1') then
+  if (CurStep = ssPostInstall) and (ExpandConstant('{param:UPDATECOMPANION|0}') <> '1') then begin
     ApplyStartupChoice;
+    if not WizardSilent then ApplyNotificationChoice;
+  end;
 end;
 
 procedure RemoveOwnStartup(ValueName, Mode: String);

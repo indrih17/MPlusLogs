@@ -123,6 +123,26 @@ class PersonalSetupTests(unittest.TestCase):
                     finally:
                         app.exit()
 
+    def test_settings_update_button_resets_current_result_and_preserves_install_action(self):
+        self.app.settings()
+        button=self.app.settings_update_button
+        self.app.messages.put(('update_current',None))
+        self.app.poll()
+        self.assertEqual(button.cget('textvariable'),str(self.app.settings_update_text))
+        self.assertEqual(self.app.settings_update_text.get(),'No updates found')
+        self.app.close_settings()
+        self.app.settings()
+        self.assertEqual(self.app.settings_update_text.get(),'Check Companion updates')
+        self.app.available_update={'version':'9.9.9'}
+        self.app.update_installer='fixture.exe'
+        self.app.set_update_check_state('ready')
+        self.app.close_settings()
+        self.app.settings()
+        self.assertEqual(self.app.settings_update_text.get(),'Update available — install and restart')
+        with patch.object(self.app,'install_update') as install:
+            self.app.settings_update_button.invoke()
+        install.assert_called_once()
+
     def test_guide_fields_remain_readable_and_canvas_matches_both_themes(self):
         self.app.show_personal_setup()
         wizard=self.app.personal_setup

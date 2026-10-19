@@ -80,6 +80,42 @@ class PopupTests(unittest.TestCase):
         self.popup.show('MPlusLogs','Second')
         self.assertEqual(self.popup.current,('MPlusLogs','Second'))
 
+    def test_queued_update_keeps_its_install_action_and_clears_cards_before_install(self):
+        def install():
+            self.assertIsNone(self.popup.window)
+            self.assertFalse(self.popup.pending)
+            self.assertIsNone(self.popup.current_action)
+        action=Mock(side_effect=install)
+        self.popup.show('MPlusLogs','Reply ready')
+        self.popup.show('MPlusLogs','Update ready',on_click=action)
+        self.popup.show('MPlusLogs','Update ready',on_click=action)
+        self.assertEqual(len(self.popup.pending),1)
+        self.popup._dismiss()
+        self.popup.show('MPlusLogs','Another reply')
+        self.popup._activate()
+        action.assert_called_once()
+        self.activate.assert_not_called()
+
+    def test_dismissing_update_never_installs_and_next_reply_uses_default_action(self):
+        install=Mock()
+        self.popup.show('MPlusLogs','Update ready',on_click=install)
+        self.popup.show('MPlusLogs','Reply ready')
+        self.popup._dismiss()
+        install.assert_not_called()
+        self.popup._activate()
+        self.activate.assert_called_once()
+        install.assert_not_called()
+
+    def test_repeated_update_does_not_install_or_duplicate(self):
+        install=Mock()
+        self.popup.show('MPlusLogs','Update ready',on_click=install)
+        window=self.popup.window
+        self.popup.show('MPlusLogs','Update ready',on_click=install)
+        self.assertIs(self.popup.window,window)
+        self.assertFalse(self.popup.pending)
+        self.popup.close()
+        install.assert_not_called()
+
     def test_repeated_notice_keeps_hovered_card_visible(self):
         self.popup.show('MPlusLogs','Reply ready')
         self.popup._enter()

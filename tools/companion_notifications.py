@@ -43,13 +43,14 @@ class PopupNotifications:
         self.timer=None
         self.pending=deque(maxlen=3)
         self.current=None
+        self.current_action=None
         self.status=None
         self.hovered=False
 
-    def show(self,title,text):
-        item=(title,text)
+    def show(self,title,text,on_click=None):
+        item=(title,text,on_click)
         if self.window is not None:
-            if item==self.current:self._schedule()
+            if item==(*self.current,self.current_action):self._schedule()
             elif item not in self.pending:self.pending.append(item)
             return
         try:
@@ -57,7 +58,8 @@ class PopupNotifications:
         except Exception:
             self.close()
             raise
-        self.current=item
+        self.current=(title,text)
+        self.current_action=on_click
         self.status={'backend':'companion','state':'shown','time':time.time()}
         self._schedule()
 
@@ -116,16 +118,18 @@ class PopupNotifications:
         self._cancel_timer()
         window,self.window=self.window,None
         self.current=None
+        self.current_action=None
         self.hovered=False
         if window is not None:window.destroy()
         self.status={'backend':'companion','state':'closed','time':time.time()}
         if self.pending:
-            title,text=self.pending.popleft()
-            self.show(title,text)
+            title,text,on_click=self.pending.popleft()
+            self.show(title,text,on_click=on_click)
 
     def _activate(self):
+        action=self.current_action or self.on_click
         self.close()
-        self.on_click()
+        action()
 
     def close(self):
         self.pending.clear()

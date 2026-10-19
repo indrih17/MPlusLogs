@@ -64,6 +64,10 @@ class App:
             self.config = local_settings.load()
         except (ValueError, OSError, KeyError, TypeError):
             self.status.set("Не удалось прочитать настройки. Войдите в Warcraft Logs заново.")
+        try:
+            self.config = local_settings.initialize_notifications(self.config)
+        except (ValueError,OSError):
+            self.config["notifications"] = True
         preference = self.config.get("language", "system")
         self.language = tk.StringVar(value=preference if preference == "system" or preference in i18n.LANGUAGES else "system")
         i18n.set_language(self.language.get())
@@ -133,6 +137,9 @@ class App:
         self.version_text = self.textvar("Local preview / not published" if self.preview else "Companion version: " + updates.current_version())
         ttk.Label(frame, textvariable=self.version_text, style="Muted.TLabel").pack(anchor="w", pady=(12, 0))
         self.update_status = self.textvar("")
+        self.update_check_state = "idle"
+        self.settings_update_text = self.textvar("Check Companion updates")
+        self.settings_update_button = None
         self.notification_test_status = self.textvar("")
         ttk.Label(frame, textvariable=self.update_status, wraplength=440).pack(anchor="w")
         self.update_button = ttk.Button(frame, textvariable=self.textvar("Install update and restart"), command=self.install_update)
@@ -162,29 +169,60 @@ class App:
         self.root.after(24 * 60 * 60 * 1000, self.scheduled_update_check)
 
     def check_updates(self, manual=False):
-        if getattr(self,"preview",False) and not updates.portable_build(): return
+        if getattr(self,"preview",False) and not updates.portable_build() and not manual: return
         if self.installing_update or (self.update_worker and self.update_worker.is_alive()):
             return
         if self.available_update and self.update_installer:
             self.update_status.set("Companion update is ready.")
+            self.set_update_check_state("ready")
             return
         if manual:
             self.update_status.set("Checking Companion updates…")
+        self.set_update_check_state("checking")
         def run():
             try:
                 data = updates.check()
                 if data:
                     if not manual and data["version"] == self.failed_update_version:
+                        self.messages.put(("update_check_idle", None))
                         return
                     self.messages.put(("update_downloading", None))
                     target = updates.download(data)
                     self.messages.put(("update_ready", (data, target)))
                 elif manual:
                     self.messages.put(("update_current", None))
+                else:
+                    self.messages.put(("update_check_idle", None))
             except (ValueError, OSError, KeyError, TypeError):
                 self.messages.put(("update_error", manual))
         self.update_worker = threading.Thread(target=run, daemon=True)
         self.update_worker.start()
+
+    def set_update_check_state(self,state):
+        self.update_check_state = state
+        labels = {"idle":"Check Companion updates", "checking":"Checking Companion updates…",
+                  "downloading":"Downloading Companion update…", "current":"No updates found",
+                  "ready":"Update available — install and restart", "installing":"Installing update…",
+                  "error":"Update check failed — retry"}
+        text = getattr(self,"settings_update_text",None)
+        if text is not None:
+            text.set(labels[state])
+        button = getattr(self,"settings_update_button",None)
+        if button is not None and button.winfo_exists():
+            button.configure(state="disabled" if state in {"checking","downloading","installing"} else "normal")
+
+    def settings_update_action(self):
+        if self.available_update and self.update_installer:
+            self.install_update()
+        else:
+            self.check_updates(manual=True)
+
+    def close_settings(self):
+        self.settings_window.destroy()
+        self.settings_window = None
+        self.settings_update_button = None
+        if self.update_check_state in {"current","error"}:
+            self.set_update_check_state("idle")
 
     def open_update_log(self):
         path = local_settings.PATH.parent / "update-install.log"
@@ -194,12 +232,18 @@ class App:
             messagebox.showerror("MPlusLogs", i18n.tr("No installation log is available yet."), parent=self.root)
 
     def install_update(self):
-        if not self.update_installer or self.installing_update:
+        if self.installing_update:
+            return
+        if not self.update_installer or not self.available_update:
+            self.show()
+            self.check_updates(manual=True)
             return
         if self.auth_worker and self.auth_worker.is_alive():
             self.update_status.set("Finish Warcraft Logs sign-in before updating.")
+            self.show()
             return
         self.installing_update = True
+        self.set_update_check_state("installing")
         self.update_button.configure(state="disabled")
         self.want_running = False
         self.stop.set()
@@ -216,7 +260,9 @@ class App:
             self.installing_update = False
             self.want_running = bool(self.session) or self.mode_diagnostic
             self.update_button.configure(state="normal")
+            self.set_update_check_state("ready")
             self.update_status.set("Could not start the update. Try again.")
+            self.show()
             return
         self.exit()
 
@@ -317,6 +363,9 @@ class App:
             self.settings_window.lift()
             return
         window = self.settings_window = tk.Toplevel(self.root)
+        window.protocol("WM_DELETE_WINDOW",self.close_settings)
+        if self.update_check_state in {"current","error"}:
+            self.set_update_check_state("idle")
         window.title(i18n.tr("Настройки MPlusLogs"))
         window.resizable(False, False)
         frame = ttk.Frame(window, padding=20)
@@ -360,7 +409,9 @@ class App:
         companion_actions = ttk.Frame(frame)
         companion_actions.pack(fill="x", pady=(12, 0))
         ttk.Label(companion_actions, text="Companion", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        ttk.Button(companion_actions, textvariable=self.textvar('Check Companion updates'), command=lambda: self.check_updates(manual=True)).pack(fill="x", pady=4)
+        self.settings_update_button = ttk.Button(companion_actions, textvariable=self.settings_update_text, command=self.settings_update_action)
+        self.settings_update_button.pack(fill="x", pady=4)
+        self.set_update_check_state(self.update_check_state)
         if self.failed_update_version:
             ttk.Button(companion_actions, textvariable=self.textvar('Open update installation log'), command=self.open_update_log).pack(fill="x", pady=4)
         ttk.Button(companion_actions, textvariable=self.textvar('Завершить помощник'), command=self.exit).pack(fill="x", pady=4)
@@ -368,10 +419,11 @@ class App:
         window.update_idletasks()
         self.refresh_theme(force=True)
 
-    def show_notification(self,title,text):
-        if not self.notifications.get():return False
+    def show_notification(self,title,text,*,required=False,on_click=None):
+        if not required and not self.notifications.get():return False
         try:
-            self.popup.show(title,text)
+            if on_click is None:self.popup.show(title,text)
+            else:self.popup.show(title,text,on_click=on_click)
             return True
         except (OSError,tk.TclError) as exc:
             self.notification_test_status.set('Не удалось показать уведомление: '+str(exc))
@@ -554,14 +606,22 @@ class App:
                 self.show()
             elif kind == "update_downloading":
                 self.update_status.set("Downloading Companion update…")
+                self.set_update_check_state("downloading")
             elif kind == "update_ready":
                 self.available_update, self.update_installer = value
                 self.update_status.set("Companion update is ready.")
+                self.set_update_check_state("ready")
                 self.update_button.pack(anchor="w", pady=(6, 0))
-                self.show_notification("MPlusLogs Companion " + value[0]["version"],i18n.tr("Companion update is ready."))
+                self.show_notification("MPlusLogs Companion " + value[0]["version"],
+                    i18n.tr("Companion update is ready. Click to install and restart."),
+                    required=True,on_click=self.install_update)
             elif kind == "update_current":
                 self.update_status.set("Companion is up to date.")
+                self.set_update_check_state("current")
+            elif kind == "update_check_idle":
+                self.set_update_check_state("idle")
             elif kind == "update_error":
+                self.set_update_check_state("error" if value else "idle")
                 if value:
                     self.update_status.set("Could not check updates. Try again later.")
             elif kind == "exit":
@@ -728,6 +788,15 @@ class App:
 
 
 def main():
+    if "--set-notifications" in sys.argv:
+        index=sys.argv.index("--set-notifications")
+        if index+1>=len(sys.argv) or sys.argv[index+1] not in {"on","off"}:
+            raise SystemExit(2)
+        try:
+            local_settings.set_notifications(sys.argv[index+1]=="on")
+        except (ValueError,OSError):
+            raise SystemExit(1)
+        return
     if "--self-test-report" in sys.argv:
         import release_smoke
         release_smoke.run(sys.argv[sys.argv.index("--self-test-report") + 1])

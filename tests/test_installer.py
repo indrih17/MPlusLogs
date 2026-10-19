@@ -21,6 +21,50 @@ def compiler():
 
 @unittest.skipUnless(sys.platform == "win32" and compiler(), "Requires Windows and Inno Setup compiler")
 class InstallerTests(unittest.TestCase):
+    def test_notification_checkbox_defaults_on_and_passes_explicit_choice(self):
+        compiler_cs=Path(os.environ['WINDIR'])/'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+        if not compiler_cs.is_file(): self.skipTest('Requires .NET Framework compiler')
+        with tempfile.TemporaryDirectory(prefix='MPlusLogs-notification-install-') as temporary:
+            base=Path(temporary)
+            payload=base/'MPlusLogs-Companion.exe'
+            code=base/'Fixture.cs'
+            code.write_text('class Fixture { static void Main(string[] args) { '
+                            'System.IO.File.WriteAllText(System.IO.Path.Combine('
+                            'System.AppDomain.CurrentDomain.BaseDirectory,"notification-choice.txt"),'
+                            'string.Join(" ",args)); } }')
+            subprocess.run([str(compiler_cs),'/nologo','/target:winexe','/out:'+str(payload),str(code)],
+                           check=True,capture_output=True)
+            source=(ROOT/'packaging/companion.iss').read_text(encoding='utf-8')
+            replacements={'AppId':'MPlusLogs-Notification-Test-'+uuid.uuid4().hex,
+                          'OutputDir':str(base),'OutputBaseFilename':'TestSetup'}
+            for name,value in replacements.items():
+                source=re.sub(r'^'+name+r'=.*$',lambda m:name+'='+value,source,flags=re.M)
+            source=source.replace('[Setup]','[Setup]\nUninstallable=no\nCreateUninstallRegKey=no\nUsePreviousTasks=no',1)
+            source=re.sub(r'^SetupIconFile=.*\n','',source,flags=re.M)
+            source=re.sub(r'\[Files\].*?\[Code\]',lambda m:'[Files]\nSource: "'+str(payload)+'"; DestDir: "{app}"\n[Code]',source,flags=re.S)
+            # Exercise the real task selection and save code without displaying a wizard.
+            # UPDATECOMPANION skips production postinstall actions; the test event calls only
+            # the notification action against the isolated executable above.
+            source += '''
+<event('CurStepChanged')>
+procedure VerifyNotificationChoice(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then ApplyNotificationChoice;
+end;
+'''
+            script=base/'fixture.iss';script.write_text(source,encoding='utf-8')
+            compiled=subprocess.run([compiler(),'/Q',str(script)],capture_output=True,text=True,timeout=60)
+            self.assertEqual(compiled.returncode,0,compiled.stdout+compiled.stderr)
+            for name,tasks,expected in [('default',None,'on'),('disabled','desktopicon','off'),('enabled','notifications','on')]:
+                with self.subTest(choice=name):
+                    destination=base/name
+                    args=[str(base/'TestSetup.exe'),'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',
+                          '/UPDATECOMPANION=1','/DIR='+str(destination)]
+                    if tasks is not None: args.append('/TASKS='+tasks)
+                    result=subprocess.run(args,capture_output=True,timeout=30)
+                    self.assertEqual(result.returncode,0)
+                    self.assertEqual((destination/'notification-choice.txt').read_text(),'--set-notifications '+expected)
+
     def test_upgrade_closes_background_process_holding_companion_executable(self):
         compiler_cs=Path(os.environ['WINDIR'])/'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
         if not compiler_cs.is_file(): self.skipTest('Requires .NET Framework compiler')
