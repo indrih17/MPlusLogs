@@ -71,7 +71,7 @@
   "Player": "Player",
   "Preparing reply…": "Antwort wird vorbereitet…",
   "Preparing request…": "Anfrage wird vorbereitet…",
-  "Public Client must be enabled. Copy the complete redirect address without changing it.": "Public Client aktivieren. Die vollständige Weiterleitungsadresse unverändert kopieren.",
+  "Copy the complete redirect address without changing it.\nPUBLIC CLIENT MUST BE ENABLED.": "Die vollständige Weiterleitungsadresse unverändert kopieren.\nPUBLIC CLIENT AKTIVIEREN.",
   "Read {lines} new lines; {remaining} bytes pending.": "Read {lines} new lines; {remaining} bytes pending.",
   "Region": "Region",
   "Requests use your configured WCL client. WCL determines its available quota.": "Anfragen verwenden deinen WCL-Client. WCL legt das Kontingent fest.",

@@ -138,10 +138,17 @@ class PersonalSetupTests(unittest.TestCase):
             bg=style.lookup('TEntry','fieldbackground',('readonly',))
             a,b=sorted((luminance(fg),luminance(bg)))
             self.assertGreaterEqual((b+.05)/(a+.05),4.5)
-        wizard.scroll_state('0','1')
-        self.assertEqual(wizard.scrollbar.winfo_manager(),'')
-        wizard.scroll_state('0','.5')
-        self.assertEqual(wizard.scrollbar.winfo_manager(),'pack')
+        self.root.deiconify()
+        wizard.window.update()
+        for language in ('enUS', 'ruRU'):
+            with patch.object(self.app, 'save_preferences'):
+                self.app.language.set(language); self.app.change_language()
+            for step in range(3):
+                wizard.show(step)
+                wizard.window.update()
+                with self.subTest(language=language, step=step):
+                    self.assertGreaterEqual(wizard.canvas.winfo_height(), wizard.content.winfo_reqheight())
+                    self.assertFalse(any(isinstance(child, ttk.Scrollbar) for child in wizard.canvas.master.winfo_children()))
 
     def test_existing_shared_login_can_open_all_steps_and_copy_exact_callback(self):
         self.assertEqual(self.app.api_title.get(),'Shared API connected')

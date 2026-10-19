@@ -71,7 +71,7 @@
   "Player": "Игрок",
   "Preparing reply…": "Подготавливаю ответ…",
   "Preparing request…": "Подготавливаю запрос…",
-  "Public Client must be enabled. Copy the complete redirect address without changing it.": "Обязательно включите Public Client. Скопируйте адрес Redirect URIs целиком, без изменений.",
+  "Copy the complete redirect address without changing it.\nPUBLIC CLIENT MUST BE ENABLED.": "Скопируйте адрес Redirect URIs целиком, без изменений.\nЧЕКБОКС PUBLIC CLIENT ДОЛЖЕН БЫТЬ ВКЛЮЧЁН.",
   "Read {lines} new lines; {remaining} bytes pending.": "Прочитано новых строк: {lines}; осталось байт: {remaining}.",
   "Region": "Регион",
   "Requests use your configured WCL client. WCL determines its available quota.": "Запросы идут через ваш API-клиент WCL. Доступный лимит определяет Warcraft Logs.",

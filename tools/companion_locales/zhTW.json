@@ -71,7 +71,7 @@
   "Player": "Player",
   "Preparing reply…": "正在準備回覆…",
   "Preparing request…": "正在準備請求…",
-  "Public Client must be enabled. Copy the complete redirect address without changing it.": "必須啟用 Public Client。完整複製回呼位址，不要修改。",
+  "Copy the complete redirect address without changing it.\nPUBLIC CLIENT MUST BE ENABLED.": "完整複製回呼位址，不要修改。\n必須啟用 PUBLIC CLIENT。",
   "Read {lines} new lines; {remaining} bytes pending.": "Read {lines} new lines; {remaining} bytes pending.",
   "Region": "Region",
   "Requests use your configured WCL client. WCL determines its available quota.": "請求使用你設定的 WCL 用戶端，配額由 WCL 決定。",

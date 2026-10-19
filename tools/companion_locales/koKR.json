@@ -71,7 +71,7 @@
   "Player": "Player",
   "Preparing reply…": "응답 준비 중…",
   "Preparing request…": "요청 준비 중…",
-  "Public Client must be enabled. Copy the complete redirect address without changing it.": "Public Client를 활성화하세요. 리디렉션 주소 전체를 변경 없이 복사하세요.",
+  "Copy the complete redirect address without changing it.\nPUBLIC CLIENT MUST BE ENABLED.": "리디렉션 주소 전체를 변경 없이 복사하세요.\nPUBLIC CLIENT를 활성화하세요.",
   "Read {lines} new lines; {remaining} bytes pending.": "Read {lines} new lines; {remaining} bytes pending.",
   "Region": "Region",
   "Requests use your configured WCL client. WCL determines its available quota.": "요청은 본인의 WCL 클라이언트를 사용합니다. 할당량은 WCL에서 정합니다.",

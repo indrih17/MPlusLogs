@@ -43,8 +43,7 @@ def run(report_path):
         assert logo.width() == 256
         import personal_api
         assert personal_api.validate_client_id("smoke-personal-client")
-        for name in ("personal-api-form.png", "personal-api-id.png"):
-            guide = tk.PhotoImage(file=str(Path(__file__).with_name("assets") / name))
+        for guide in personal_api.load_guide_images(root).values():
             assert guide.width() == 680
         instance = windows.SingleInstance(namespace="PackagingSmoke", notify=False)
         try:

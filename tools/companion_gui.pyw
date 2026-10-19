@@ -105,12 +105,8 @@ class App:
         buttons = ttk.Frame(frame)
         buttons.pack(anchor="w", pady=16)
         self.login_text = self.textvar('Войти через Warcraft Logs')
-        self.login_button = ttk.Button(buttons, textvariable=self.login_text, command=self.sign_in)
-        self.login_button.pack(side="left")
         self.settings_button = ttk.Button(buttons, textvariable=self.textvar('Настройки'), command=self.settings)
-        self.settings_button.pack(side="left", padx=(8, 0))
-        if self.session:
-            self.login_button.pack_forget()
+        self.settings_button.pack(side="left")
         self.api_banner = ttk.Frame(frame)
         self.api_banner.pack(fill="x", before=buttons, pady=(16, 0))
         self.api_title = self.textvar("")
@@ -119,8 +115,13 @@ class App:
         ttk.Label(self.api_banner, textvariable=self.api_title, font=("Segoe UI", 11, "bold")).pack(anchor="w")
         ttk.Label(self.api_banner, textvariable=self.api_description, wraplength=440).pack(anchor="w", fill="x", pady=(4, 8))
         self.personal_button_text = self.textvar("")
-        self.personal_button = ttk.Button(self.api_banner, textvariable=self.personal_button_text, command=self.show_personal_setup)
-        self.personal_button.pack(anchor="w")
+        api_buttons = ttk.Frame(self.api_banner)
+        api_buttons.pack(anchor="w")
+        self.personal_button = ttk.Button(api_buttons, textvariable=self.personal_button_text, command=self.show_personal_setup)
+        self.personal_button.pack(side="left")
+        self.login_button = ttk.Button(api_buttons, textvariable=self.login_text, command=self.sign_in)
+        if not self.session:
+            self.login_button.pack(side="left", padx=(8, 0))
         ttk.Label(self.api_banner, textvariable=self.api_quota, wraplength=440, style="Muted.TLabel").pack(anchor="w", pady=(8, 0))
         self.refresh_api_display()
         self.copy_button = ttk.Button(frame, textvariable=self.textvar('Скопировать последний ответ'), command=self.copy)
@@ -301,7 +302,7 @@ class App:
         self.account.set("Warcraft Logs не подключён")
         self.status.set("Вы вышли. Сохранённые токены удалены с этого компьютера.")
         self.login_button.configure(state="normal")
-        self.login_button.pack(side="left", before=self.settings_button)
+        self.login_button.pack(side="left", padx=(8, 0))
         self.refresh_api_display()
 
     def settings(self):

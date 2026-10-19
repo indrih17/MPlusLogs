@@ -7,12 +7,24 @@ import tkinter as tk
 from tkinter import ttk
 import webbrowser
 
+from PIL import Image, ImageTk
+
 import companion_i18n as i18n
 import wcl_oauth
 
 CLIENTS_URL = "https://www.warcraftlogs.com/api/clients"
 CLIENT_NAME = "MPlusLogs Companion"
 EXAMPLE_ID = "12345678-abcd-4ef0-9876-123456789abc"
+
+
+def load_guide_images(master):
+    images = {}
+    for name in ("personal-api-clients.png", "personal-api-form.png", "personal-api-id.png"):
+        with Image.open(Path(__file__).with_name("assets") / name) as source:
+            height = round(source.height * 680 / source.width)
+            images[name] = ImageTk.PhotoImage(
+                source.resize((680, height), Image.Resampling.LANCZOS), master=master)
+    return images
 
 
 def budget_path(root, mode, client_id):
@@ -46,15 +58,14 @@ class Wizard:
         self.owner = owner
         self.window = tk.Toplevel(owner.root)
         self.window.title(i18n.tr("Personal API setup"))
-        self.window.geometry("780x660")
+        self.window.geometry("780x820")
         self.window.minsize(740, 480)
         self.window.transient(owner.root)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.step = 0
         self.pending = False
         self.client_id = tk.StringVar(value=owner.config.get("personal_client_id", ""))
-        self.images = {name: tk.PhotoImage(file=str(Path(__file__).with_name("assets") / name))
-                       for name in ("personal-api-form.png", "personal-api-id.png")}
+        self.images = load_guide_images(self.window)
         outer = ttk.Frame(self.window, padding=20)
         outer.pack(fill="both", expand=True)
         self.progress = owner.textvar("")
@@ -70,26 +81,27 @@ class Wizard:
         self.next = ttk.Button(nav, textvariable=self.next_text, command=self.advance)
         self.next.pack(side="right")
         self.status = owner.textvar("")
-        ttk.Label(outer, textvariable=self.status, wraplength=700).pack(side="bottom", anchor="w", fill="x", pady=(8, 0))
+        status_label = ttk.Label(outer, textvariable=self.status, wraplength=700)
+        status_label.pack(side="bottom", anchor="w", fill="x", pady=(8, 0))
+        status_label.bind("<Configure>", lambda _: self.fit_content())
         viewport = ttk.Frame(outer)
         viewport.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(viewport, highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(viewport, orient="vertical", command=self.canvas.yview)
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.configure(yscrollcommand=self.scroll_state)
         self.content = ttk.Frame(self.canvas)
         self.content_id = self.canvas.create_window(0, 0, anchor="nw", window=self.content)
-        self.content.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.content.bind("<Configure>", lambda _: self.fit_content())
         self.canvas.bind("<Configure>", lambda event: self.canvas.itemconfigure(self.content_id, width=event.width))
-        self.canvas.bind("<MouseWheel>", lambda event: self.canvas.yview_scroll(-int(event.delta / 120), "units"))
         self.show(0)
 
-    def scroll_state(self, first, last):
-        self.scrollbar.set(first, last)
-        if float(first) <= 0 and float(last) >= 1:
-            self.scrollbar.pack_forget()
-        elif not self.scrollbar.winfo_manager():
-            self.scrollbar.pack(side="right", fill="y", before=self.canvas)
+    def fit_content(self):
+        if self.canvas.winfo_height() <= 1:
+            return
+        overhead = self.window.winfo_height() - self.canvas.winfo_height()
+        height = max(480, overhead + self.content.winfo_reqheight() + 4)
+        self.window.minsize(740, height)
+        if self.window.winfo_height() < height:
+            self.window.geometry(f"{self.window.winfo_width()}x{height}")
 
     def label(self, text, **options):
         label = ttk.Label(self.content, textvariable=self.owner.textvar(text), wraplength=680, **options)
@@ -139,17 +151,30 @@ class Wizard:
         if self.step == 0:
             ttk.Button(self.content, textvariable=self.owner.textvar("Open WCL client page"), command=self.open_wcl).pack(anchor="w", pady=(4, 16))
             self.field("WCL", CLIENTS_URL)
+            ttk.Label(self.content, image=self.images["personal-api-clients.png"]).pack(anchor="center", pady=(0, 8))
             self.label("If WCL asks you to sign in, sign in on its website and return to the client page.")
             self.label("Your client is created in your own WCL account. WCL determines its available quota.")
             ttk.Button(self.content, textvariable=self.owner.textvar("I already have a Client ID"), command=lambda: self.show(2)).pack(anchor="w", pady=12)
         elif self.step == 1:
-            ttk.Label(self.content, image=self.images["personal-api-form.png"]).pack(anchor="center", pady=(0, 8))
+            image = self.images["personal-api-form.png"]
+            preview = tk.Canvas(self.content, width=image.width(), height=image.height(), highlightthickness=0)
+            preview.pack(anchor="center", pady=(0, 8))
+            preview.create_image(0, 0, anchor="nw", image=image)
+            # Bounds in the original WCL screenshot; keep the fields unobscured.
+            scale = image.width() / 1082
+            for bounds in ((276, 184, 594, 218), (428, 286, 746, 319), (193, 375, 217, 398)):
+                preview.create_rectangle(*(coordinate * scale for coordinate in bounds), outline="#ff3030", width=2)
             self.label("Illustrated example, not a screenshot of your account.", style="Muted.TLabel")
             self.field("Name", CLIENT_NAME)
             self.field("Redirect URIs", wcl_oauth.REDIRECT_URI)
-            self.label("Public Client must be enabled. Copy the complete redirect address without changing it.")
+            self.label("Copy the complete redirect address without changing it.\nPUBLIC CLIENT MUST BE ENABLED.")
         else:
-            ttk.Label(self.content, image=self.images["personal-api-id.png"]).pack(anchor="center", pady=(0, 8))
+            image = self.images["personal-api-id.png"]
+            preview = tk.Canvas(self.content, width=image.width(), height=image.height(), highlightthickness=0)
+            preview.pack(anchor="center", pady=(0, 8))
+            preview.create_image(0, 0, anchor="nw", image=image)
+            scale = image.width() / 1143
+            preview.create_rectangle(*(coordinate * scale for coordinate in (328, 504, 728, 530)), outline="#ff3030", width=2)
             self.label("The pictured ID is only an example. Use the ID created in your account.", style="Muted.TLabel")
             ttk.Label(self.content, text="Client ID").pack(anchor="w", pady=(6, 4))
             row = ttk.Frame(self.content)
