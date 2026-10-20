@@ -66,12 +66,25 @@ class ArchiveTests(unittest.TestCase):
                 for locale in ('deDE','esES','esMX','frFR','itIT','koKR','ptBR','zhCN','zhTW'):
                     name=f'Locales/Tutorial/{locale}.lua'
                     source=(ROOT/name).read_text(encoding='utf-8')
-                    self.assertEqual(z.read('MPlusLogs/'+name).decode('utf-8'),source)
+                    self.assertEqual(z.read('MPlusLogs/'+name),(ROOT/name).read_bytes())
                     self.assertEqual(entries[name]['content'],source)
                 self.assertIn('MPlusLogs/assets/mpluslogs-icon.tga',z.namelist())
                 toc=z.read('MPlusLogs/MPlusLogs.toc').decode('utf-8')
                 self.assertIn(r'## IconTexture: Interface\AddOns\MPlusLogs\assets\mpluslogs-icon.tga',toc)
                 self.assertNotIn('MPlusLogs/.git/config',z.namelist())
+
+    def test_windows_line_endings_are_preserved_in_archive_and_normalized_in_export(self):
+        with tempfile.TemporaryDirectory(prefix='mpluslogs-crlf-') as folder:
+            root=Path(folder)
+            translation=self.make_source_fixture(root)
+            windows=translation.replace('\n','\r\n').encode('utf-8')
+            (root/'Locales/Tutorial/deDE.lua').write_bytes(windows)
+            build_release.addon(root,'test',source_root=root)
+            with zipfile.ZipFile(root/'MPlusLogs-test.zip') as archive:
+                self.assertEqual(archive.read('MPlusLogs/Locales/Tutorial/deDE.lua'),windows)
+            with patch.object(export_release_source,'ROOT',root):
+                entries={entry['path']:entry for entry in export_release_source.entries()}
+            self.assertEqual(entries['Locales/Tutorial/deDE.lua']['content'],translation)
 
     def test_builder_rejects_hidden_git_file_even_if_added_to_toc(self):
         with tempfile.TemporaryDirectory(prefix='mpluslogs-zip-') as folder:
