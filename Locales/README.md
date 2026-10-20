@@ -9,6 +9,12 @@ entry in another locale retains its English translation.
 strings and must remain unchanged. Each locale JSON maps these keys to text.
 Generated Lua files are loaded by the TOC before the addon code.
 
+The nine-step tutorial has separate authored translations in `Tutorial/*.lua`,
+with Russian and English in `../TutorialSteps.lua`. It supports the same client
+locales. Tutorial translations are loaded after `TutorialSteps.lua` and are not
+generated from `catalog.json`; `tools/localize_addon.py apply` leaves them intact.
+See `../docs/tutorial.md` for the guide's translation and validation workflow.
+
 To contribute:
 
 1. Edit values in your locale's JSON file; do not change the keys.

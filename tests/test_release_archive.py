@@ -9,9 +9,48 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
 import build_release
+import export_release_source
 from upload_curseforge import validate_archive
 
 class ArchiveTests(unittest.TestCase):
+    def make_source_fixture(self, root):
+        for name in ('Settings.xml', 'LICENSE', 'CODE-SIGNING.md', '.gitignore',
+                     'realm-slugs.json', 'Start-Companion.vbs', 'AGENTS.md', 'CHANGELOG.md',
+                     'packaging/ADDON-README.txt', 'packaging/README-public.md',
+                     'assets/dungeons/README.md', 'experiments/wcl-points-and-damage.json'):
+            path=root/name
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_text('Fixture public source\n',encoding='utf-8')
+        (root/'MPlusLogs.toc').write_text('Main.lua\nLocales/Tutorial/deDE.lua\n',encoding='utf-8')
+        (root/'Main.lua').write_text('local _, MPL = ...\n',encoding='utf-8')
+        (root/'assets/mpluslogs-icon.tga').write_bytes(b'fixture icon')
+        tutorial=root/'Locales/Tutorial'
+        tutorial.mkdir(parents=True)
+        translation='local _, MPL = ...\nMPL.RegisterTutorialLocale("deDE", {title="Anleitung"})\n'
+        (tutorial/'deDE.lua').write_text(translation,encoding='utf-8',newline='\n')
+        for name in ('tokens.json', 'private.txt', 'unsupported.lua', '.private.lua'):
+            (tutorial/name).write_text('Excluded private fixture',encoding='utf-8')
+        (tutorial/'nested').mkdir()
+        (tutorial/'nested/esES.lua').write_text(translation,encoding='utf-8')
+        return translation
+
+    def test_only_supported_tutorial_translations_are_allowlisted(self):
+        with tempfile.TemporaryDirectory(prefix='mpluslogs-tutorial-locales-') as folder:
+            root=Path(folder)
+            translation=self.make_source_fixture(root)
+            build_release.addon(root,'test',source_root=root)
+            with zipfile.ZipFile(root/'MPlusLogs-test.zip') as archive:
+                tutorial_names={name for name in archive.namelist() if '/Locales/Tutorial/' in name}
+                self.assertEqual(tutorial_names,{'MPlusLogs/Locales/Tutorial/deDE.lua'})
+                self.assertEqual(archive.read('MPlusLogs/Locales/Tutorial/deDE.lua').decode('utf-8'),translation)
+            with patch.object(export_release_source,'ROOT',root):
+                entries={entry['path']:entry for entry in export_release_source.entries()}
+            tutorial_names={name for name in entries if name.startswith('Locales/Tutorial/')}
+            self.assertEqual(tutorial_names,{'Locales/Tutorial/deDE.lua'})
+            entry=entries['Locales/Tutorial/deDE.lua']
+            self.assertEqual(entry['encoding'],'utf-8')
+            self.assertEqual(entry['content'],translation)
+
     def test_real_addon_archive_excludes_development_files(self):
         with tempfile.TemporaryDirectory(prefix='mpluslogs-zip-') as folder:
             output=Path(folder)
@@ -20,6 +59,15 @@ class ArchiveTests(unittest.TestCase):
             validate_archive(archive)
             with zipfile.ZipFile(archive) as z:
                 self.assertIn('MPlusLogs/Settings.lua',z.namelist())
+                self.assertIn('MPlusLogs/Tutorial.lua',z.namelist())
+                self.assertIn('MPlusLogs/TutorialSteps.lua',z.namelist())
+                self.assertIn('MPlusLogs/TutorialProfile.lua',z.namelist())
+                entries={entry['path']:entry for entry in export_release_source.entries()}
+                for locale in ('deDE','esES','esMX','frFR','itIT','koKR','ptBR','zhCN','zhTW'):
+                    name=f'Locales/Tutorial/{locale}.lua'
+                    source=(ROOT/name).read_text(encoding='utf-8')
+                    self.assertEqual(z.read('MPlusLogs/'+name).decode('utf-8'),source)
+                    self.assertEqual(entries[name]['content'],source)
                 self.assertIn('MPlusLogs/assets/mpluslogs-icon.tga',z.namelist())
                 toc=z.read('MPlusLogs/MPlusLogs.toc').decode('utf-8')
                 self.assertIn(r'## IconTexture: Interface\AddOns\MPlusLogs\assets\mpluslogs-icon.tga',toc)

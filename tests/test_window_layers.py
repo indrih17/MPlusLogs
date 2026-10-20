@@ -47,7 +47,6 @@ class WindowLayerTests(unittest.TestCase):
             (lambda:self.mpl.ShowDownload('Alice','Area 52',None),'downloadWindow'),
             (self.mpl.ShowCompanionDownload,'copy'),
             (self.mpl.ShowCompanionUpdates,'companionUpdateWindow'),
-            (lambda:self.mpl.ShowCompanionIntro(None),'companionIntroWindow'),
             (lambda:self.mpl.ShowStaleNotice('Киндрих','Гордунни',self.mpl.panel.profile,'16.10.2026'),'staleWindow'),
             (self.mpl.ShowRequests,'requestsWindow'),
             (self.mpl.ShowImport,'importWindow'),

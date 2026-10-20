@@ -1,4 +1,15 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="MPlusLogsTutorialLinkTemplate" mixin="MPlusLogsTutorialLinkMixin" virtual="true">
+        <Size y="46"/>
+        <Frames>
+            <Button parentKey="Button" inherits="UIPanelButtonTemplate">
+                <Size x="300" y="28"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="37" y="-8"/>
+                </Anchors>
+            </Button>
+        </Frames>
+    </Frame>
     <Frame name="MPlusLogsPercentileDescriptionTemplate" mixin="MPlusLogsPercentileDescriptionMixin" virtual="true">
         <Size y="42"/>
         <Layers>

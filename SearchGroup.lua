@@ -338,6 +338,9 @@ function MPL.ReceiveSearchGroupReply(text)
     if id~=f.requestID then return nil,L["Это ответ на другой запрос"] end
     if kind=="MPLE1" then
         local message=dec(body)
+        if message=="" then return nil,L["Invalid group search reply"] end
+        MPlusLogsDB=MPlusLogsDB or {}
+        MPlusLogsDB.companionReplySeen=true
         return nil,message:match("^MPLERR1 ") and message or MPL.T(message)
     end
     if kind~="MPLS1" then return nil,L["Invalid group search reply"] end

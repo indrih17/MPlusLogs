@@ -1,6 +1,15 @@
 local _, MPL = ...
 local L = MPL.L
 
+MPlusLogsTutorialLinkMixin={}
+function MPlusLogsTutorialLinkMixin:Init()
+    self.Button:SetText(MPL.GetTutorialCopy().openGuide)
+    self.Button:SetScript("OnClick",function() MPL.ShowTutorialFromSettings() end)
+end
+function MPlusLogsTutorialLinkMixin:Release()
+    self.Button:SetScript("OnClick",nil)
+end
+
 local percentileDescriptions={
     best=L["Best avg — среднее лучших процентилей по подземельям. Процентиль показывает результат относительно других игроков той же специализации и уровня ключа."],
     median=L["Median — среднее медианных процентилей по подземельям. Медиана отражает типичный результат, а не лучший забег."],
@@ -27,6 +36,7 @@ function MPL.RefreshSettingsDisplays()
     if not MPL.GetOption("stalePopup") and MPL.staleWindow then MPL.staleWindow:Hide() end
     local f=MPL.panel
     if f and f.settingsButton then f.settingsButton:SetShown(not MPL.GetOption("hideLogSettings")) end
+    if MPL.RefreshTutorialDisplays then MPL.RefreshTutorialDisplays() end
     if f and f:IsShown() then
         local sent=f.inviteSent
         MPL.ShowProfile(f.name,f.realm,f.applicant,true)
@@ -76,6 +86,10 @@ function MPL.RegisterSettings()
         L["Показывать логи M+ в заявках и поиске групп для арен и полей боя."])
     Settings.CreateCheckbox(category,setting("showInOtherGroups",Settings.VarType.Boolean,L["Показывать логи М+ в других группах"],false),
         L["Все остальные группы: мировые боссы, обычные подземелья, вылазки и произвольные сборы."])
+    local tutorial=MPL.GetTutorialCopy()
+    Settings.CreateCheckbox(category,setting("hideTutorial",Settings.VarType.Boolean,tutorial.hideHelp,false),
+        tutorial.hideHelpDescription)
+    layout:AddInitializer(Settings.CreateElementInitializer("MPlusLogsTutorialLinkTemplate",{}))
     Settings.RegisterAddOnCategory(category)
     MPL.settingsCategory=category
 end

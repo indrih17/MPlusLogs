@@ -23,26 +23,31 @@ only after the combined result has been validated.
 
 # MPlusLogs release workflow
 
-Ask for explicit user confirmation before each push or publication to
-`indrih17/MPlusLogs` and CurseForge project `1740700`, including the Companion.
-The user revoked the previous standing authorization to publish automatically.
-Approval applies only to the presented changes, not to future releases.
+Push or publish only when the user explicitly requests it. After completing
+changes, report the result and wait for the user to initiate publication;
+do not ask whether to push or publish after each task. A publication request
+authorizes the presented changes only, not future releases.
 
 After finishing a functional change, validate it, inspect the diff, summarize
-the completed changes and checks, and ask whether to push and publish them.
-Wait for confirmation before running the publisher: its push triggers releases.
-After approval, run `tools/publish_changes.py --summary` with
+the completed changes and checks. Wait for the user's publication request
+before running the publisher: its push triggers releases.
+When publication is requested, run `tools/publish_changes.py --summary` with
 a concise English description of the actual behavior change. Repeat --summary
 for multiple changelog bullets. Use `.build-venv/Scripts/python.exe` locally.
 The publisher runs all tests, raises the patch version, snapshots allowlisted
-sources, commits and pushes. GitHub Actions builds and publishes both platforms.
+sources, commits and pushes. GitHub Actions builds and publishes the addon and Companion.
+Every addon release must reach GitHub, CurseForge project `1740700` and Wago
+project `qKQgAENx` for `indrih17/MPlusLogs`. Verify both addon upload receipts
+(`curseforge-upload.json` and `wago-upload.json`) before reporting completion;
+a skipped or failed destination leaves the release incomplete.
 Do not publish while another chat is editing the same files. Inspect the diff
 and the GitHub Actions result. Fix failed checks before claiming publication.
 CurseForge moderation is a separate step.
 
 Never publish tokens, secrets, settings, cache, local results, backups or build
 environments. Use `tools/export_release_source.py`'s allowlist. The upload
-credential is only in GitHub Actions secret `CF_API_TOKEN`; never print it.
+credentials are only in GitHub Actions secrets `CF_API_TOKEN` and
+`WAGO_API_TOKEN`; never print them.
 
 The publishing checkout is `%LOCALAPPDATA%/MPlusLogsDevelopment/build-tools/repository`.
 The publisher state and source snapshots are alongside it. An override can be

@@ -1,9 +1,13 @@
 """Wago requests use only the validated addon archive and reviewed release notes."""
 import io
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import MagicMock, patch
 import zipfile
@@ -16,6 +20,47 @@ TOC = '## Interface: 120007, 120100, 120105\n## Version: 0.5.29\n## X-Wago-ID: q
 
 
 class WagoTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell is required for the release workflow guard')
+    def test_workflow_requires_wago_upload_or_an_existing_receipt(self):
+        workflow = (ROOT / '.github/workflows/release.yml').read_text(encoding='utf-8')
+        step = workflow.split('- name: Verify Wago publication credential', 1)[1]
+        guard = textwrap.dedent(step.split('run: |', 1)[1].split('      - name:', 1)[0])
+        mocks = '''
+            function python {
+                $global:LASTEXITCODE = [int]$env:MPL_TEST_VERSION_EXIT
+                if ($global:LASTEXITCODE -eq 0) { '0.5.29' }
+            }
+            function gh {
+                if ($args[2] -ne 'v0.5.29') { throw 'Unexpected addon tag' }
+                $global:LASTEXITCODE = [int]$env:MPL_TEST_RELEASE_EXIT
+                $env:MPL_TEST_ASSETS
+            }
+        '''
+        cases = (
+            ('configured', 'fixture-only', 0, 0, [], True, 'configured=true'),
+            ('new addon without credential', '', 0, 1, [], False, 'Missing WAGO_API_TOKEN'),
+            ('CurseForge only', '', 0, 0, ['curseforge-upload.json'], False, 'Missing WAGO_API_TOKEN'),
+            ('already on Wago', '', 0, 0, ['wago-upload.json'], True, 'configured=false'),
+            ('version failure', '', 1, 0, ['wago-upload.json'], False, 'Addon version inspection failed'),
+        )
+        with tempfile.TemporaryDirectory(dir=ROOT, prefix='.test-wago-guard-') as folder:
+            output = Path(folder) / 'outputs.txt'
+            for name, token, version_exit, release_exit, assets, succeeds, expected in cases:
+                with self.subTest(name=name):
+                    output.unlink(missing_ok=True)
+                    env = dict(os.environ, WAGO_API_TOKEN=token, GITHUB_OUTPUT=str(output),
+                               MPL_TEST_VERSION_EXIT=str(version_exit),
+                               MPL_TEST_RELEASE_EXIT=str(release_exit),
+                               MPL_TEST_ASSETS=json.dumps({'assets': [{'name': asset} for asset in assets]}))
+                    result = subprocess.run(
+                        [shutil.which('pwsh'), '-NoProfile', '-NonInteractive', '-Command', mocks + guard],
+                        env=env, capture_output=True, text=True, encoding='utf-8', errors='replace')
+                    self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+                    if succeeds:
+                        self.assertIn(expected, output.read_text(encoding='utf-8-sig'))
+                    else:
+                        self.assertIn(expected, result.stderr)
+
     def response(self, status):
         response = MagicMock()
         response.__enter__.return_value.status = status

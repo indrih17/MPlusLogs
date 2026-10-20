@@ -13,6 +13,7 @@ class SettingsTests(unittest.TestCase):
 
     def install(self):
         root=test_batch.ROOT
+        self.lua.execute('return assert(loadstring(...))',(root/'TutorialSteps.lua').read_text(encoding='utf-8'))('MPlusLogs',self.mpl)
         self.lua.execute('return assert(loadstring(...))',(root/'Settings.lua').read_text(encoding='utf-8'))('MPlusLogs',self.mpl)
 
     def mock_settings(self):
@@ -46,10 +47,13 @@ class SettingsTests(unittest.TestCase):
     def test_native_category_and_saved_settings(self):
         self.install(); self.mock_settings(); self.mpl.RegisterSettings(); self.mpl.RegisterSettings()
         settings=self.lua.globals().Settings
-        self.assertEqual(len(settings.controls),10)
+        self.assertEqual(len(settings.controls),11)
         self.assertEqual(self.lua.globals().registeredCategory,'MPlusLogs')
         values=settings['values']
         self.assertIsNone(values.MPLUSLOGS_showInMythicPlus)
+        self.assertEqual(settings.layout[len(settings.layout)].template,'MPlusLogsTutorialLinkTemplate')
+        self.assertEqual(settings.layout[len(settings.layout)-1].key,'MPLUSLOGS_hideTutorial')
+        self.assertFalse(values.MPLUSLOGS_hideTutorial['get']())
         self.assertEqual(settings.layout[3].template,'MPlusLogsPercentileDescriptionTemplate')
         self.assertEqual(settings.layout[9].section,'Где ещё показывать логи М+')
         for index,(key,name) in enumerate([

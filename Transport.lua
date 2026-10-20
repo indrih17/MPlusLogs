@@ -45,7 +45,10 @@ function MPL.CompanionHasHistory()
 end
 
 function MPL.NeedsCompanionIntro()
-    return not MPL.CompanionHasHistory() and not (MPlusLogsDB and MPlusLogsDB.companionIntroDismissed)
+    -- Saved acknowledgement and confirmed exchange are independent. Legacy WCL
+    -- profiles suppress setup help without claiming a current connection.
+    return not MPL.GetOption("hideTutorial") and not MPL.CompanionHasHistory()
+        and not (MPlusLogsDB and MPlusLogsDB.companionIntroDismissed)
 end
 
 local function companionReplied()

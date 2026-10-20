@@ -28,12 +28,20 @@ jobs:
         shell: pwsh
         env:
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          $ErrorActionPreference = 'Stop'
           if ($env:WAGO_API_TOKEN) {
             'configured=true' >> $env:GITHUB_OUTPUT
           } else {
+            # Companion-only releases may proceed if this addon already reached Wago.
+            $addonVersion = python -c "import sys; sys.path.insert(0,'tools'); import addon_version; print(addon_version.version())"
+            if ($LASTEXITCODE -ne 0) { throw 'Addon version inspection failed' }
+            $existingAddon = gh release view "v$addonVersion" --json assets 2>$null
+            if ($LASTEXITCODE -ne 0 -or 'wago-upload.json' -notin ($existingAddon | ConvertFrom-Json).assets.name) {
+              throw 'Missing WAGO_API_TOKEN: addon publication requires both CurseForge and Wago. Configure the GitHub Actions secret before publishing.'
+            }
             'configured=false' >> $env:GITHUB_OUTPUT
-            Write-Output '::notice::Wago publication deferred until WAGO_API_TOKEN is configured; GitHub and CurseForge publication will continue.'
           }
       - name: Push prepared release metadata
         run: |

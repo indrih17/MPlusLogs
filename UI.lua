@@ -140,6 +140,7 @@ local function window(name, title, width, height)
     f.title=label(f, 20, -16, width-60, title, "GameFontNormalLarge")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -2, -2)
+    f.closeButton=close
     UISpecialFrames[#UISpecialFrames+1] = name
     f:Hide()
     return f
@@ -233,13 +234,13 @@ local function specSelector(parent,callback)
     end)
     return b
 end
-local function buildPanel()
-    local f = window("MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
+local function buildPanel(frameName)
+    local f = window(frameName or "MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
     f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1,insets={left=1,right=1,top=1,bottom=1}})
     f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
     panelFill(f,1,-1,938,36,0.105,0.06,0.12)
     f.title:SetTextColor(0.9,0.94,0.96)
-    do
+    if not frameName then
         local settings=CreateFrame("Button",nil,f,"BackdropTemplate")
         settings:SetSize(104,22); settings:SetPoint("TOPRIGHT",-38,-7)
         settings:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
@@ -258,7 +259,14 @@ local function buildPanel()
         end)
         settings:SetShown(not MPL.GetOption("hideLogSettings"))
         f.settingsButton=settings
-        f.title:SetWidth(740)
+        if MPL.CreateTutorialHelpButton then
+            f.tutorialButton=MPL.CreateTutorialHelpButton(f,function()
+                if f.profile then return "profile" end
+                return MPL.NeedsCompanionIntro() and "companion" or "exchange"
+            end,"header")
+            f.tutorialButton:SetPoint("TOPRIGHT",-150,-7)
+        end
+        f.title:SetWidth(590)
     end
     f.character = label(f,20,-48,400,"","GameFontHighlightLarge")
     f.character:SetWordWrap(false)
@@ -452,12 +460,18 @@ local function buildPanel()
         else f.inviteInfo:SetText(err); f.inviteButton:Disable() end
     end)
     -- Optional scaling via BlizzMove; keep our existing drag handlers.
-    if BlizzMoveAPI and type(BlizzMoveAPI.RegisterAddOnFrames)=="function" then
+    if not frameName and BlizzMoveAPI and type(BlizzMoveAPI.RegisterAddOnFrames)=="function" then
         BlizzMoveAPI:RegisterAddOnFrames({MPlusLogs={
             MPlusLogsWindow={FrameReference=f,NonDraggable=true},
         }})
     end
     return f
+end
+
+-- The walkthrough uses the real layout in an isolated window. It replaces all
+-- request/navigation handlers before showing it; MPL.panel remains untouched.
+function MPL.CreateTutorialProfileFrame()
+    return buildPanel("MPlusLogsTutorialProfile")
 end
 
 function MPL.UpdateProfileLoadButton()
@@ -943,31 +957,6 @@ function MPL.ShowCompanionDownload()
     MPL.CopyURL(nil,nil,nil,"https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe",L["Скачать MPlusLogs Companion"])
 end
 
-function MPL.ShowCompanionIntro(continueLoading)
-    if not MPL.companionIntroWindow then
-        local f=window("MPlusLogsCompanionIntro",L["Для загрузки логов нужна программа MPlusLogs Companion"],700,260)
-        f.message=label(f,24,-55,652,L["Она получает данные из Warcraft Logs и передаёт их в игру.\nУстановите программу, запустите её и войдите в Warcraft Logs."],"GameFontHighlightLarge")
-        f.message:SetJustifyV("TOP")
-        f.download=button(f,L["Скачать MPlusLogs Companion"],24,24,270,MPL.ShowCompanionDownload)
-        f.continue=button(f,L["Уже установлен"],310,24,180,function()
-            local callback=f.continueLoading
-            MPlusLogsDB=MPlusLogsDB or {}
-            MPlusLogsDB.companionIntroDismissed=true
-            f.continueLoading=nil; f:Hide()
-            if callback then callback() end
-        end)
-        f.close=button(f,L["Закрыть"],506,24,170,function() f:Hide() end)
-        f:SetScript("OnHide",function() f.continueLoading=nil end)
-        MPL.companionIntroWindow=f
-    end
-    local f=MPL.companionIntroWindow
-    f.continueLoading=continueLoading
-    local measured=f.message:GetStringHeight()
-    local height=type(measured)=="number" and math.max(110,math.ceil(measured)) or 110
-    f.message:SetHeight(height); f:SetHeight(150+height)
-    f:Show()
-end
-
 function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchResultID,importTest,requestedMetric,forceSearch)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
@@ -999,10 +988,6 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
             end
         end
     end
-    if not InCombatLockdown() and MPL.NeedsCompanionIntro() then
-        MPL.ShowCompanionIntro(function() MPL.ShowDownload(fullName,realm,profile,context,batch,refresh,searchResultID,importTest,requestedMetric,forceSearch) end)
-        return
-    end
     if not MPL.downloadWindow then
         local f=window("MPlusLogsDownloadWindow",L["M+ логи / Warcraft Logs"],520,382)
         f.programmatic=false; f.revision=0; f.phase="idle"; f.request=""; f.quotaElapsed=0
@@ -1022,16 +1007,34 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         inputClip:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Tooltips/UI-Tooltip-Border",edgeSize=8,insets={left=2,right=2,top=2,bottom=2}})
         inputClip:SetBackdropColor(0.08,0.08,0.09,1)
         inputClip:SetClipsChildren(true); inputClip:EnableMouse(true)
+        if MPL.CreateTutorialHelpButton then
+            f.tutorialButton=MPL.CreateTutorialHelpButton(f,function()
+                return (f.previewCompanionIntro or MPL.NeedsCompanionIntro()) and "companion" or "exchange"
+            end,"icon")
+            f.tutorialButton:SetSize(f.closeButton:GetWidth(),f.closeButton:GetHeight())
+            f.tutorialButton:SetPoint("RIGHT",f.closeButton,"LEFT",-12,0)
+            f.title:SetWidth(420)
+        end
         f.companionHint=CreateFrame("Frame",nil,f)
         f.companionHint:SetPoint("TOPLEFT",24,-126); f.companionHint:SetSize(472,80)
-        f.companionHint.text=label(f.companionHint,0,0,240,L["Первый раз загружаете логи? Сначала установите и запустите MPlusLogs Companion."])
+        f.companionHint.text=label(f.companionHint,0,0,472,L["Первый раз загружаете логи? Сначала установите и запустите MPlusLogs Companion."])
         f.companionHint.text:SetJustifyV("TOP")
-        f.companionHint.download=button(f.companionHint,L["Скачать MPlusLogs Companion"],252,25,220,MPL.ShowCompanionDownload)
+        f.companionHint.download=button(f.companionHint,L["Скачать MPlusLogs Companion"],0,12,270,MPL.ShowCompanionDownload)
+        f.companionHint.continue=button(f.companionHint,L["Уже установлен"],282,12,190,function()
+            -- Acknowledging setup does not confirm a Companion response.
+            MPlusLogsDB=MPlusLogsDB or {}
+            MPlusLogsDB.companionIntroDismissed=true
+            f.previewCompanionIntro=false
+            f.setStatus(f.status:GetText(),f.statusIsError)
+            f.focusInput()
+        end)
         f.setStatus=function(text,isError)
-            local showHint=not MPL.CompanionHasHistory()
+            f.statusIsError=isError==true
+            local showHint=f.previewCompanionIntro or MPL.NeedsCompanionIntro()
             f.companionHint:SetShown(showHint)
             local measured=f.companionHint.text:GetStringHeight()
-            local introOffset=showHint and math.max(80,type(measured)=="number" and math.ceil(measured)+12 or 80) or 0
+            local introOffset=showHint and math.max(80,type(measured)=="number" and math.ceil(measured)+48 or 80) or 0
+            if type(measured)=="number" then f.companionHint.text:SetHeight(math.ceil(measured)) end
             f.companionHint:SetHeight(introOffset)
             f.errorIcon:ClearAllPoints(); f.errorIcon:SetPoint("TOPLEFT",24,-124-introOffset)
             f.errorIcon:SetShown(isError==true)
@@ -1055,11 +1058,13 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         edit:SetAutoFocus(false); edit:SetMaxLetters(500000)
         edit:SetTextColor(0.48,0.48,0.52,1); edit:EnableMouse(true)
         local function focusInput()
+            if MPL.TutorialCoversWindow and MPL.TutorialCoversWindow(f) then return end
             edit:SetFocus(); edit:HighlightText()
             local revision=f.revision
             -- Button release can change focus after OnClick has returned.
             C_Timer.After(0,function()
-                if f:IsShown() and revision==f.revision and (f.phase=="copy" or f.phase=="waiting") then
+                if f:IsShown() and revision==f.revision and (f.phase=="copy" or f.phase=="waiting")
+                    and not (MPL.TutorialCoversWindow and MPL.TutorialCoversWindow(f)) then
                     edit:SetFocus(); edit:HighlightText()
                     if not edit:HasFocus() then
                         f.setStatus(L["Не удалось активировать ввод. Щёлкните в поле запроса, затем Ctrl+C или Ctrl+V."],true)
@@ -1123,6 +1128,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         f:SetScript("OnHide",function()
             edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil
             f.charBuffer=false; f.capturedReply=false; f.capturePaste=false
+            f.previewCompanionIntro=false
         end)
         f:SetScript("OnUpdate",function(_,elapsed)
             if not f.quotaError then return end
@@ -1231,6 +1237,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         MPL.downloadWindow=f
     end
     local f=MPL.downloadWindow
+    f.previewCompanionIntro=false
     MPL.pendingReply=nil
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
@@ -1252,6 +1259,22 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     if MPL.importWindow then MPL.importWindow:Hide() end
     f:Show()
     f.begin()
+end
+
+function MPL.ShowCompanionIntroPreview()
+    if InCombatLockdown() then return end
+    local f=MPL.downloadWindow
+    if not f or (f.phase~="copy" and f.phase~="waiting") then
+        local name,realm=UnitFullName("player")
+        MPL.ShowDownload(name,realm,nil,nil,nil,true)
+        f=MPL.downloadWindow
+    end
+    if not f then return end
+    -- Preview the real inline hint without resetting saved installation history
+    -- or replacing a request that is already being copied/pasted.
+    f.previewCompanionIntro=true
+    f.setStatus(f.status:GetText(),f.statusIsError)
+    f:Show(); f.focusInput()
 end
 
 function MPL.ShowBatchDownload()

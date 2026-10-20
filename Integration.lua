@@ -375,6 +375,12 @@ function MPL.InstallBatchButton()
         if MPL.GroupLogsEnabled() then MPL.ShowBatchDownload() end
     end)
     MPL.batchButton=b
+    if MPL.CreateTutorialHelpButton then
+        MPL.batchTutorialButton=MPL.CreateTutorialHelpButton(viewer,"applicants")
+        MPL.batchTutorialButton:SetSize(24,24)
+        MPL.batchTutorialButton:SetPoint("LEFT",b,"RIGHT",4,0)
+        MPL.batchTutorialButton:SetText("?")
+    end
     local loaded,total,hidden=0,0,0
     local function update()
         local players,err=MPL.CollectApplicants()
@@ -389,6 +395,7 @@ function MPL.InstallBatchButton()
         b:SetText(L["Загрузить логи всех ("]..loaded.."/"..total..")")
         local visible=MPL.GroupLogsEnabled()
         b:SetShown(visible)
+        if MPL.batchTutorialButton then MPL.batchTutorialButton:SetShown(visible and not MPL.GetOption("hideTutorial")) end
         if visible and #pending>0 and not err then b:Enable() else b:Disable() end
         if MPL.RefreshApplicantLogs then MPL.RefreshApplicantLogs() end
         if MPL.UpdateProfileInvite then MPL.UpdateProfileInvite() end
@@ -428,6 +435,7 @@ events:RegisterEvent("PARTY_LEADER_CHANGED"); events:RegisterEvent("GROUP_ROSTER
 events:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
 events:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED"); events:RegisterEvent("INSPECT_READY")
 events:SetScript("OnEvent",function(_,event,loaded)
+    if event=="PLAYER_REGEN_ENABLED" and MPL.TryPendingTutorial then MPL.TryPendingTutorial() end
     if event=="PLAYER_REGEN_ENABLED" and MPL.TryCompanionUpdateNotice then MPL.TryCompanionUpdateNotice() end
     if (event=="GROUP_ROSTER_UPDATE" or event=="PLAYER_REGEN_ENABLED") and not InCombatLockdown() then
         local panel=MPL.panel
@@ -509,6 +517,8 @@ SLASH_MPLUSLOGS2 = "/mpluslogs"
 SlashCmdList.MPLUSLOGS = function(text)
     text = strtrim(text or "")
     if text == "settings" then MPL.OpenSettings()
+    elseif text == "tutorial" then MPL.ShowTutorial()
+    elseif text == "testintro" then MPL.ShowCompanionIntroPreview()
     elseif text == "testupdate" then
         MPL.ShowCompanionUpdates({installed="1.0.23",recommended=MPL.recommendedCompanionVersion})
     elseif text == "import" then MPL.ShowImport()
