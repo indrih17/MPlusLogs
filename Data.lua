@@ -101,6 +101,38 @@ function MPL.ProfileRefreshRemaining(profile)
     return timestamp and math.max(0,timestamp+5*60-GetServerTime()) or 0
 end
 
+local function profileDisplayMetadata(profile)
+    if not profile then return end
+    if profile.displayMetadata then return profile.displayMetadata end
+    -- Saved API profiles from before the display extension have no transport
+    -- marker. Actual extension fields confirm support; missing API percentiles
+    -- alone never override the explicit marker on newer replies.
+    if type(profile.source)~="string" or not profile.source:find("^WCL API:") then return end
+    for _,rank in ipairs(profile.specRanks or {}) do if rank.rankPercent~=nil then return end end
+    for _,row in ipairs(profile.dungeons or {}) do
+        if row.rankPercent~=nil or row.flagged~=nil or row.otherFlagged~=nil then return end
+    end
+    return "companion"
+end
+
+function MPL.ProfileNeedsDisplayRefresh(profile)
+    local state=profileDisplayMetadata(profile)
+    return state=="refresh" or (state=="companion" and MPL.CompanionSupports and MPL.CompanionSupports("rankcolors")==true) or false
+end
+
+function MPL.ProfileDisplayWarning(profile)
+    local state=profileDisplayMetadata(profile)
+    if state~="companion" and state~="refresh" then return end
+    if MPL.ProfileNeedsDisplayRefresh(profile) then return L["Некоторые данные отсутствуют. Обновите логи."] end
+    return L["Некоторые данные отсутствуют. Обновите MPlusLogs Companion."]
+end
+
+function MPL.SetProfileDisplayMetadata(profiles,requested,supported)
+    for _,profile in pairs(profiles) do
+        profile.displayMetadata=supported and (requested and "complete" or "refresh") or "companion"
+    end
+end
+
 function MPL.GetProfileState(name,realm,spec)
     local key=MPL.Key(name,realm)
     local state=MPL.profileStates and MPL.profileStates[key]
@@ -114,7 +146,7 @@ function MPL.GetProfileState(name,realm,spec)
     return state
 end
 
-function MPL.FilterFreshProfiles(players,refresh)
+function MPL.FilterFreshProfiles(players,refresh,displayRefresh)
     local pending,skipped={},0
     for _,player in ipairs(players) do
         -- Party tabs outlive their initial spec snapshot. Refresh the profile
@@ -126,7 +158,7 @@ function MPL.FilterFreshProfiles(players,refresh)
         local state=MPL.GetProfileState(player.name,player.realm,spec)
         if state and state.reason=="hidden" then
             -- Known access failures are neither pending nor loaded profiles.
-        elseif usable and ((not refresh and not MPL.IsProfileStale(profile))
+        elseif usable and not (displayRefresh and MPL.ProfileNeedsDisplayRefresh(profile)) and ((not refresh and not MPL.IsProfileStale(profile))
             or (refresh and MPL.ProfileRefreshRemaining(profile)>0)) then skipped=skipped+1
         else
             local request={}
@@ -427,12 +459,16 @@ function MPL.Remember(name, realm)
     MPlusLogsDB.requests[key] = {name=name, realm=realm, region=MPL.Region()}
 end
 
+function MPL.PercentColor(value)
+    if value == nil then return nil end
+    return value >= 100 and "e5cc80" or value >= 99 and "e268a8" or value >= 95 and "ff8000" or value >= 75 and "a335ee" or value >= 50 and "0070ff" or value >= 25 and "1eff00" or "666666"
+end
+
 function MPL.Percent(value, stale)
     if value == nil then return "—" end
-    local color = value >= 100 and "ffe5cc80" or value >= 99 and "ffe268a8" or value >= 95 and "ffff8000" or value >= 75 and "ffa335ee" or value >= 50 and "ff0070ff" or value >= 25 and "ff1eff00" or "ff666666"
-    if stale then color="ff888888" end
+    local color = stale and "888888" or MPL.PercentColor(value)
     local text = string.format("%.1f", value):gsub("%.0$", "")
-    return "|c" .. color .. text .. "%|r"
+    return "|cff" .. color .. text .. "%|r"
 end
 
 function MPL.MetricValues(profile, row, metric)
@@ -532,15 +568,17 @@ function MPL.Parse(text, batch)
                         for _,value in ipairs(current.availableSpecs) do if value==spec then known=true; break end end
                         if not known then current.availableSpecs[#current.availableSpecs+1]=spec end
                     elseif f[1] == "R" then
-                        if not current or #f~=3 then error(L["Некорректная запись профиля"]) end
+                        if not current or (#f~=3 and #f~=4) then error(L["Некорректная запись профиля"]) end
                         local spec=required(f[2])
                         local rank=number(f[3],100000000,true)
+                        local percent=#f==4 and number(f[4],100) or nil
+                        if #f==4 and percent==nil then error(L["Некорректная запись профиля"]) end
                         current.specRanks=current.specRanks or {}
                         rankRows=rankRows+1
                         if #spec>80 or not rank or rank<1 or rankRows>64 then error(L["Некорректная запись профиля"]) end
                         local previous=rankStates[spec]
                         if previous==nil then
-                            local entry={spec=spec,rank=rank}
+                            local entry={spec=spec,rank=rank,rankPercent=percent}
                             rankStates[spec]=entry
                             current.specRanks[#current.specRanks+1]=entry
                         elseif previous and previous.rank~=rank then
@@ -550,19 +588,41 @@ function MPL.Parse(text, batch)
                             for i,entry in ipairs(current.specRanks) do
                                 if entry==previous then table.remove(current.specRanks,i); break end
                             end
+                        elseif previous and previous.rankPercent~=percent then
+                            previous.rankPercent=nil
                         end
                     elseif f[1] == "D" then
-                        if not current or (#f ~= 10 and #f ~= 11 and #f ~= 14 and #f ~= 15)
+                        if not current or (#f ~= 10 and #f ~= 11 and #f ~= 12 and #f ~= 13 and #f ~= 14 and #f ~= 15 and #f ~= 16 and #f ~= 17)
                             or (#f>=14 and not current.dual) then error(L["Некорректная запись данжа"]) end
                         if current.dual and #f<14 then error(L["Неполная запись DPS/HPS"]) end
                         if #current.dungeons >= 32 then error(L["Слишком много данжей"]) end
                         current.dungeons[#current.dungeons+1] = {name=required(f[2]), level=number(f[3],100,true),
                             time=f[4], runs=number(f[5],10000000,true), amount=number(f[6]), best=number(f[7],100),
                             median=number(f[8],100), points=number(f[9]), rank=number(f[10],100000000,true)}
-                        if #f==11 or #f==15 then
-                            local spec=required(f[#f])
+                        local annotated=#f==13 or #f==17
+                        local extended=#f==12 or #f==16 or annotated
+                        local specIndex=current.dual and 15 or 11
+                        if #f==11 or #f==15 or (extended and f[specIndex]~="") then
+                            local spec=required(f[specIndex])
                             if #spec>80 then error(L["Некорректная запись данжа"]) end
                             current.dungeons[#current.dungeons].scoreSpec=spec
+                        end
+                        if extended then
+                            -- A blank scoreSpec is allowed only in the explicit
+                            -- percentile extension; old row shapes stay strict.
+                            local percent=number(f[specIndex+1],100)
+                            if percent==nil and not annotated then error(L["Некорректная запись данжа"]) end
+                            current.dungeons[#current.dungeons].rankPercent=percent
+                        end
+                        if annotated then
+                            local flags=f[#f]
+                            if flags~="1" and flags~="2" and flags~="3" then error(L["Некорректная запись данжа"]) end
+                            local row=current.dungeons[#current.dungeons]
+                            row.flagged=flags=="1" or flags=="3" or nil
+                            row.otherFlagged=flags=="2" or flags=="3" or nil
+                            if row.otherFlagged and (not current.dual or current.secondaryPending) then
+                                error(L["Некорректная запись данжа"])
+                            end
                         end
                         if #f>=14 then
                             local row=current.dungeons[#current.dungeons]

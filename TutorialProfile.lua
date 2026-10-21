@@ -49,6 +49,7 @@ function MPL.ShowTutorialProfile()
     if not f then
         f=MPL.CreateTutorialProfileFrame()
         MPL.tutorialProfile=f
+        f.sortRefresh=render
         f.name,f.realm,f.class="Tutorial","Example","DRUID"
         f.viewMetric="dps"; f.stale=false
         f.title:SetText(t("MPlusLogs / Учебный профиль","MPlusLogs / Tutorial profile"))
@@ -88,6 +89,7 @@ function MPL.ShowTutorialProfile()
             else render(f,f.selectedSpec=="Guardian" and "Restoration" or "Guardian") end
         end)
     end
+    if not f:IsShown() then f.sortColumn=false; f.sortAscending=false end
     f.viewMetric="dps"
     render(f,"Guardian")
     f:Show()

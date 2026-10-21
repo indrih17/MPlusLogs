@@ -50,13 +50,17 @@ class CompatibilityTests(unittest.TestCase):
         reply=helper.reply(request,realm_resolver.load_mappings(),self.cache,fetch or self.fetch)
         return request,reply,self.mpl.ReceiveReply(reply,True)
 
-    def test_new_addon_old_companion_success_and_legacy_failure(self):
+    def test_new_addon_old_companion_loads_with_missing_display_metadata(self):
         old=self.old_companion()
         for _ in range(2):
             request,reply,result=self.exchange(old)
             self.assertNotIn("errorcodes",request)
+            self.assertNotIn("rankcolors",request)
             self.assertNotIn("MPLERR1",unquote(reply))
             self.assertEqual(result,(1,None))
+            profile=self.mpl.GetProfile("Киндрих","Гордунни","Guardian")[0]
+            self.assertEqual(profile.displayMetadata,"companion")
+            self.assertIn("MPlusLogs Companion",self.mpl.ProfileDisplayWarning(profile))
         def hidden(_): raise wcl.NoProfile("Rankings hidden: denied", "hidden")
         _,_,result=self.exchange(old,name="Alice",fetch=hidden)
         self.assertEqual(result,0)
@@ -205,7 +209,7 @@ class PublishedCompatibilityTests(unittest.TestCase):
     setUp=test_batch.BatchTests.setUp
     fetch=CompatibilityTests.fetch
     exchange=CompatibilityTests.exchange
-    test_new_addon_published_companion=CompatibilityTests.test_new_addon_old_companion_success_and_legacy_failure
+    test_new_addon_published_companion=CompatibilityTests.test_new_addon_old_companion_loads_with_missing_display_metadata
     test_published_addon_new_companion=CompatibilityTests.test_old_addon_new_companion_never_receives_new_error_format
 
     def old_companion(self):

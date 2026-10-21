@@ -165,8 +165,70 @@ local function tablePercent(value,stale)
     local text=MPL.Percent(value,stale):gsub("%%|r$","|r")
     return text
 end
+local function percentileRGB(value)
+    local color=MPL.PercentColor(value)
+    if not color then return 225/255,242/255,245/255 end
+    return tonumber(color:sub(1,2),16)/255,tonumber(color:sub(3,4),16)/255,tonumber(color:sub(5,6),16)/255
+end
+local function emphasizeNumber(field,r,g,b,enabled)
+    -- A small same-color stroke adds weight without changing the game font.
+    field:SetShadowColor(r,g,b,enabled and 1 or 0)
+    field:SetShadowOffset(enabled and 0.5 or 0,0)
+end
+local function dungeonNameFont(field)
+    local font,size,flags=field:GetFont()
+    -- Enlarge only dungeon names, keeping the original client font and flags.
+    if font and type(size)=="number" then
+        field:SetFont(font,size+2,flags)
+    end
+end
+local profileTableLayout={
+    rowHeight=26,headerHeight=40,headerBand=20,nameInset=30,namePadding=36,
+    iconSize=20,scoreIconSize=16,scorePadding=30,titleY=5,
+}
+local function renderLevelDigits(row,value,r,g,b)
+    local cell=row.cells[2]
+    local text=tostring(value)
+    if type(row.levelDigits)~="table" then row.levelDigits={} end
+    for _,digit in ipairs(row.levelDigits) do digit:Hide() end
+    row.levelDigitWidth=nil
+    if not text:match("^%d+$") then cell:SetAlpha(1); return end
+    local function digitAt(index)
+        local digit=row.levelDigits[index]
+        if not digit then
+            digit=label(row,0,-3,1)
+            digit:SetHeight(20); digit:SetJustifyV("MIDDLE"); digit:SetJustifyH("LEFT")
+            digit:SetWordWrap(false); digit:SetNonSpaceWrap(false)
+            row.levelDigits[index]=digit
+        end
+        return digit
+    end
+    -- Keep the native game font, but give every decimal place the width of
+    -- its widest digit. A narrow "1" can no longer move the preceding "2".
+    local measure=digitAt(1)
+    local step=0
+    for digit=0,9 do
+        measure:SetText(tostring(digit))
+        local width=measure:GetUnboundedStringWidth()
+        if type(width)=="number" then step=math.max(step,width) end
+    end
+    local _,fontSize=cell:GetFont()
+    step=math.max(1,math.ceil(step>0 and step or (fontSize or 10)*0.6))
+    row.levelDigitWidth=#text*step
+    for index=1,#text do
+        local digit=digitAt(index)
+        digit:SetText(text:sub(index,index)); digit:SetWidth(step)
+        digit:ClearAllPoints(); digit:SetPoint("TOPRIGHT",cell,"TOPRIGHT",-(#text-index)*step,0)
+        digit:SetTextColor(r,g,b); emphasizeNumber(digit,r,g,b,true); digit:Show()
+    end
+    -- Retain the full value for measurement and the normal missing-data path.
+    cell:SetAlpha(0)
+end
 local function gridLine(parent,x,y,width,height)
-    return panelFill(parent,x,y,width,height,0.20,0.20,0.20)
+    local texture=parent:CreateTexture(nil,"ARTWORK")
+    texture:SetPoint("TOPLEFT",x,y); texture:SetSize(width,height)
+    texture:SetColorTexture(0.20,0.20,0.20,1)
+    return texture
 end
 local function specTexture(spec,class)
     if not spec or not GetSpecializationInfoByID then return end
@@ -238,9 +300,12 @@ local function buildPanel(frameName)
     local f = window(frameName or "MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
     f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1,insets={left=1,right=1,top=1,bottom=1}})
     f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
-    panelFill(f,1,-1,938,36,0.105,0.06,0.12)
+    f.titleFill=panelFill(f,1,-1,938,36,0.105,0.06,0.12)
     f.title:SetTextColor(0.9,0.94,0.96)
     if not frameName then
+        f:HookScript("OnHide",function()
+            if MPL.downloadWindow then MPL.downloadWindow:Hide() end
+        end)
         local settings=CreateFrame("Button",nil,f,"BackdropTemplate")
         settings:SetSize(104,22); settings:SetPoint("TOPRIGHT",-38,-7)
         settings:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
@@ -271,7 +336,7 @@ local function buildPanel(frameName)
     f.character = label(f,20,-48,400,"","GameFontHighlightLarge")
     f.character:SetWordWrap(false)
     f.currentSpec=CreateFrame("Frame",nil,f,"BackdropTemplate")
-    f.currentSpec:SetPoint("TOPLEFT",440,-39); f.currentSpec:SetSize(460,32)
+    f.currentSpec:SetPoint("TOPRIGHT",-40,-39); f.currentSpec:SetSize(460,32)
     f.currentSpec:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
     f.currentSpec:SetBackdropColor(0.13,0.10,0.035,1)
     f.currentSpec:SetBackdropBorderColor(0.70,0.53,0.18,1)
@@ -283,7 +348,7 @@ local function buildPanel(frameName)
     f.currentSpec.name=label(f.currentSpec,37,-16,415,"","GameFontHighlight")
     f.currentSpec.name:SetTextColor(1,0.90,0.55)
     f.currentSpec.name:SetWordWrap(false)
-    panelFill(f,20,-80,880,26,0.105,0.06,0.12)
+    f.contextFill=panelFill(f,20,-80,880,26,0.105,0.06,0.12)
     f.context = label(f,30,-87,860)
     f.specButton=specSelector(f,function()
         if not f.specButton.canSelectSpecs then return end
@@ -332,6 +397,8 @@ local function buildPanel(frameName)
     f.medianSummary=label(f,520,-181,370)
     f.runSummary=label(f,520,-203,370)
     f.specRanks=label(f,20,-233,880); f.specRanks:SetJustifyH("CENTER")
+    f.specRanks:SetHeight(18); f.specRanks:SetJustifyV("MIDDLE")
+    f.specRankEntries={}
     f.staleBanner=CreateFrame("Frame",nil,f,"BackdropTemplate")
     f.staleBanner:SetPoint("TOPLEFT",20,-254); f.staleBanner:SetSize(880,28)
     f.staleBanner:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
@@ -341,33 +408,52 @@ local function buildPanel(frameName)
     f.staleBanner.icon:SetSize(20,20); f.staleBanner.icon:SetPoint("LEFT",10,0)
     f.staleBanner.icon:SetTexture("Interface/AddOns/MPlusLogs/assets/stale-clock.tga")
     f.staleBanner.message=label(f.staleBanner,40,-7,828,"","GameFontHighlight")
-    f.staleBanner.message:SetWordWrap(false)
+    f.staleBanner.message:SetWordWrap(true)
+    f.staleBanner.message:SetJustifyV("TOP")
     f.staleBanner:Hide()
     f.source = label(f,20,-566,900)
     f.note = label(f,20,-586,900)
-    local headings = {L["Подземелье"],L["Уровень"],L["Время"],L["Прохождения"],L["Очки"],L["Место"],L["Лучший DPS"],L["Best %"],L["Median %"]}
+    local headings = {L["Подземелье"],L["Уровень"],L["Время"],L["Runs"],L["Очки"],L["Rank"],L["Best DPS"],L["Best %"],L["Median %"]}
     f.columns={0,242,292,358,414,484,554,684,768}
     f.widths={242,50,66,56,70,70,130,84,112}
-    f.headings={}
+    f.headings={}; f.sortButtons={}
+    f.sortColumn=false; f.sortAscending=false; f.sortRefresh=false
     f.tableHeader=CreateFrame("Frame",nil,f)
-    f.tableHeader:SetPoint("TOPLEFT",20,-254); f.tableHeader:SetSize(880,52)
-    f.tableDecor={panelFill(f.tableHeader,0,0,880,52,34/255,34/255,34/255)}
-    f.primaryGroup=label(f.tableHeader,414,-7,140,L["Рейтинг"]); f.primaryGroup:SetJustifyH("CENTER")
-    f.secondaryGroup=label(f.tableHeader,554,-7,326,"DPS"..L[" / по уровню ключа"]); f.secondaryGroup:SetJustifyH("CENTER")
-    for _,y in ipairs({0,-26,-52}) do f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,0,y,880,1) end
+    f.tableHeader:SetPoint("TOPLEFT",20,-254); f.tableHeader:SetSize(880,40)
+    f.tableDecor={panelFill(f.tableHeader,0,0,880,40,34/255,34/255,34/255)}
+    f.primaryGroup=label(f.tableHeader,414,-5,140,L["Score"]); f.primaryGroup:SetJustifyH("CENTER")
+    f.secondaryGroup=label(f.tableHeader,554,-5,326,L["DPS by Level"]); f.secondaryGroup:SetJustifyH("CENTER")
+    f.primaryGroup:SetWordWrap(false); f.secondaryGroup:SetWordWrap(false)
     for i, text in ipairs(headings) do
-        local heading=label(f.tableHeader,4+f.columns[i],-28,f.widths[i]-8,text)
-        heading:SetHeight(22); heading:SetJustifyV("MIDDLE"); heading:SetWordWrap(true); heading:SetNonSpaceWrap(true)
+        local column=i
+        local sortButton=CreateFrame("Button",nil,f.tableHeader)
+        sortButton:SetPoint("TOPLEFT",f.columns[i]+1,-21); sortButton:SetSize(f.widths[i]-2,18)
+        local hover=sortButton:CreateTexture(nil,"HIGHLIGHT")
+        hover:SetAllPoints(); hover:SetColorTexture(1,1,1,0.08)
+        sortButton:SetScript("OnClick",function()
+            if type(f.profile)~="table" then return end
+            f.sortAscending=f.sortColumn==column and not f.sortAscending or false
+            f.sortColumn=column
+            if f.sortRefresh then f.sortRefresh(f) else MPL.RenderProfileStats(f) end
+        end)
+        local heading=label(sortButton,3,-1,f.widths[i]-8,text)
+        heading:SetHeight(18); heading:SetJustifyV("MIDDLE"); heading:SetWordWrap(false); heading:SetNonSpaceWrap(false)
         heading:SetJustifyH("CENTER"); heading:SetTextColor(0.93,0.93,0.93)
+        sortButton.arrow=CreateFrame("Frame",nil,sortButton)
+        sortButton.arrow:SetPoint("TOPLEFT",f.widths[i]-11,-7); sortButton.arrow:SetSize(7,4)
+        sortButton.arrow.stripes={}
+        for stripe=1,4 do
+            local texture=sortButton.arrow:CreateTexture(nil,"OVERLAY")
+            texture:SetColorTexture(1,0.82,0,1); texture:SetSize(9-stripe*2,1)
+            sortButton.arrow.stripes[stripe]=texture
+        end
+        sortButton.arrow:Hide()
+        f.sortButtons[i]=sortButton
         f.headings[i]=heading
-        f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,f.columns[i],-26,1,26)
     end
-    f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,414,0,1,26)
-    f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,554,0,1,26)
-    f.tableDecor[#f.tableDecor+1]=gridLine(f.tableHeader,880,0,1,52)
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT",20,-306); scroll:SetPoint("BOTTOMRIGHT",-40,145)
-    scroll:SetSize(880,249)
+    scroll:SetPoint("TOPLEFT",20,-294); scroll:SetPoint("BOTTOMRIGHT",-40,145)
+    scroll:SetSize(880,217)
     local content = CreateFrame("Frame", nil, scroll); content:SetSize(880,1); scroll:SetScrollChild(content)
     f.content, f.scroll, f.rows = content, scroll, {}
     scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
@@ -400,8 +486,16 @@ local function buildPanel(frameName)
             or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
             MPL.ShowSearchGroupLogs(f.searchMember.searchResultID); return
         end
+        if type(f.searchMember)=="table" and MPL.ProfileNeedsDisplayRefresh(f.profile) then
+            MPL.ShowSearchGroupLogs(f.searchMember.searchResultID,false,true); return
+        end
         local state=MPL.GetProfileState(f.name,f.realm,f.selectedSpec)
         if state and state.reason=="hidden" then return end
+        if MPL.ProfileNeedsDisplayRefresh(f.profile) then
+            -- Fetch the missing presentation fields from the Companion cache;
+            -- this is not a forced WCL refresh and needs no five-minute wait.
+            MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,false,nil,nil,nil,nil,true); return
+        end
         local cooling,remaining=MPL.UpdateProfileLoadButton()
         if cooling then
             f.cooldownNotice=true
@@ -445,6 +539,7 @@ local function buildPanel(frameName)
     local function lookup() MPL.ShowProfile(strtrim(f.lookup:GetText())); f.lookup:ClearFocus() end
     f.lookup:SetScript("OnEnterPressed",lookup)
     f.lookupButton=button(f,L["Показать профиль"],710,20,190,lookup)
+    f.lookupButton:ClearAllPoints(); f.lookupButton:SetPoint("BOTTOMRIGHT",-40,20)
     f.lookupButton:SetScript("OnEnter",function(self)
         GameTooltip:SetOwner(self,"ANCHOR_TOP")
         GameTooltip:AddLine(L["Профиль персонажа"],1,0.82,0)
@@ -454,11 +549,13 @@ local function buildPanel(frameName)
     f.lookupButton:SetScript("OnLeave",function() GameTooltip:Hide() end)
     f.applicant=false; f.inviteSent=false
     f.inviteInfo=label(f,150,-660,530)
+    f.inviteInfo:ClearAllPoints(); f.inviteInfo:SetPoint("BOTTOMLEFT",150,30)
     f.inviteButton=button(f,L["Пригласить"],710,20,190,function()
         local ok,err=MPL.InviteFromProfile(f.applicant)
         if ok then f.inviteSent=true; MPL.UpdateProfileInvite()
         else f.inviteInfo:SetText(err); f.inviteButton:Disable() end
     end)
+    f.inviteButton:ClearAllPoints(); f.inviteButton:SetPoint("BOTTOMRIGHT",-40,20)
     -- Optional scaling via BlizzMove; keep our existing drag handlers.
     if not frameName and BlizzMoveAPI and type(BlizzMoveAPI.RegisterAddOnFrames)=="function" then
         BlizzMoveAPI:RegisterAddOnFrames({MPlusLogs={
@@ -483,6 +580,11 @@ function MPL.UpdateProfileLoadButton()
         return false,0
     end
     f.loadButton:SetText(f.profile and L["Обновить M+ логи"] or L["Загрузить M+ логи"])
+    if MPL.ProfileNeedsDisplayRefresh(f.profile) then
+        f.loadButton:Show(); f.loadButton:SetAlpha(1)
+        f.loadButton:SetNormalFontObject("GameFontNormal")
+        return false,0
+    end
     if type(f.searchMember)=="table" and (not f.searchMember.loaded
         or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
@@ -533,25 +635,193 @@ local dungeonIcons={
     ["Altar of Fangs"]="12993",["Den of Nalorakk"]="12825",["Kings' Rest"]="11762",["Murder Row"]="12813",
     ["Ruby Life Pools"]="12521",["Temple of Sethraliss"]="11877",["The Blinding Vale"]="12859",["Voidscar Arena"]="12923",
 }
-function MPL.RenderProfileStats(f)
-    local profile=type(f.profile)=="table" and f.profile or nil
-    -- A separate age banner keeps the usual result colors readable.
+local function durationSeconds(value)
+    if not value or value=="" then return nil end
+    local hours,minutes,seconds=value:match("^(%d+):(%d%d):(%d%d)$")
+    if hours then return tonumber(hours)*3600+tonumber(minutes)*60+tonumber(seconds) end
+    minutes,seconds=value:match("^(%d+):(%d%d)$")
+    if minutes then return tonumber(minutes)*60+tonumber(seconds) end
+end
+local function textWidth(field)
+    local width=field:GetUnboundedStringWidth()
+    return type(width)=="number" and math.ceil(width) or 0
+end
+local function layoutSpecRanks(f,total)
+    if not f.specRanks:IsShown() then return end
+    local function measuredWidth(field)
+        local width=textWidth(field)
+        return width>0 and width or #field:GetText()*6
+    end
+    local captionWidth=measuredWidth(f.specRanks)
+    local width=captionWidth
+    for _,entry in ipairs(f.specRankEntries) do
+        if entry:IsShown() then
+            local numberWidth=measuredWidth(entry.number)+1
+            local symbolWidth=entry.hasIcon and 18 or measuredWidth(entry.specLabel)
+            entry.number:SetWidth(numberWidth); entry.specLabel:SetWidth(symbolWidth)
+            entry:SetWidth(numberWidth+4+symbolWidth)
+            width=width+8+entry:GetWidth()
+        end
+    end
+    local x=20+(total-width)/2
+    f.specRanks:ClearAllPoints(); f.specRanks:SetPoint("TOPLEFT",x,-229); f.specRanks:SetWidth(captionWidth)
+    x=x+captionWidth
+    for _,entry in ipairs(f.specRankEntries) do
+        if entry:IsShown() then
+            entry:ClearAllPoints(); entry:SetPoint("TOPLEFT",x+8,-229)
+            x=x+8+entry:GetWidth()
+        end
+    end
+end
+local function layoutProfileTable(f)
+    local style=profileTableLayout
+    local widths={220,40,40,40,58,40,92,60,60}
+    for i,heading in ipairs(f.headings) do
+        -- Reserve room for the sort indicator even while it is hidden.
+        local headingWidth=textWidth(heading)
+        widths[i]=math.max(widths[i],headingWidth+24)
+    end
+    for _,row in ipairs(f.rows) do
+        if row:IsShown() then
+            for i,cell in ipairs(row.cells) do
+                local padding=i==1 and style.namePadding or (i==5 and row.scoreSpecIcon:IsShown() and style.scorePadding or 12)
+                widths[i]=math.max(widths[i],textWidth(cell)+padding)
+                if i==2 and type(row.levelDigitWidth)=="number" then
+                    widths[i]=math.max(widths[i],row.levelDigitWidth+padding)
+                end
+            end
+        end
+    end
+    widths[6]=widths[6]+math.max(0,textWidth(f.primaryGroup)+16-widths[5]-widths[6])
+    widths[9]=widths[9]+math.max(0,textWidth(f.secondaryGroup)+16-widths[7]-widths[8]-widths[9])
+    -- Give spare space to names, keeping numeric columns compact.
+    local minimum=0
+    for _,width in ipairs(widths) do minimum=minimum+width end
+    widths[1]=widths[1]+math.max(0,880-minimum)
+    local total=0
+    for i,width in ipairs(widths) do f.columns[i]=total; total=total+width end
+    f.widths=widths; f.tableWidth=total
+    f:SetWidth(total+60)
+    f.titleFill:SetWidth(total+58); f.contextFill:SetWidth(total)
+    f.tableHeader:SetSize(total,style.headerHeight); f.tableDecor[1]:SetSize(total,style.headerHeight)
+    f.content:SetWidth(total); f.scroll:SetWidth(total)
+    f.staleBanner:SetWidth(total); f.staleBanner.message:SetWidth(total-52)
+    for _,field in ipairs({f.source,f.note,f.footer}) do field:SetWidth(total) end
+    layoutSpecRanks(f,total)
+    for i,field in ipairs({f.summary,f.medianSummary,f.runSummary}) do
+        field:ClearAllPoints(); field:SetPoint("TOPLEFT",total-360,-137-i*22)
+    end
+    f.lookup:SetWidth(total-350); f.inviteInfo:SetWidth(total-350)
+    if type(f.profile)=="table" then
+        f.loadButton:ClearAllPoints(); f.loadButton:SetPoint("BOTTOMRIGHT",-40,53)
+    end
+    for i,sortButton in ipairs(f.sortButtons) do
+        sortButton:ClearAllPoints(); sortButton:SetPoint("TOPLEFT",f.columns[i]+1,-style.headerBand-1)
+        sortButton:SetSize(widths[i]-2,style.headerBand-2)
+        f.headings[i]:SetSize(widths[i]-8,style.headerBand-2)
+        f.headings[i]:SetWordWrap(false); f.headings[i]:SetNonSpaceWrap(false)
+        sortButton.arrow:ClearAllPoints(); sortButton.arrow:SetPoint("TOPLEFT",widths[i]-11,-math.floor((style.headerBand-6)/2))
+
+    end
+    for i,group in ipairs({f.primaryGroup,f.secondaryGroup}) do
+        local column=i==1 and 5 or 7
+        local width=i==1 and widths[5]+widths[6] or widths[7]+widths[8]+widths[9]
+        group:ClearAllPoints(); group:SetPoint("TOPLEFT",f.columns[column]+4,-style.titleY); group:SetWidth(width-8)
+    end
+    for index,row in ipairs(f.rows) do
+        -- The old background-layer grid disappeared beneath shaded rows and
+        -- the header. Reproduce that visible pattern explicitly and reliably.
+        local showGrid=index%2==1
+        row:ClearAllPoints(); row:SetPoint("TOPLEFT",0,-(index-1)*style.rowHeight)
+        row:SetSize(total,style.rowHeight); row.background:SetSize(total,style.rowHeight)
+        row.shade=index%2==0 and 0.018 or 0
+        row.background:SetColorTexture(row.shade,row.shade,row.shade,1)
+        row.bottomLine:ClearAllPoints(); row.bottomLine:SetPoint("TOPLEFT",0,1-style.rowHeight); row.bottomLine:SetWidth(total)
+        row.bottomLine:SetShown(showGrid)
+        row.icon:ClearAllPoints(); row.icon:SetPoint("TOPLEFT",6,-(style.rowHeight-style.iconSize)/2)
+        row.icon:SetSize(style.iconSize,style.iconSize); row.scoreSpecIcon:SetSize(style.scoreIconSize,style.scoreIconSize)
+        for i,cell in ipairs(row.cells) do
+            local padding=i==1 and style.namePadding or (i==5 and row.scoreSpecIcon:IsShown() and style.scorePadding or 12)
+            cell:ClearAllPoints(); cell:SetPoint("TOPLEFT",f.columns[i]+(i==1 and style.nameInset or 6),-(style.rowHeight-20)/2)
+            cell:SetWidth(widths[i]-padding)
+            local line=row.columnLines[i]
+            line:ClearAllPoints(); line:SetPoint("TOPLEFT",f.columns[i],0)
+            line:SetHeight(style.rowHeight)
+            line:SetShown(showGrid)
+        end
+        row.rightLine:ClearAllPoints(); row.rightLine:SetPoint("TOPLEFT",total-1,0)
+        row.rightLine:SetHeight(style.rowHeight)
+        row.rightLine:SetShown(showGrid)
+    end
+    if type(f.playerTabs)=="table" then MPL.RenderPlayerTabs(f) end
+end
+local function sortedDungeons(f,profile,metric)
+    if not f.sortColumn then return profile.dungeons end
+    -- Sort a view so cached profiles and other windows retain their source order.
+    local entries={}
+    for index,dungeon in ipairs(profile.dungeons) do
+        local level,amount,best,median=MPL.MetricValues(profile,dungeon,metric)
+        local first,second=MPL.OrderPercentiles(best,median)
+        local primary=profile.metric==metric
+        local values={dungeon.name,level,primary and durationSeconds(dungeon.time) or nil,
+            dungeon.runs,primary and dungeon.points or nil,primary and dungeon.rank or nil,
+            amount,first,second}
+        entries[#entries+1]={dungeon=dungeon,index=index,value=values[f.sortColumn]}
+    end
+    table.sort(entries,function(a,b)
+        if a.value==b.value then return a.index<b.index end
+        -- Missing data stays at the bottom in either direction; zero is data.
+        if a.value==nil then return false end
+        if b.value==nil then return true end
+        if f.sortAscending then return a.value<b.value end
+        return a.value>b.value
+    end)
+    local result={}
+    for i,entry in ipairs(entries) do result[i]=entry.dungeon end
+    return result
+end
+local function layoutProfileBanner(f,profile)
+    local style=profileTableLayout
+    local messages={}
     local showStale=profile~=nil and f.stale==true
-    local offset=showStale and 32 or 0
-    f.staleBanner:SetShown(showStale)
     if showStale then
         local _,lastDate=MPL.ProfileDate(profile)
-        f.staleBanner.message:SetText("|cffffc440"..L["Данные устарели"].."|r    "..L["Последняя загрузка: "]..lastDate)
+        messages[#messages+1]="|cffffc440"..L["Данные устарели"].."|r    "..L["Последняя загрузка: "]..lastDate
     end
-    f:SetHeight(700+offset)
+    local warning=MPL.ProfileDisplayWarning(profile)
+    if warning then messages[#messages+1]=warning end
+    f.staleBanner.message:SetText(table.concat(messages,"\n"))
+    local textHeight=f.staleBanner.message:GetStringHeight()
+    local height=math.max(28,math.max(#messages*14,type(textHeight)=="number" and textHeight or 0)+14)
+    local offset=#messages>0 and height+4 or 0
+    f.staleBanner:SetShown(#messages>0); f.staleBanner:SetHeight(height)
+    f.staleBanner.message:SetHeight(height-14)
+    local footerHeight=f.footer:GetStringHeight()
+    local extra=type(footerHeight)=="number" and math.max(0,math.ceil(footerHeight)-20) or 0
+    f:SetHeight((profile and 656 or 700)+offset+extra)
     f.tableHeader:ClearAllPoints(); f.tableHeader:SetPoint("TOPLEFT",20,-254-offset)
     f.scroll:ClearAllPoints()
-    f.scroll:SetPoint("TOPLEFT",20,-306-offset); f.scroll:SetPoint("BOTTOMRIGHT",-40,145)
+    f.scroll:SetPoint("TOPLEFT",20,-254-style.headerHeight-offset); f.scroll:SetPoint("BOTTOMRIGHT",-40,145+extra)
     for i,text in ipairs({f.source,f.note,f.footer}) do
-        text:ClearAllPoints(); text:SetPoint("TOPLEFT",20,-546-i*20-offset)
+        text:ClearAllPoints(); text:SetPoint("TOPLEFT",20,-(profile and 502 or 546)-i*20-offset)
     end
+end
+function MPL.RenderProfileStats(f)
+    local profile=type(f.profile)=="table" and f.profile or nil
     local metric=f.viewMetric or "dps"
+    local style=profileTableLayout
     for _,heading in ipairs(f.headings) do heading:SetShown(profile~=nil) end
+    for i,sortButton in ipairs(f.sortButtons) do
+        local selected=f.sortColumn==i
+        sortButton:SetShown(profile~=nil)
+        sortButton.arrow:SetShown(profile~=nil and selected)
+        -- Reflect the same triangle vertically so both directions have identical dimensions.
+        for stripe,texture in ipairs(sortButton.arrow.stripes) do
+            texture:ClearAllPoints()
+            texture:SetPoint("TOPLEFT",stripe-1,-(f.sortAscending and 4-stripe or stripe-1))
+        end
+        f.headings[i]:SetTextColor(selected and 1 or 0.93,selected and 0.82 or 0.93,selected and 0 or 0.93)
+    end
     for _,element in ipairs(f.tableElements) do element:SetShown(profile~=nil) end
     for _,texture in ipairs(f.tableDecor) do texture:SetShown(profile~=nil) end
     for key,tab in pairs(f.metricTabs) do
@@ -563,21 +833,42 @@ function MPL.RenderProfileStats(f)
         tab.selectionBar:SetShown(selected)
     end
     for _,row in ipairs(f.rows) do row:Hide() end
-    f.metricHeading:SetText(L["Лучший "]..metric:upper())
+    f.headings[4]:SetText(L["Runs"])
+    f.headings[6]:SetText(L["Rank"])
+    f.primaryGroup:SetText(L["Score"])
+    f.metricHeading:SetText(metric=="hps" and L["Best HPS"] or L["Best DPS"])
     local firstHeading,secondHeading=MPL.OrderPercentiles(L["Best %"],L["Median %"])
     f.headings[8]:SetText(firstHeading); f.headings[9]:SetText(secondHeading)
-    f.secondaryGroup:SetText(metric:upper()..L[" / по уровню ключа"])
+    f.secondaryGroup:SetText(metric=="hps" and L["HPS by Level"] or L["DPS by Level"])
     f.specRanks:SetText(""); f.specRanks:Hide()
-    if not profile then return end
-    local ranks={}
-    for _,entry in ipairs(profile.specRanks or {}) do
-        local texture=specTexture(entry.spec,f.class)
-        local caption=texture and ("|T"..texture..":18:18|t") or MPL.SpecLabel(entry.spec,f.class)
-        ranks[#ranks+1]=entry.rank.." "..caption
+    for _,entry in ipairs(f.specRankEntries) do entry:Hide() end
+    if not profile then layoutProfileTable(f); layoutProfileBanner(f,profile); return end
+    for index,rank in ipairs(profile.specRanks or {}) do
+        local entry=f.specRankEntries[index]
+        if not entry then
+            entry=CreateFrame("Frame",nil,f); entry:SetHeight(18)
+            entry.number=label(entry,0,0,1)
+            entry.number:SetHeight(18); entry.number:SetJustifyV("MIDDLE"); entry.number:SetWordWrap(false)
+            entry.icon=entry:CreateTexture(nil,"ARTWORK"); entry.icon:SetSize(18,18)
+            entry.icon:SetPoint("LEFT",entry.number,"RIGHT",4,0)
+            entry.specLabel=label(entry,0,0,1)
+            entry.specLabel:ClearAllPoints(); entry.specLabel:SetPoint("LEFT",entry.number,"RIGHT",4,0)
+            entry.specLabel:SetHeight(18); entry.specLabel:SetJustifyV("MIDDLE"); entry.specLabel:SetWordWrap(false)
+            f.specRankEntries[index]=entry
+        end
+        local texture=specTexture(rank.spec,f.class)
+        entry.hasIcon=texture~=nil
+        entry.number:SetText(tostring(rank.rank))
+        local r,g,b=percentileRGB(rank.rankPercent)
+        entry.number:SetTextColor(r,g,b); emphasizeNumber(entry.number,r,g,b,true)
+        entry.icon:SetTexture(texture); entry.icon:SetShown(entry.hasIcon)
+        entry.specLabel:SetText(entry.hasIcon and "" or MPL.SpecLabel(rank.spec,f.class))
+        entry.specLabel:SetShown(not entry.hasIcon)
+        entry:Show()
     end
-    if #ranks>0 then
-        f.specRanks:SetText("Spec Ranks:  "..table.concat(ranks,"    "))
-        f.specRanks:SetTextColor(226/255,104/255,168/255)
+    if #(profile.specRanks or {})>0 then
+        f.specRanks:SetText("Spec Ranks:")
+        f.specRanks:SetTextColor(225/255,242/255,245/255)
         f.specRanks:Show()
     end
     f.scoreValue:SetText(profile.score and string.format("%.0f",profile.score) or "—")
@@ -591,12 +882,12 @@ function MPL.RenderProfileStats(f)
     end
     f.medianSummary:SetText(metric:upper().." "..secondLabel.."  "..tablePercent(second))
     f.runSummary:SetText(L["Прохождения"]..":  "..(profile.runs or "—"))
-    for index,dungeon in ipairs(profile.dungeons) do
+    for index,dungeon in ipairs(sortedDungeons(f,profile,metric)) do
         local row=f.rows[index]
         if not row then
-            row=CreateFrame("Frame",nil,f.content); row:SetSize(880,30); row:SetPoint("TOPLEFT",0,-(index-1)*30)
-            row.background=panelFill(row,0,0,880,30,index%2==0 and 0.018 or 0,index%2==0 and 0.018 or 0,index%2==0 and 0.018 or 0)
+            row=CreateFrame("Frame",nil,f.content); row:SetSize(880,26); row:SetPoint("TOPLEFT",0,-(index-1)*26)
             row.shade=index%2==0 and 0.018 or 0
+            row.background=panelFill(row,0,0,880,26,row.shade,row.shade,row.shade)
             row:EnableMouse(true)
             row:SetScript("OnEnter",function(self)
                 self.background:SetColorTexture(0.055,0.055,0.055,1)
@@ -617,16 +908,20 @@ function MPL.RenderProfileStats(f)
                 end
             end
             row:SetScript("OnMouseUp",copyDungeonURL)
-            row.cells={}
+            row.cells={}; row.columnLines={}
             for i=1,9 do
-                row.cells[i]=label(row,f.columns[i]+6,-8,f.widths[i]-12)
+                row.cells[i]=label(row,f.columns[i]+6,-3,f.widths[i]-12)
+                if i==1 then dungeonNameFont(row.cells[i]) end
+                -- Keep the text box explicit and centered inside each row.
+                row.cells[i]:SetHeight(20); row.cells[i]:SetJustifyV("MIDDLE")
                 row.cells[i]:SetJustifyH(i==1 and "LEFT" or "RIGHT")
-                gridLine(row,f.columns[i],0,1,30)
+                row.cells[i]:SetWordWrap(false); row.cells[i]:SetNonSpaceWrap(false)
+                row.columnLines[i]=gridLine(row,f.columns[i],0,1,26)
             end
-            gridLine(row,880,0,1,30); gridLine(row,0,-29,880,1)
-            row.icon=row:CreateTexture(nil,"ARTWORK"); row.icon:SetPoint("TOPLEFT",6,-4); row.icon:SetSize(22,22)
+            row.rightLine=gridLine(row,880,0,1,26); row.bottomLine=gridLine(row,0,-25,880,1)
+            row.icon=row:CreateTexture(nil,"ARTWORK"); row.icon:SetPoint("TOPLEFT",6,-3); row.icon:SetSize(20,20)
             row.scoreSpecIcon=CreateFrame("Frame",nil,row)
-            row.scoreSpecIcon:SetSize(18,18)
+            row.scoreSpecIcon:SetSize(16,16)
             row.scoreSpecIcon:SetPoint("LEFT",row.cells[5],"RIGHT",4,0)
             row.scoreSpecIcon.texture=row.scoreSpecIcon:CreateTexture(nil,"ARTWORK")
             row.scoreSpecIcon.texture:SetAllPoints()
@@ -638,7 +933,7 @@ function MPL.RenderProfileStats(f)
                 GameTooltip:Show()
             end)
             row.scoreSpecIcon:SetScript("OnLeave",function() GameTooltip:Hide() end)
-            row.cells[1]:ClearAllPoints(); row.cells[1]:SetPoint("TOPLEFT",34,-8); row.cells[1]:SetWidth(f.widths[1]-40)
+            row.cells[1]:ClearAllPoints(); row.cells[1]:SetPoint("TOPLEFT",30,-3); row.cells[1]:SetWidth(f.widths[1]-36)
             f.rows[index]=row
         end
         row.dungeonName=dungeon.name
@@ -646,7 +941,11 @@ function MPL.RenderProfileStats(f)
         local icon=dungeonIcons[dungeon.name]
         row.icon:SetTexture(icon and ("Interface\\AddOns\\MPlusLogs\\assets\\dungeons\\"..icon..".tga") or "Interface\\Icons\\INV_Misc_Map_01")
         local level,amount,best,median=MPL.MetricValues(profile,dungeon,metric)
-        local first,second=MPL.OrderPercentiles(tablePercent(best)..(dungeon.flagged and profile.metric==metric and "*" or ""),tablePercent(median))
+        local lowParses=(profile.metric==metric and dungeon.flagged)
+            or (profile.metric~=metric and dungeon.otherFlagged)
+        local bestText=tablePercent(best)
+        if best~=nil and lowParses then bestText=bestText:gsub("|r$","*|r") end
+        local first,second=MPL.OrderPercentiles(bestText,tablePercent(median))
         local metadata=profile.metric==metric
         local scoreSpec=metadata and dungeon.points and (dungeon.scoreSpec or (profile.spec~="All specs" and profile.spec))
         local scoreTexture=specTexture(scoreSpec,f.class)
@@ -654,22 +953,33 @@ function MPL.RenderProfileStats(f)
         row.scoreSpecIcon.texture:SetTexture(scoreTexture)
         row.scoreSpecIcon:SetShown(scoreTexture~=nil)
         row.scoreSpecIcon:SetAlpha(1)
-        row.cells[5]:SetWidth(f.widths[5]-(scoreTexture and 34 or 12))
+        row.cells[5]:SetWidth(f.widths[5]-(scoreTexture and 30 or 12))
         local time=metadata and dungeon.time or nil
         local values={dungeon.name,level or "—",time and time~="" and time or "—",dungeon.runs or "—",
-            metadata and dungeon.points and string.format("%.0f",dungeon.points) or "—",
+            metadata and dungeon.points and string.format("%.0f",math.floor(dungeon.points)) or "—",
             metadata and dungeon.rank or "—",amount and string.format("%.2fK",amount/1000) or "—",first,second}
         for i,value in ipairs(values) do
             row.cells[i]:SetText(value)
             local r,g,b=225/255,242/255,245/255
             if i==1 then r,g,b=0.72,0.78,1 end
-            if i==5 or i==6 then r,g,b=226/255,104/255,168/255 end
+            if i==5 then r,g,b=226/255,104/255,168/255 end
+            if i==6 and metadata and dungeon.rank and dungeon.rank>0 then r,g,b=percentileRGB(dungeon.rankPercent) end
             if i==7 then r,g,b=0.82,0.96,0.65 end
             row.cells[i]:SetTextColor(r,g,b)
+            local sr,sg,sb=r,g,b
+            if i==8 or i==9 then
+                local firstValue,secondValue=MPL.OrderPercentiles(best,median)
+                sr,sg,sb=percentileRGB(i==8 and firstValue or secondValue)
+            end
+            -- Keep dungeon names regular; a colored stroke adds unwanted weight.
+            emphasizeNumber(row.cells[i],sr,sg,sb,value~="—" and i~=1)
+            if i==2 then renderLevelDigits(row,value,r,g,b) end
         end
         row:Show()
     end
-    f.content:SetHeight(math.max(1,#profile.dungeons*30))
+    layoutProfileTable(f)
+    layoutProfileBanner(f,profile)
+    f.content:SetHeight(math.max(1,#profile.dungeons*style.rowHeight))
     f.scroll:SetVerticalScroll(0)
     MPL.UpdatePanelScroll(f)
 end
@@ -680,7 +990,7 @@ function MPL.RenderPlayerTabs(f)
     local players=type(f.searchPlayers)=="table" and f.searchPlayers or
         (type(f.groupPlayers)=="table" and f.groupPlayers or {})
     if #players<2 then return end
-    local width=880/#players
+    local width=(f.tableWidth or 880)/#players
     for i,player in ipairs(players) do
         local tab=f.playerTabs[i]
         if not tab then
@@ -784,6 +1094,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
     if not unresolvedSearch then MPL.Remember(name,server) end
     MPL.panel = MPL.panel or buildPanel()
     local f = MPL.panel
+    if not f:IsShown() then f.sortColumn=false; f.sortAscending=false end
     f.searchMember=false
     if type(f.searchChoices)=="table" then for _,b in ipairs(f.searchChoices) do b:Hide() end end
     f.specButton:Show(); f.currentSpec:Show()
@@ -882,12 +1193,6 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
         f.footer:SetText(f.footer:GetText().."\n"..L["Match based on name and class; realm not confirmed in game."])
     end
     MPL.RenderProfileStats(f)
-    local footerHeight=f.footer:GetStringHeight()
-    local extra=type(footerHeight)=="number" and math.max(0,math.ceil(footerHeight)-20) or 0
-    if extra>0 then
-        f:SetHeight(f:GetHeight()+extra)
-        f.scroll:SetPoint("BOTTOMRIGHT",-40,145+extra)
-    end
     for _,text in ipairs({f.character,f.context,f.source,f.note,f.footer}) do
         text:SetTextColor(0.88,0.95,0.96)
     end
@@ -957,7 +1262,7 @@ function MPL.ShowCompanionDownload()
     MPL.CopyURL(nil,nil,nil,"https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/MPlusLogs-Companion-Setup.exe",L["Скачать MPlusLogs Companion"])
 end
 
-function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchResultID,importTest,requestedMetric,forceSearch)
+function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchResultID,importTest,requestedMetric,forceSearch,displayRefresh)
     local name, server = MPL.Identity(fullName,realm)
     if not name then return end
     local state=MPL.GetProfileState(name,server,MPL.SelectedSpec(name,server))
@@ -975,11 +1280,11 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     -- A fresh party needs no exchange. Check before clearing a pending reply or
     -- opening an empty 0/N window; clicking a player must keep existing work.
     if type(batch)=="table" and #batch>0 and not importTest then
-        local pending=MPL.FilterFreshProfiles(batch,refresh)
+        local pending=MPL.FilterFreshProfiles(batch,refresh,displayRefresh)
         if #pending==0 then return end
     elseif batch==true then
         local players,err=MPL.CollectApplicants()
-        if not err and #players>0 and #MPL.FilterFreshProfiles(players,refresh)==0 then
+        if not err and #players>0 and #MPL.FilterFreshProfiles(players,refresh,displayRefresh)==0 then
             -- Keep the existing all-fresh message, but never offer a request
             -- when the only missing profiles are known to be hidden.
             for _,player in ipairs(players) do
@@ -1105,7 +1410,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.setStatus(err,true); return end
                 total=#players
-                if f.importTest then skipped=0 else players,skipped=MPL.FilterFreshProfiles(players,f.refresh) end
+                if f.importTest then skipped=0 else players,skipped=MPL.FilterFreshProfiles(players,f.refresh,f.displayRefresh) end
                 if total>0 and #players==0 then
                     f.character:SetText(L["Нужно загрузить: "].."0 / "..total)
                     f.status:SetText(L["Все кандидаты уже имеют актуальные логи."])
@@ -1249,6 +1554,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     f.edit:SetMaxLetters(replay and importTest.noLetterCount and 0 or (searchResultID and 1600000 or 500000))
     f.edit:SetMaxBytes(replay and importTest.captureChars and 1 or (replay and 1600000 or 0))
     f.refresh=refresh or false
+    f.displayRefresh=displayRefresh==true
     f.requestedMetric=requestedMetric or false; f.forceSearch=forceSearch or false
     f.title:SetText(L["M+ логи / Warcraft Logs"])
     f.applicant=context or false

@@ -185,6 +185,7 @@ class GroupProfileTests(unittest.TestCase):
         self.assertEqual(len(self.mpl.pendingReply.players), 2)
 
     def test_loaded_profile_explains_cooldown_then_allows_refresh_at_five_minutes(self):
+        self.mpl.companionInfo=self.lua.table_from(dict(version='1.0.27',capabilities=dict(rankcolors=True)),recursive=True)
         self.party()
         self.mpl.ShowGroupProfiles(self.mpl.CollectParty())
         response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, self.fetch)
@@ -336,6 +337,7 @@ class GroupProfileTests(unittest.TestCase):
         self.assertEqual(f.name, 'Member2')
 
     def test_manual_party_update_bypasses_companion_cache_and_imports_new_level(self):
+        self.mpl.companionInfo=self.lua.table_from(dict(version='1.0.27',capabilities=dict(rankcolors=True)),recursive=True)
         self.party()
         for name in ('Alice', 'Member1', 'Member2', 'Member3', 'Member4'):
             self.mpl.SelectSpec(name, 'Гордунни', 'All specs', 'HEALER' if name=='Alice' else 'DAMAGER')

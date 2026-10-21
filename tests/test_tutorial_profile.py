@@ -20,7 +20,7 @@ class TutorialProfileTests(unittest.TestCase):
         dps=frame.rows[1].cells[7].text
         frame.metricTabs.hps.scripts.OnClick()
         self.assertEqual(frame.viewMetric,'hps')
-        self.assertEqual(frame.metricHeading.text,'Лучший HPS')
+        self.assertEqual(frame.metricHeading.text,'Best HPS')
         self.assertNotEqual(frame.rows[1].cells[7].text,dps)
         frame.specButton.scripts.OnClick()
         self.assertEqual(frame.selectedSpec,'Restoration')

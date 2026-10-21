@@ -83,6 +83,27 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(self.mpl.GetOption('percentile'),'median')
         self.mpl.OpenSettings(); self.assertEqual(self.lua.globals().openedCategory,97)
 
+    def test_profile_redraw_keeps_space_for_multiline_footer_without_height_drift(self):
+        self.install()
+        self.mpl.ShowProfile('Киндрих','Гордунни')
+        self.lua.execute('''
+            MPlusLogs.panel.footer.GetStringHeight=function() return 60 end
+        ''')
+        self.mpl.ShowProfile('Киндрих','Гордунни',None,True)
+        panel=self.mpl.panel
+        initial_height=panel.height
+        self.assertEqual(panel.scroll.points.BOTTOMRIGHT[2],185)
+        for _ in range(4):
+            self.mpl.RenderProfileStats(panel)
+            self.assertEqual(panel.height,initial_height)
+            self.assertEqual(panel.scroll.points.BOTTOMRIGHT[2],185)
+            viewport=panel.height+panel.scroll.points.TOPLEFT[2]-panel.scroll.points.BOTTOMRIGHT[2]
+            self.assertGreaterEqual(viewport,panel.content.height)
+        self.lua.execute('MPlusLogs.panel.footer.GetStringHeight=function() return 20 end')
+        self.mpl.RenderProfileStats(panel)
+        self.assertEqual(panel.height,initial_height-40)
+        self.assertEqual(panel.scroll.points.BOTTOMRIGHT[2],145)
+
     def test_log_header_button_opens_settings_and_can_be_hidden_immediately(self):
         self.install(); self.mock_settings()
         self.mpl.ShowProfile('Alice','Гордунни')
@@ -125,12 +146,12 @@ class SettingsTests(unittest.TestCase):
         response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,fetch)
         self.mpl.ReceiveReply(response,True)
         self.mpl.ShowProfile('Alice','Гордунни')
-        self.assertEqual(self.mpl.panel.metricHeading.text,'Лучший DPS')
+        self.assertEqual(self.mpl.panel.metricHeading.text,'Best DPS')
         self.assertIn('62%',self.cell(1).text.text)
         profile=self.mpl.panel.profile
         self.mpl.SetOption('healerHpsFirst',True)
         self.mpl.SetOption('percentile','median')
-        self.assertEqual(self.mpl.panel.metricHeading.text,'Лучший HPS')
+        self.assertEqual(self.mpl.panel.metricHeading.text,'Best HPS')
         self.assertEqual(self.mpl.panel.headings[8].text,'Median %')
         self.assertEqual(self.mpl.panel.headings[9].text,'Best %')
         self.assertIn('70%',self.cell(1).text.text)

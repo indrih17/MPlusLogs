@@ -14,6 +14,8 @@ local function envelope(id, body,includeSpecs,refresh)
     add("specdetails")
     if MPL.CompanionSupports("lazyspecs") then add("lazyspecs") end
     if MPL.CompanionSupports("primarymetric") then add("primarymetric") end
+    -- Cosmetic metadata must not prevent an older helper from loading logs.
+    if MPL.CompanionSupports("rankcolors") then add("rankcolors") end
     -- Optional extension: never require it from an unrecognized/older helper.
     if MPL.CompanionSupports("errorcodes") then add("errorcodes") end
     for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do add(value) end
@@ -67,7 +69,8 @@ function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs,refresh)
     if spec=="All specs" then spec="" end
     if includeSpecs and spec~="" then role=MPL.ProfileRole({spec=spec}) end
     local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role),includeSpecs,refresh)
-    MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context,includeSpecs=includeSpecs,refresh=refresh}
+    MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context,includeSpecs=includeSpecs,refresh=refresh,
+        rankColors=MPL.CompanionSupports("rankcolors")==true}
     return id,request
 end
 
@@ -100,7 +103,8 @@ function MPL.SendBatchRequest(players,refresh)
     end
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
-    MPL.pendingReply={id=id,batch=true,expected=expected,players=players,refresh=refresh}
+    MPL.pendingReply={id=id,batch=true,expected=expected,players=players,refresh=refresh,
+        rankColors=MPL.CompanionSupports("rankcolors")==true}
     return id,envelope(id,"MPLQ2\n"..table.concat(rows),false,refresh)
 end
 
@@ -133,6 +137,7 @@ local function recordProfileFailure(name,realm,spec,message,code,retryAt)
 end
 
 function MPL.ReceiveReply(text, strict)
+    local replySupportsRankColors=false
     local pendingReply=MPL.pendingReply
     local replyVersion
     if text:match("^MPLS2[\r\n]") then
@@ -168,6 +173,7 @@ function MPL.ReceiveReply(text, strict)
             local available={}
             for capability in capabilities:gmatch("[a-z]+") do available[capability]=true end
             MPL.companionInfo={version=version,capabilities=available}
+            replySupportsRankColors=available.rankcolors==true
             replyVersion=version
             if pendingReply.includeSpecs and not available.specprofiles then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
             if pendingReply.refresh and not available.refresh then return nil,L["Для загрузки этих логов обновите MPlusLogs Companion."] end
@@ -186,6 +192,7 @@ function MPL.ReceiveReply(text, strict)
         if pendingReply.batch then
             local result,err=MPL.Parse(body,true)
             if not result then return nil,err end
+            MPL.SetProfileDisplayMetadata(result.profiles,pendingReply.rankColors,replySupportsRankColors)
             for key,profile in pairs(result.profiles) do
                 local expected=pendingReply.expected[key]
                 if not expected then return nil,L["Ответ содержит персонажа вне списка кандидатов"] end
@@ -241,7 +248,8 @@ function MPL.ReceiveReply(text, strict)
             end
             if pendingReply.role and MPL.ProfileRole(profiles[expected])~=pendingReply.role then return nil,L["Ответ содержит другую роль персонажа"] end
         end
-        local count,importError=MPL.Import(body)
+        MPL.SetProfileDisplayMetadata(profiles,pendingReply.rankColors,replySupportsRankColors)
+        local count,importError=MPL.StoreProfiles(profiles)
         if count then
             companionReplied()
             if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(replyVersion) end

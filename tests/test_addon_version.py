@@ -39,6 +39,7 @@ class AddonVersionTests(unittest.TestCase):
                 self.assertTrue(addon_version.prepare())
                 self.assertEqual(addon_version.version(), "0.5.13")
 
+
     def test_version_metadata_and_windows_newlines_do_not_trigger_releases(self):
         original = addon_version.source_hash()
         with tempfile.TemporaryDirectory(dir=ROOT) as folder:

@@ -259,7 +259,7 @@ class _RawProfiles:
 
 
 def _member_rows(member,mapping,raw_profiles,prepared,lookup_error,
-                 error_details,error_codes,available_specs,candidate_info,primary_metric):
+                 error_details,error_codes,available_specs,candidate_info,primary_metric,rank_colors):
     rows=[]
     detail=dict(name=member['name'],region=member['region'],expected_class=member['class_name'],candidates=[])
     failure_identity=None
@@ -334,7 +334,7 @@ def _member_rows(member,mapping,raw_profiles,prepared,lookup_error,
         profile['updated']=datetime.fromtimestamp(fetched_at,timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
         profile['realm']=identity['realm']
         rows.append(wcl.line('P',member['index'],identity['region'],identity['realm'],identity['name'],
-                             member['class_name'],wcl.export(profile,available_specs=available_specs)))
+                             member['class_name'],wcl.export(profile,available_specs=available_specs,rank_colors=rank_colors)))
     except (ValueError,OSError,KeyError,TypeError) as exc:
         # Lua limits the decoded field in bytes, not Unicode characters.
         message=str(exc).encode('utf-8')[:400].decode('utf-8',errors='ignore')
@@ -348,7 +348,7 @@ def _member_rows(member,mapping,raw_profiles,prepared,lookup_error,
     return rows,detail
 
 
-def reply(body,mapping,cache,client,progress=None,error_details=False,error_codes=False,available_specs=False,candidate_info=False,refresh=False,primary_metric=False):
+def reply(body,mapping,cache,client,progress=None,error_details=False,error_codes=False,available_specs=False,candidate_info=False,refresh=False,primary_metric=False,rank_colors=False):
     members=parse(body)
     if not client: raise ValueError('Sign in to Warcraft Logs in MPlusLogs Companion')
     search=getattr(client,'name_search',None)
@@ -375,7 +375,7 @@ def reply(body,mapping,cache,client,progress=None,error_details=False,error_code
 
     def resolve(member,prepared,error):
         return _member_rows(member,mapping,raw_profiles,prepared,error,
-                            error_details,error_codes,available_specs,candidate_info,primary_metric)
+                            error_details,error_codes,available_specs,candidate_info,primary_metric,rank_colors)
 
     if isinstance(search,ApiSearch) and len(members)>1 and getattr(client,'profile_workers',1)>1:
         policy=builder._ProfileWaves(min(5,client.profile_workers))

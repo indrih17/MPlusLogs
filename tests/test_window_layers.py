@@ -10,6 +10,8 @@ class WindowLayerTests(unittest.TestCase):
         mock=transport_tests.MOCK.replace(
             'function methods:Show() self.shown = true end',
             'function methods:Show() local was=self.shown; self.shown=true; if not was and self.scripts.OnShow then self.scripts.OnShow(self) end end')
+        mock=mock.replace('function methods:Hide() self.shown = false end',
+            'function methods:Hide() local was=self.shown; self.shown=false; if was and self.scripts.OnHide then self.scripts.OnHide(self) end end')
         mock=mock.replace('function methods:GetFrameLevel() return 1 end', '''
             function methods:GetFrameLevel() local p=rawget(self,"parent"); return rawget(self,"level") or (p and p:GetFrameLevel()+1 or 0) end
             function methods:SetFrameLevel(value) self.level=value end
@@ -32,6 +34,23 @@ class WindowLayerTests(unittest.TestCase):
 
     def highest(self,frame):
         return self.lua.globals().highestLevel(frame)
+
+    def test_closing_profile_closes_download_and_runs_its_cleanup(self):
+        self.mpl.Import(self.body)
+        self.mpl.ShowProfile('Киндрих','Гордунни',None,True)
+        panel=self.mpl.panel
+        self.mpl.ShowDownload(panel.name,panel.realm,panel.profile)
+        download=self.mpl.downloadWindow
+        revision=download.revision
+        self.assertTrue(panel.shown)
+        self.assertTrue(download.shown)
+        panel.Hide(panel)
+        self.assertFalse(download.shown)
+        self.assertGreater(download.revision,revision)
+
+    def test_download_can_be_opened_without_a_profile_window(self):
+        self.mpl.ShowDownload('Alice','Area 52',None)
+        self.assertTrue(self.mpl.downloadWindow.shown)
 
     def test_copy_dialog_covers_download_controls(self):
         self.mpl.ShowDownload('Alice','Area 52',None)

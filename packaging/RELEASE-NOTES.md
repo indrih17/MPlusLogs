@@ -1,6 +1,6 @@
-## MPlusLogs 0.5.32
+## MPlusLogs 0.5.33 / Companion 1.0.28
 
-- Add a nine-step localized guide with contextual help for profiles, log downloads and LFG applicants.
-- Let users hide tutorial help outside settings, including an optional choice when finishing the guide.
-- Keep first-use Companion setup guidance inside the download dialog and add /mpl testintro for previewing it.
-- Require addon publication to both CurseForge and Wago.
+- Improve profile table readability with larger dungeon names, aligned numbers, sortable columns and the original grid appearance.
+- Match Warcraft Logs rank percentile colors and metric-specific low-sample annotations.
+- Refresh missing display details from the Companion cache without waiting for the manual refresh cooldown.
+- Close the log download dialog when its profile window is closed.

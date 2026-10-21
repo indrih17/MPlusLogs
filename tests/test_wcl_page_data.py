@@ -49,7 +49,7 @@ class WCLPageDataTests(unittest.TestCase):
         self.assertEqual(profile['dungeons'][0]['rank'], 12445)
         self.assertIsNone(profile['dungeons'][1]['amount'])
 
-    def test_export_import_preserves_precision_and_existing_display_rounding(self):
+    def test_export_import_preserves_precision_total_rounding_and_truncates_dungeon_points(self):
         profile = wcl.normalize(self.raw(), self.args())
         self.assertEqual(self.mpl.Import(wcl.export(profile)), 1)
         self.mpl.ShowProfile('Киндрих', 'Гордунни')
@@ -58,7 +58,9 @@ class WCLPageDataTests(unittest.TestCase):
         self.assertAlmostEqual(panel.profile.score, 885.7)
         self.assertEqual(panel.rows[1].cells[2].text, 17)
         self.assertEqual(panel.rows[1].cells[3].text, '26:03')
-        self.assertEqual(panel.rows[1].cells[5].text, '445')
+        self.assertEqual(panel.rows[1].cells[5].text, '444')
+        self.assertEqual(panel.rows[2].cells[5].text, '440')
+        self.assertEqual(panel.profile.dungeons[1].points, 444.9)
         self.assertEqual(panel.rows[1].cells[6].text, 12445)
         self.assertEqual(panel.rows[2].cells[7].text, '—')
 

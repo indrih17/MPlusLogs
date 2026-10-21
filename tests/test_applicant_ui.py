@@ -24,7 +24,7 @@ class ApplicantUITests(unittest.TestCase):
     def test_lookup_button_and_enter_open_the_entered_character(self):
         self.mpl.ShowProfile("Киндрих-Гордунни")
         f = self.mpl.panel
-        self.assertEqual(f.headings[4].text, "Прохождения")
+        self.assertEqual(f.headings[4].text, "Runs")
         f.lookup.SetText(f.lookup, "  Alice-Area 52  ")
         f.lookupButton.scripts.OnClick()
         self.assertEqual(f.name, "Alice")

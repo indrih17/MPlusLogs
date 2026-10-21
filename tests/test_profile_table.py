@@ -15,7 +15,7 @@ class ProfileTableTests(unittest.TestCase):
         self.assertIn("дата неизвестна",panel.staleBanner.message.text)
         panel.metricTabs.hps.scripts.OnClick()
         self.assertTrue(panel.staleBanner.shown)
-        self.assertEqual(panel.height,732)
+        self.assertEqual(panel.height,688)
         self.mpl.ShowProfile("Missing-Silvermoon")
         self.assertFalse(panel.staleBanner.shown)
         self.assertEqual(panel.height,700)
@@ -24,7 +24,7 @@ class ProfileTableTests(unittest.TestCase):
         self.mpl.ShowProfile("Киндрих-Гордунни")
         panel=self.mpl.panel
         self.assertEqual([panel.headings[i].text for i in range(1,10)],
-                         ["Подземелье","Уровень","Время","Прохождения","Очки","Место","Лучший DPS","Best %","Median %"])
+                         ["Подземелье","Уровень","Время","Runs","Очки","Ранг","Best DPS","Best %","Median %"])
         row=panel.rows[1]
         self.assertEqual(row.cells[2].text,19)
         self.assertEqual(row.cells[3].text,"29:26")

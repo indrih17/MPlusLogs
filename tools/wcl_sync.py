@@ -247,6 +247,12 @@ def numeric(value, maximum=1e12, integer=False):
     return int(value) if integer else value
 
 
+def low_parse_marker(value):
+    if value is not None and type(value) is not bool:
+        raise ProfileError("Unexpected low-parse marker in WCL JSON", "schema")
+    return value
+
+
 def rankings(value):
     if isinstance(value, str):
         value = json.loads(value)
@@ -436,26 +442,41 @@ def normalize(raw, args):
                          "runs": numeric(r.get("totalKills"), 10000000, True),
                          "amount": numeric(t.get("best_per_second_amount")),
                          "best": numeric(t.get("best_historical_percentile"), 100),
+                         "flagged": low_parse_marker(t.get("best_historical_low_parses")),
                          "median": numeric(t.get("median_historical_percentile"), 100),
                          "points": numeric(r.get("bestAmount")), "rank": dungeon_rank,
+                         # Score-rank colors belong to the allStars leaderboard,
+                         # not the best run or DPS/HPS percentile. Missing data
+                         # stays unknown; rank alone cannot supply a percentile.
+                         "rankPercent": numeric(dungeon_stars.get("rankPercent"),100) if isinstance(dungeon_stars,dict) else None,
                          "otherLevel":numeric(second.get("best_level"),100,True),
                          "otherAmount":numeric(second.get("best_per_second_amount")),
                          "otherBest":numeric(second.get("best_historical_percentile"),100),
+                         "otherFlagged":low_parse_marker(second.get("best_historical_low_parses")),
                          "otherMedian":numeric(second.get("median_historical_percentile"),100)})
     stars = performance.get("allStars", [])
     ranks_by_spec = {}
+    rank_percents_by_spec = {}
     for star in stars if isinstance(stars, list) else []:
         if not isinstance(star, dict): continue
         spec, rank = star.get("spec"), numeric(star.get("rank"), 100000000, True)
         if isinstance(spec, str) and 0 < len(spec) <= 80 and rank and rank > 0:
+            rank_percent = numeric(star.get("rankPercent"),100)
             if spec not in ranks_by_spec:
                 ranks_by_spec[spec] = rank
+                rank_percents_by_spec[spec] = rank_percent
             elif ranks_by_spec[spec] != rank:
                 # WCL can return conflicting allStars rows for the same spec.
                 # Omit the ambiguous rank, rather than inventing a best position
                 # or making otherwise usable dungeon logs fail import.
                 ranks_by_spec[spec] = None
-    spec_ranks = [{"spec": spec, "rank": rank} for spec, rank in ranks_by_spec.items() if rank is not None]
+            elif rank_percents_by_spec[spec] != rank_percent:
+                # Identical ranks remain usable if color metadata disagrees or
+                # is missing from one row; only their uncertain color is omitted.
+                rank_percents_by_spec[spec] = None
+    spec_ranks = [{"spec": spec, "rank": rank, **({"rankPercent":rank_percents_by_spec[spec]}
+                  if rank_percents_by_spec[spec] is not None else {})}
+                  for spec, rank in ranks_by_spec.items() if rank is not None]
     points = numeric(stars[0].get("points")) if isinstance(stars, list) and len(stars) == 1 and isinstance(stars[0], dict) else None
     if isinstance(stars,list) and len(stars)>1 and dungeons and all(d["points"] is not None for d in dungeons):
         # All-specs score combines the best result in each dungeon. Spec totals
@@ -479,7 +500,7 @@ def line(*values):
     return "\t".join(quote("" if v is None else str(v), safe="-._~") for v in values)
 
 
-def export(profile, spec_details=True, available_specs=False):
+def export(profile, spec_details=True, available_specs=False, rank_colors=False):
     p = profile
     rows = ["MPL1", line("P", *(p.get(k) for k in ("region", "realm", "name", "zone", "season", "spec", "metric",
                                                   "score", "best", "median", "runs", "updated", "source", "characterID", "realmSlug")))]
@@ -494,12 +515,26 @@ def export(profile, spec_details=True, available_specs=False):
             rows.append(line("A", spec))
     if spec_details:
         for entry in p.get("specRanks", []):
-            rows.append(line("R", entry["spec"], entry["rank"]))
+            values=(entry["spec"],entry["rank"])
+            if rank_colors and entry.get("rankPercent") is not None:
+                values+=(entry["rankPercent"],)
+            rows.append(line("R", *values))
     for d in p["dungeons"]:
         keys=("name", "level", "time", "runs", "amount", "best", "median", "points", "rank")
         if p.get("dual"): keys+=("otherLevel","otherAmount","otherBest","otherMedian")
-        if spec_details and d.get("scoreSpec"): keys+=("scoreSpec",)
-        rows.append(line("D", *(d.get(k) for k in keys)))
+        values=[d.get(k) for k in keys]
+        flags = (1 if d.get("flagged") is True else 0) + (2 if d.get("otherFlagged") is True else 0)
+        if rank_colors and (d.get("rankPercent") is not None or flags):
+            # Keep a scoreSpec slot even when absent/disabled, so the optional
+            # numeric extension is unambiguous in both single and dual rows.
+            values.extend((d.get("scoreSpec") if spec_details else None,d.get("rankPercent")))
+            if flags:
+                # Primary/secondary low-sample Best annotations are independent.
+                # A marker-only extension leaves the percentile slot blank.
+                values.append(flags)
+        elif spec_details and d.get("scoreSpec"):
+            values.append(d["scoreSpec"])
+        rows.append(line("D", *values))
     rows.append("E")
     return "\n".join(rows) + "\n"
 

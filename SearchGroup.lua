@@ -126,12 +126,13 @@ local function current(f)
     return signature and signature==f.signature
 end
 
-local function usable(player)
+local function usable(player,displayRefresh)
     if not player.realm then return false end
     local profile=MPL.GetProfile(player.name,player.realm,"All specs",player.role)
     local state=MPL.GetProfileState(player.name,player.realm,"All specs")
     local metric=MPL.PrimaryMetric(profile,player.name,player.realm,player.role)
     return profile and (profile.dual or profile.metric==metric) and not state and not MPL.IsProfileStale(profile)
+        and not (displayRefresh and MPL.ProfileNeedsDisplayRefresh(profile))
 end
 
 local function cachedProfile(player)
@@ -295,7 +296,7 @@ function MPL.BeginSearchGroupRequest(forceSearch)
     local levelSearch,leaderFirst,keyContext=false,false,false
     f.requestPlayers={}; f.requestTargets={}
     for _,p in ipairs(f.players) do
-        if not p.departed and (forceSearch or not f.onlyMissing or not usable(p)) then
+        if not p.departed and (forceSearch or not f.onlyMissing or not usable(p,f.displayRefresh)) then
             local copy={}; for key,value in pairs(p) do copy[key]=value end
             if forceSearch and copy.origin=="search" then copy.realm=nil end
             f.requestPlayers[#f.requestPlayers+1]=copy
@@ -323,7 +324,9 @@ function MPL.BeginSearchGroupRequest(forceSearch)
         ..(forceSearch and ",rescan" or "")
         ..(MPL.CompanionSupports("errorcodes") and ",errorcodes" or "")
         ..(MPL.CompanionSupports("lazyspecs") and ",lazyspecs" or "")
+        ..(MPL.CompanionSupports("rankcolors") and ",rankcolors" or "")
         ..(MPL.CompanionSupports("primarymetric") and ",primarymetric" or "").."\nMPLQ2\n"..table.concat(rows,"\n").."\n"
+    f.rankColors=MPL.CompanionSupports("rankcolors")==true
     return id,f.request
 end
 
@@ -404,6 +407,11 @@ function MPL.ReceiveSearchGroupReply(text)
         else return nil,L["Invalid group search reply"] end
     end
     for i in ipairs(f.requestPlayers) do if not staged[i] then return nil,L["Invalid group search reply"] end end
+    local displaySupported=false
+    for capability in (capabilities or ""):gmatch("[a-z]+") do
+        if capability=="rankcolors" then displaySupported=true end
+    end
+    MPL.SetProfileDisplayMetadata(profiles,f.rankColors,displaySupported)
     local count=MPL.StoreProfiles(profiles)
     MPlusLogsDB.companionReplySeen=true
     if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(version) end
@@ -451,7 +459,7 @@ function MPL.ShowSearchGroup(resultID)
     elseif f.signature~=signature then mergeRoster(f,players,signature); f.onlyMissing=true end
 end
 
-function MPL.ShowSearchGroupLogs(resultID,forceSearch)
+function MPL.ShowSearchGroupLogs(resultID,forceSearch,displayRefresh)
     if forceSearch and not MPL.CompanionSupports("rescan") then
         if MPL.panel then MPL.panel.footer:SetText(L["Update Companion to search realms again."]) end
         return
@@ -460,10 +468,11 @@ function MPL.ShowSearchGroupLogs(resultID,forceSearch)
     if not players then print(L["Group member data is unavailable; try again shortly"]); return end
     MPL.ShowSearchGroup(resultID)
     local f=MPL.searchGroupWindow
+    f.displayRefresh=displayRefresh==true
     local fresh=true
     for _,player in ipairs(f.players) do
         if not player.departed then
-            if usable(player) then player.loaded=true else fresh=false end
+            if usable(player,displayRefresh) then player.loaded=true else fresh=false end
         end
     end
     if fresh and not forceSearch then

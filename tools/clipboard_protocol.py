@@ -4,7 +4,7 @@ from urllib.parse import quote
 import clipboard_companion as bridge
 import companion_update
 
-CAPABILITIES = {"dual", "batch", "updater", "opencompanion", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "keycontext", "nameerrors", "errorcodes", "lazyspecs", "candidateinfo", "rescan", "primarymetric", "leaderfirst"}
+CAPABILITIES = {"dual", "batch", "updater", "opencompanion", "specprofiles", "refresh", "specdetails", "namesearch", "levelsearch", "keycontext", "nameerrors", "errorcodes", "lazyspecs", "candidateinfo", "rescan", "primarymetric", "leaderfirst", "rankcolors"}
 
 
 def is_open_updates_command(text):
@@ -66,7 +66,7 @@ def reply(text,mapping,cache,client=None,diagnostic=False,progress=None):
             result=name_search.reply(body,mapping,cache,client,progress=progress,error_details='nameerrors' in required,
                                      error_codes='errorcodes' in required, available_specs='lazyspecs' in required,
                                      candidate_info='candidateinfo' in required, refresh='rescan' in required,
-                                     primary_metric='primarymetric' in required)
+                                     primary_metric='primarymetric' in required, rank_colors='rankcolors' in required)
         else:
             batch=body.startswith("MPLQ2\n")
             result,_=bridge.process_request(body,mapping,cache,client,batch=batch,
@@ -75,7 +75,8 @@ def reply(text,mapping,cache,client=None,diagnostic=False,progress=None):
                 spec_details=metadata_requested and 'specdetails' in required, progress=progress,
                 error_codes=metadata_requested and 'errorcodes' in required,
                 lazy_specs=metadata_requested and 'lazyspecs' in required,
-                primary_metric=metadata_requested and 'primarymetric' in required)
+                primary_metric=metadata_requested and 'primarymetric' in required,
+                rank_colors=metadata_requested and 'rankcolors' in required)
         # WoW EditBox expands clipboard tabs to spaces. Encode the entire
         # data block, including tab delimiters, before handing it to the game.
         # Preserve record newlines: one enormous encoded line stalls native

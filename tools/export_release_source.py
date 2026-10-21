@@ -13,7 +13,8 @@ def entries():
     files = list(ROOT.glob("*.lua")) + [ROOT / name for name in ("Settings.xml", "MPlusLogs.toc", "LICENSE", "CODE-SIGNING.md", ".gitignore", "realm-slugs.json", "Start-Companion.vbs", "AGENTS.md", "CHANGELOG.md")]
     for directory, patterns in {"Locales": ["*.lua", "*.json", "README.md"], "tools": ["*.py", "*.pyw", "*.ps1", "requirements.txt", "oauth_client.json"],
         "Locales/Tutorial": ["deDE.lua", "esES.lua", "esMX.lua", "frFR.lua", "itIT.lua", "koKR.lua", "ptBR.lua", "zhCN.lua", "zhTW.lua"],
-        "tools/assets": ["*.png", "*.ico", "*.svg", "*.wav"], "assets": ["*.tga"], "assets/dungeons": ["*.tga", "README.md"], "docs": ["tutorial.md"], "tools/companion_locales": ["*.json", "README.md"], "tests": ["*.py"], "packaging": ["*"], ".github/workflows": ["*.yml"]}.items():
+        "tools/assets": ["*.png", "*.ico", "*.svg", "*.wav"], "assets": ["*.tga"], "assets/dungeons": ["*.tga", "README.md"],
+        "docs": ["tutorial.md"], "tools/companion_locales": ["*.json", "README.md"], "tests": ["*.py"], "packaging": ["*"], ".github/workflows": ["*.yml"]}.items():
         for pattern in patterns:
             files.extend((ROOT / directory).glob(pattern))
     files.extend([ROOT / "experiments/wcl-points-and-damage.json"])
