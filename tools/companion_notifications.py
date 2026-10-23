@@ -41,18 +41,22 @@ class PopupNotifications:
         self.root,self.on_click,self.theme,self.duration=root,on_click,theme,duration
         self.window=None
         self.timer=None
+        self.highlight_timer=None
+        self.appearance_timer=None
         self.pending=deque(maxlen=3)
         self.current=None
         self.current_action=None
+        self.current_kind=None
         self.status=None
         self.hovered=False
 
-    def show(self,title,text,on_click=None):
-        item=(title,text,on_click)
+    def show(self,title,text,on_click=None,*,kind='notice'):
+        item=(title,text,on_click,kind)
         if self.window is not None:
-            if item==(*self.current,self.current_action):self._schedule()
+            if item==(*self.current,self.current_action,self.current_kind):self._schedule()
             elif item not in self.pending:self.pending.append(item)
             return
+        self.current_kind=kind
         try:
             self._create_card(title,text)
         except Exception:
@@ -63,21 +67,36 @@ class PopupNotifications:
         self.status={'backend':'companion','state':'shown','time':time.time()}
         self._schedule()
 
+    def clear_reply(self):
+        """A new request invalidates only readiness cards, not update actions."""
+        self.pending=deque((item for item in self.pending if item[3]!='reply'),maxlen=3)
+        if self.current_kind=='reply':self._dismiss()
+
+    def show_reply(self,title,text):
+        """Readiness is the latest clipboard state, never a queue of old replies."""
+        self.pending=deque((item for item in self.pending if item[3]!='reply'),maxlen=3)
+        if self.window is not None and self.current_kind!='reply':
+            self.pending.appendleft((*self.current,self.current_action,self.current_kind))
+        self._dismiss(show_next=False)
+        self.show(title,text,kind='reply')
+
     def _create_card(self,title,text):
         palette=appearance.PALETTES.get(self.theme(),appearance.PALETTES['light'])
         window=self.window=tk.Toplevel(self.root)
         window.withdraw()
         window.overrideredirect(True)
         window.attributes('-topmost',True)
-        window.configure(bg=palette['border'])
+        if self.current_kind=='reply':window.attributes('-alpha',0.4)
+        window.configure(bg=palette['accent'] if self.current_kind=='reply' else palette['border'])
         window.title('MPlusLogs Companion notification')
         card=tk.Frame(window,bg=palette['background'],padx=16,pady=14)
-        card.pack(fill='both',expand=True,padx=1,pady=1)
+        card.pack(fill='both',expand=True,padx=3,pady=3)
         image=tk.PhotoImage(master=window,file=str(Path(__file__).with_name('assets')/'mpluslogs.png')).subsample(8,8)
         window.notification_icon=image
         icon=tk.Label(card,image=image,bg=palette['background'])
         icon.grid(row=0,column=0,rowspan=2,padx=(0,12),sticky='n')
-        heading=tk.Label(card,text=title,font=('Segoe UI',10,'bold'),fg=palette['text'],bg=palette['background'],anchor='w')
+        heading=tk.Label(card,text=title,font=('Segoe UI',10,'bold'),fg=palette['text'],bg=palette['background'],anchor='w',
+                         wraplength=300,justify='left')
         heading.grid(row=0,column=1,sticky='w')
         body=tk.Label(card,text=text,font=('Segoe UI',10),fg=palette['muted'],bg=palette['background'],
                       wraplength=300,justify='left',anchor='w')
@@ -92,6 +111,17 @@ class PopupNotifications:
         window.bind('<Leave>',lambda event:self._leave())
         window.update_idletasks()
         show_without_activation(window)
+        if self.current_kind=='reply':
+            # A cached reply can finish in the same GUI poll that removed the
+            # old card. Give the replacement a visible entrance even then.
+            def end_appearance():
+                self.appearance_timer=None
+                window.attributes('-alpha',1.0)
+            self.appearance_timer=self.root.after(160,end_appearance)
+            def end_highlight():
+                self.highlight_timer=None
+                window.configure(bg=palette['border'])
+            self.highlight_timer=self.root.after(650,end_highlight)
 
     def _enter(self):
         self.hovered=True
@@ -114,17 +144,24 @@ class PopupNotifications:
         self._cancel_timer()
         if self.window is not None and not self.hovered:self.timer=self.root.after(self.duration,self._dismiss)
 
-    def _dismiss(self):
+    def _dismiss(self,*,show_next=True):
         self._cancel_timer()
+        if self.highlight_timer is not None:
+            self.root.after_cancel(self.highlight_timer)
+            self.highlight_timer=None
+        if self.appearance_timer is not None:
+            self.root.after_cancel(self.appearance_timer)
+            self.appearance_timer=None
         window,self.window=self.window,None
         self.current=None
         self.current_action=None
+        self.current_kind=None
         self.hovered=False
         if window is not None:window.destroy()
         self.status={'backend':'companion','state':'closed','time':time.time()}
-        if self.pending:
-            title,text,on_click=self.pending.popleft()
-            self.show(title,text,on_click=on_click)
+        if show_next and self.pending:
+            title,text,on_click,kind=self.pending.popleft()
+            self.show(title,text,on_click=on_click,kind=kind)
 
     def _activate(self):
         action=self.current_action or self.on_click

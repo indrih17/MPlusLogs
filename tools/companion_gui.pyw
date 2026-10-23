@@ -39,6 +39,7 @@ class App:
         self.stop, self.auth_cancel = threading.Event(), threading.Event()
         self.want_running = self.exiting = False
         self.clipboard_sequence, self.clipboard_events = None, []
+        self.notification_characters=[]
         self.last_heartbeat = 0
         # The no-WCL transport test is available only through an explicit
         # development launch from source, never in the packaged application.
@@ -419,15 +420,27 @@ class App:
         window.update_idletasks()
         self.refresh_theme(force=True)
 
-    def show_notification(self,title,text,*,required=False,on_click=None):
+    def show_notification(self,title,text,*,required=False,on_click=None,reply=False):
         if not required and not self.notifications.get():return False
         try:
-            if on_click is None:self.popup.show(title,text)
+            if reply:self.popup.show_reply(title,text)
+            elif on_click is None:self.popup.show(title,text)
             else:self.popup.show(title,text,on_click=on_click)
             return True
         except (OSError,tk.TclError) as exc:
             self.notification_test_status.set('Не удалось показать уведомление: '+str(exc))
             return False
+
+    def reply_notification_title(self):
+        characters=getattr(self,'notification_characters',[])
+        response=getattr(self,'result',None)
+        if not characters or (isinstance(response,str) and response.startswith('MPLE1\n')):
+            return i18n.tr('Reply ready')
+        if len(characters)>1:
+            return i18n.tr('Group logs ready · {count} characters').format(count=len(characters))
+        character=characters[0]
+        template='Logs ready · {character} — {realm}' if character['realm'] else 'Logs ready · {character}'
+        return i18n.tr(template).format(character=character['name'],realm=character['realm'])
 
     def test_notification(self):
         if not self.notifications.get():
@@ -518,6 +531,7 @@ class App:
                         if text.startswith(("MPLQ1", "MPLQ2")) or (text.startswith("MPLS1") and "MPLQ" in text):
                             post("status", "Запрос скопирован не полностью. Выделите поле в WoW (Ctrl+A), затем Ctrl+C.")
                         continue
+                    post("request_started",clipboard_protocol.request_characters(text))
                     post("progress", dict(stage="preparing"))
                     if not session and not diagnostic:
                         request_id=clipboard_protocol.unwrap_request(text)[0]
@@ -599,7 +613,10 @@ class App:
                     continue
             if kind in {"status", "ready", "fatal", "auth", "configured_auth", "auth_error"}:
                 self.clear_progress()
-            if kind == "progress":
+            if kind == "request_started":
+                self.notification_characters=value
+                self.popup.clear_reply()
+            elif kind == "progress":
                 self.show_progress(value)
             elif kind == "quota":
                 # Display upstream observations without an extra API request or disk write.
@@ -686,7 +703,7 @@ class App:
             else:
                 self.status.set(value)
                 if kind == "ready":
-                    self.show_notification("MPlusLogs Companion",self.status.get())
+                    self.show_notification(self.reply_notification_title(),self.status.get(),reply=True)
                     if self.sound.get():
                         companion_audio.play_ready()
         if not self.installing_update:

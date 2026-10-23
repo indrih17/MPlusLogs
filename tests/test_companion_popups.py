@@ -46,6 +46,62 @@ class PopupTests(unittest.TestCase):
         self.popup._dismiss()
         self.assertEqual(self.popup.current,('MPlusLogs','Update ready'))
 
+    def test_each_ready_reply_recreates_card_and_highlight_even_with_same_text(self):
+        self.popup.show_reply('Logs ready','Ctrl+V')
+        first=self.popup.window
+        highlight=self.popup.highlight_timer
+        self.popup._enter()
+        self.popup.show_reply('Logs ready','Ctrl+V')
+        self.assertIsNot(self.popup.window,first)
+        self.assertFalse(first.winfo_exists())
+        self.assertNotEqual(self.popup.highlight_timer,highlight)
+        self.assertFalse(self.popup.hovered)
+        self.assertIsNotNone(self.popup.timer)
+        self.assertFalse(self.popup.pending)
+        self.assertEqual(self.presenter.call_count,2)
+        self.activate.assert_not_called()
+
+    def test_latest_reply_preempts_notice_and_preserves_update_install_action(self):
+        install=Mock()
+        self.popup.show('Update ready','Install',on_click=install)
+        for name in ('First','Second','Third'):
+            self.popup.show_reply(name,'Ctrl+V')
+        self.assertEqual(self.popup.current,('Third','Ctrl+V'))
+        self.assertEqual(len(self.popup.pending),1)
+        self.popup._dismiss()
+        self.assertEqual(self.popup.current,('Update ready','Install'))
+        self.popup._activate()
+        install.assert_called_once()
+        self.assertFalse(self.popup.pending)
+
+    def test_new_request_clears_readiness_but_keeps_queued_update(self):
+        self.popup.show_reply('First','Ctrl+V')
+        self.popup.show('Update','Install')
+        self.popup.clear_reply()
+        self.assertEqual(self.popup.current,('Update','Install'))
+        self.assertIsNone(self.popup.highlight_timer)
+        self.assertFalse(self.popup.pending)
+
+    def test_new_request_without_other_notices_removes_card_and_all_timers(self):
+        self.popup.show_reply('First','Ctrl+V')
+        self.popup.clear_reply()
+        self.assertIsNone(self.popup.window)
+        self.assertIsNone(self.popup.timer)
+        self.assertIsNone(self.popup.highlight_timer)
+        self.assertIsNone(self.popup.appearance_timer)
+        self.root.after(40,self.root.quit);self.root.mainloop()
+        self.assertIsNone(self.popup.window)
+
+    def test_silent_ready_card_has_visible_entrance_even_when_reply_is_instant(self):
+        self.popup.duration=1000
+        self.popup.show_reply('First','Ctrl+V')
+        self.popup.show_reply('First','Ctrl+V')
+        self.assertAlmostEqual(self.popup.window.attributes('-alpha'),0.4,places=1)
+        self.root.after(200,self.root.quit);self.root.mainloop()
+        self.assertAlmostEqual(self.popup.window.attributes('-alpha'),1.0)
+        self.assertIsNone(self.popup.appearance_timer)
+        self.assertIsNotNone(self.popup.highlight_timer)
+
     def test_repeated_notice_does_not_create_duplicate_cards(self):
         self.popup.show('MPlusLogs','Reply ready')
         first=self.popup.window

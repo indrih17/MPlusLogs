@@ -39,6 +39,24 @@ def unwrap_request(text):
     return parts[1],parts[2]
 
 
+def request_characters(text):
+    """Read display identities from a validated request, without resolving realms."""
+    request=unwrap_request(text)
+    if not request:return []
+    body=request[1]
+    try:
+        if body.startswith(('MPLN1\n','MPLQ2\nMPLN1\n')):
+            import name_search
+            entries=name_search.parse(body)
+        else:
+            import realm_resolver
+            entries=realm_resolver.parse_queue(body,{},allow_unresolved=True)
+        return [dict(name=entry['name'],realm=entry['realm']) for entry in entries]
+    except (ValueError,KeyError,TypeError):
+        # A malformed request must still reach the normal protocol error path.
+        return []
+
+
 def reply(text,mapping,cache,client=None,diagnostic=False,progress=None):
     request=unwrap_request(text)
     if not request: return None

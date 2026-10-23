@@ -60,8 +60,8 @@ class ReadyNotificationTests(unittest.TestCase):
         self.event('ready',text)
         with patch.object(i18n,'_language','enUS'):
             self.app.poll()
-        self.app.popup.show.assert_called_once_with(
-            'MPlusLogs Companion','The reply is on the clipboard. Return to WoW and press Ctrl+V.')
+        self.app.popup.show_reply.assert_called_once_with(
+            'Reply ready','The reply is on the clipboard. Return to WoW and press Ctrl+V.')
         self.app.root.bell.assert_not_called()
         self.play_sound.assert_not_called()
 
@@ -69,7 +69,99 @@ class ReadyNotificationTests(unittest.TestCase):
         text='Ответ готов. Буфер изменился — нажмите «Скопировать последний ответ».'
         self.event('ready',text)
         self.app.poll()
-        self.assertEqual(self.app.popup.show.call_args.args,('MPlusLogs Companion',i18n.tr(text)))
+        self.assertEqual(self.app.popup.show_reply.call_args.args,(i18n.tr('Reply ready'),i18n.tr(text)))
+
+    def test_new_request_clears_old_ready_and_names_the_new_character_without_sound(self):
+        self.event('request_started',[dict(name='Mignøn',realm="Cho'gall")])
+        self.event('ready','Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V.')
+        with patch.object(i18n,'_language','ruRU'):
+            self.app.poll()
+        self.assertEqual(self.app.popup.method_calls[0][0],'clear_reply')
+        self.app.popup.show_reply.assert_called_once_with(
+            "Логи готовы · Mignøn — Cho'gall",'Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V.')
+        self.play_sound.assert_not_called()
+
+    def test_group_and_realm_unknown_titles_are_localized(self):
+        with patch.object(i18n,'_language','enUS'):
+            self.app.notification_characters=[dict(name='One',realm=''),dict(name='Two',realm='')]
+            self.assertEqual(self.app.reply_notification_title(),'Group logs ready · 2 characters')
+            self.app.notification_characters=self.app.notification_characters[:1]
+            self.assertEqual(self.app.reply_notification_title(),'Logs ready · One')
+            self.app.result='MPLE1\n1-2\nerror'
+            self.assertEqual(self.app.reply_notification_title(),'Reply ready')
+
+    def test_stale_worker_cannot_clear_current_readiness(self):
+        self.event('request_started',[],threading.Event())
+        self.app.poll()
+        self.app.popup.clear_reply.assert_not_called()
+
+    def test_fast_silent_replies_replace_the_real_card_even_in_one_gui_poll(self):
+        import gc
+        root=gui.tk.Tk();root.withdraw()
+        popup=gui.companion_notifications.PopupNotifications(root,Mock())
+        self.app.popup=popup
+        self.app.notification_characters=[dict(name='One',realm='Realm')]
+        with patch.object(gui.companion_notifications,'show_without_activation') as present:
+            try:
+                self.event('ready','Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V.')
+                self.app.poll()
+                first=popup.window
+                self.event('request_started',[dict(name='One',realm='Realm')])
+                self.event('ready','Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V.')
+                self.app.poll()
+                self.assertIsNot(popup.window,first)
+                self.assertFalse(first.winfo_exists())
+                self.assertEqual(present.call_count,2)
+                self.assertIsNotNone(popup.highlight_timer)
+                self.assertFalse(popup.pending)
+                self.play_sound.assert_not_called()
+            finally:
+                popup.close()
+                root.update_idletasks()
+                root.destroy()
+        self.app.popup=None
+        del popup,first,root
+        gc.collect()
+
+    def test_request_display_identity_uses_real_protocol_parsers(self):
+        body="MPLQ2\nQ\teu\tCho%27gall\tMign%C3%B8n\tdps\t259\tDAMAGER"
+        request='MPLS2\n123-1\nMPLC1 dual,batch\n'+body
+        self.assertEqual(gui.clipboard_protocol.request_characters(request),[dict(name='Mignøn',realm="Cho'gall")])
+        search='MPLS2\n123-2\nMPLC1 namesearch\nMPLN1\nN\t1\teu\t\tOne\tROGUE\tDAMAGER\tsearch'
+        self.assertEqual(gui.clipboard_protocol.request_characters(search),[dict(name='One',realm='')])
+        for invalid in ('private clipboard text','MPLS1\n123-1\nMPLQ1\nQ\teu'):
+            self.assertEqual(gui.clipboard_protocol.request_characters(invalid),[])
+
+    def test_worker_emits_new_request_before_each_reply_and_handles_changed_clipboard(self):
+        self.app.clipboard_events=[]
+        self.app.copy_button=Mock()
+        stop=self.app.stop=Mock()
+        stop.wait.side_effect=[False,False,True]
+        stop.is_set.return_value=False
+        clipboard=Mock()
+        clipboard.sequence.side_effect=[1,2]
+        clipboard.read.side_effect=[
+            "MPLS1\n123-1\nMPLQ1\nQ\teu\tCho'gall\tFirst",
+            "MPLS1\n123-2\nMPLQ2\nQ\teu\tCho'gall\tSecond\nQ\teu\tGordunni\tThird"]
+        clipboard.reply_if_unchanged.side_effect=[True,False]
+        def reply(*args,**kwargs):
+            self.assertEqual(self.app.messages.queue[-2][1][1],'request_started')
+            return 'MPLS1\n123-1\nfixture'
+        with patch.object(gui.bridge,'WindowsClipboard',return_value=clipboard), \
+             patch.object(gui.realm_resolver,'load_mappings',return_value={}), \
+             patch.object(gui.cache_maintenance,'maintain'), \
+             patch.object(gui.clipboard_protocol,'reply',side_effect=reply), \
+             patch.object(gui.build_database,'atomic_write'):
+            self.app.watch(stop,None,True,0)
+        kinds=[value[1] for kind,value in self.app.messages.queue]
+        self.assertEqual([kind for kind in kinds if kind in {'request_started','result','ready'}],
+                         ['request_started','result','ready']*2)
+        with patch.object(i18n,'_language','enUS'):
+            self.app.poll()
+        self.assertEqual(self.app.popup.clear_reply.call_count,2)
+        self.assertEqual(self.app.popup.show_reply.call_count,2)
+        self.app.popup.show_reply.assert_called_with('Group logs ready · 2 characters',
+            'The reply is ready. The clipboard changed — click Copy last reply.')
 
     def test_notifications_can_be_disabled_without_disabling_sound(self):
         self.app.notifications.get.return_value=False
@@ -77,6 +169,7 @@ class ReadyNotificationTests(unittest.TestCase):
         self.event('ready','Reply ready')
         self.app.poll()
         self.app.popup.show.assert_not_called()
+        self.app.popup.show_reply.assert_not_called()
         self.play_sound.assert_called_once()
         self.app.root.bell.assert_not_called()
 
@@ -89,6 +182,7 @@ class ReadyNotificationTests(unittest.TestCase):
         self.event('ready','Stopped reply')
         self.app.poll()
         self.app.popup.show.assert_not_called()
+        self.app.popup.show_reply.assert_not_called()
         self.app.root.bell.assert_not_called()
         self.play_sound.assert_not_called()
 
@@ -98,7 +192,7 @@ class ReadyNotificationTests(unittest.TestCase):
         self.event('ready','Reply ready')
         self.app.poll()
         self.app.status.set.assert_called_with('Reply ready')
-        self.app.popup.show.assert_called_once_with('MPlusLogs Companion','Reply ready')
+        self.app.popup.show_reply.assert_called_once_with(i18n.tr('Reply ready'),'Reply ready')
         self.play_sound.assert_called_once()
         self.app.root.bell.assert_not_called()
 
@@ -156,6 +250,7 @@ class ReadyNotificationTests(unittest.TestCase):
         self.app.notifications.get.return_value=False
         self.app.test_notification()
         self.app.popup.show.assert_not_called()
+        self.app.popup.show_reply.assert_not_called()
         self.app.notification_test_status.set.assert_called_once_with('Сначала включите всплывающие уведомления.')
 
 
