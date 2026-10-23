@@ -1,5 +1,9 @@
 # Changelog
 
+## Companion 1.0.29
+
+- Fix realm resolution for apostrophe and Unicode typography variants, including EU Cho'gall and Ner'zhul, while preserving ambiguity checks.
+
 ## MPlusLogs 0.5.33 / Companion 1.0.28
 
 - Improve profile table readability with larger dungeon names, aligned numbers, sortable columns and the original grid appearance.

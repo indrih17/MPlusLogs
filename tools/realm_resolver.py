@@ -3,12 +3,18 @@ import json
 from pathlib import Path
 import re
 import sys
+import unicodedata
 
 ROOT = Path(__file__).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 
 
 def normalized(text):
-    return re.sub(r"[\s\-']", "", text.casefold())
+    # WoW and WCL can use different apostrophes/hyphens for the same realm.
+    # NFC also equates composed/decomposed accents without stripping letters
+    # or diacritics. Keep other punctuation significant and let resolve reject
+    # aliases that match more than one slug in the requested region.
+    text = unicodedata.normalize("NFC", text.casefold())
+    return re.sub(r"[\s\-'\u2018\u2019\u02bc\uff07\u2010-\u2014\u2212\ufe63\uff0d]", "", text)
 
 
 def archon_mappings(path):
