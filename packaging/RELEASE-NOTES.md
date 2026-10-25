@@ -1,4 +1,4 @@
-## Companion 1.0.30
+## MPlusLogs 0.5.34
 
-- Fix realm resolution for apostrophe and Unicode typography variants, including EU Cho'gall and Ner'zhul, while preserving ambiguity checks.
-- Replace stale log-ready notifications on each request, identify the character or group, and visibly signal every new reply even with sound disabled.
+- Unify profile controls with a flat appearance and a larger close icon; move character lookup into a collapsible search panel while keeping log refresh and applicant invitations accessible.
+- Show compact DPS/HPS values such as 295K and 1.21M in the applicant column while preserving full values in profiles and tooltips.

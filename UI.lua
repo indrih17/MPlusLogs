@@ -102,6 +102,45 @@ local function button(parent, text, x, y, width, callback)
     b:SetSize(width, 24); b:SetPoint("BOTTOMLEFT", x, y); b:SetText(text); b:SetScript("OnClick", callback)
     return b
 end
+local function flatButton(parent,text,width,height,callback,primary)
+    local b=CreateFrame("Button",nil,parent,"BackdropTemplate")
+    b:SetSize(width,height)
+    b:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    b:SetBackdropColor(primary and 0.24 or 0.12,primary and 0.13 or 0.10,primary and 0.32 or 0.16,1)
+    b:SetBackdropBorderColor(0.40,0.29,0.51,1)
+    local caption=label(b,0,0,width,text,"GameFontHighlightSmall")
+    caption:ClearAllPoints(); caption:SetPoint("LEFT",8,0); caption:SetPoint("RIGHT",-8,0)
+    caption:SetJustifyH("CENTER"); caption:SetWordWrap(false)
+    b:SetFontString(caption)
+    b.caption=caption
+    b:SetNormalFontObject("GameFontHighlightSmall")
+    b:SetHighlightFontObject("GameFontHighlightSmall"); b:SetDisabledFontObject("GameFontDisableSmall")
+    b:SetText(text); b:SetScript("OnClick",callback)
+    b.hover=b:CreateTexture(nil,"HIGHLIGHT"); b.hover:SetAllPoints()
+    b.hover:SetColorTexture(1,1,1,0.08)
+    return b
+end
+local function profileButton(parent,text,x,y,width,callback,primary)
+    local b=flatButton(parent,text,width,26,callback,primary)
+    b:SetPoint("BOTTOMLEFT",x,y)
+    return b
+end
+local function layoutProfileActions(f)
+    local applicant=type(f.applicant)=="table"
+    if applicant then f.lookupExpanded=false end
+    local expanded=f.lookupExpanded==true
+    local drawer=expanded and 44 or 0
+    f.lookup:SetShown(expanded); f.lookupButton:SetShown(expanded); f.lookupDivider:SetShown(expanded)
+    if not expanded then f.lookup:ClearFocus() end
+    f.searchButton:SetShown(not applicant)
+    f.searchButton:SetText(expanded and L["Свернуть поиск"] or L["Найти персонажа…"])
+    f.wclButton:ClearAllPoints(); f.wclButton:SetPoint("BOTTOMLEFT",20,20+drawer)
+    f.searchButton:ClearAllPoints(); f.searchButton:SetPoint("LEFT",f.wclButton,"RIGHT",10,0)
+    if not f.centerLoadButton then
+        f.loadButton:ClearAllPoints(); f.loadButton:SetPoint("BOTTOMRIGHT",-40,applicant and 56 or 20+drawer)
+    end
+    return drawer
+end
 local windowStack={}
 local function highestWindowLevel(frame)
     local highest=frame:GetFrameLevel()
@@ -279,8 +318,13 @@ local function specSelector(parent,callback)
     b.caption=label(b,48,-7,232,"","GameFontHighlight")
     b:SetFontString(b.caption)
     b.detail=label(b,48,-26,232); b.detail:SetTextColor(0.77,0.71,0.87)
-    b.arrow=b:CreateTexture(nil,"ARTWORK"); b.arrow:SetSize(16,16); b.arrow:SetPoint("RIGHT",-10,0)
-    b.arrow:SetTexture("Interface/ChatFrame/UI-ChatIcon-ScrollDown-Up")
+    b.arrow=CreateFrame("Frame",nil,b); b.arrow:SetSize(16,16); b.arrow:SetPoint("RIGHT",-10,0)
+    -- A plain chevron, matching the flat selector rather than a framed Blizzard icon.
+    for i=1,4 do
+        local stripe=b.arrow:CreateTexture(nil,"ARTWORK")
+        stripe:SetColorTexture(0.9,0.85,0.96,1); stripe:SetSize(10-i*2,1)
+        stripe:SetPoint("TOP",0,-4-i)
+    end
     b:SetScript("OnClick",callback)
     b:SetScript("OnEnter",function(self)
         if not self.canSelectSpecs then return end
@@ -300,18 +344,24 @@ local function buildPanel(frameName)
     local f = window(frameName or "MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
     f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1,insets={left=1,right=1,top=1,bottom=1}})
     f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
+    f.closeButton:Hide()
+    f.closeButton=flatButton(f,"",24,24,function() f:Hide() end)
+    f.closeButton:SetPoint("TOPRIGHT",-5,-5)
+    for _,angle in ipairs({math.pi/4,-math.pi/4}) do
+        local stroke=f.closeButton:CreateTexture(nil,"ARTWORK")
+        stroke:SetColorTexture(0.94,0.92,0.98,1)
+        stroke:SetSize(19,2); stroke:SetPoint("CENTER")
+        stroke:SetRotation(angle)
+    end
+    f.lookupExpanded=false; f.centerLoadButton=false
     f.titleFill=panelFill(f,1,-1,938,36,0.105,0.06,0.12)
     f.title:SetTextColor(0.9,0.94,0.96)
     if not frameName then
-        f:HookScript("OnHide",function()
-            if MPL.downloadWindow then MPL.downloadWindow:Hide() end
-        end)
-        local settings=CreateFrame("Button",nil,f,"BackdropTemplate")
+        local settings=flatButton(f,L["Settings"],104,22,function() MPL.OpenSettings() end)
         settings:SetSize(104,22); settings:SetPoint("TOPRIGHT",-38,-7)
         settings:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
         settings:SetBackdropColor(0.16,0.10,0.21,1)
         settings:SetBackdropBorderColor(0.40,0.29,0.51,1)
-        settings.caption=label(settings,0,0,104,L["Settings"],"GameFontHighlight")
         settings.caption:ClearAllPoints(); settings.caption:SetPoint("CENTER"); settings.caption:SetJustifyH("CENTER")
         settings:SetScript("OnClick",function() MPL.OpenSettings() end)
         settings:SetScript("OnEnter",function()
@@ -461,8 +511,8 @@ local function buildPanel(frameName)
     f.metricHeading=f.headings[7]
     f.tableElements={f.primaryGroup,f.secondaryGroup,f.scoreLabel,f.scoreValue,f.summary,f.medianSummary,f.runSummary}
     f.footer = label(f,20,-606,900)
-    f.wclButton=button(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
-    f.loadButton=button(f,L["Обновить M+ логи"],730,53,170,function()
+    f.wclButton=profileButton(f,L["Ссылка WCL"],20,20,120,function() MPL.CopyURL(f.name,f.realm,f.profile) end)
+    f.loadButton=profileButton(f,L["Обновить M+ логи"],730,20,170,function()
         if type(f.searchMember)=="table" and IsShiftKeyDown and IsShiftKeyDown() then
             MPL.ShowSearchGroupLogs(f.searchMember.searchResultID,true); return
         end
@@ -505,7 +555,7 @@ local function buildPanel(frameName)
             return
         end
         MPL.ShowDownload(f.name,f.realm,f.profile,f.applicant,nil,true)
-    end)
+    end,true)
     f.loadButton:SetScript("OnEnter",function(self)
         if type(f.searchMember)=="table" then
             GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
@@ -533,12 +583,20 @@ local function buildPanel(frameName)
     end)
     f.emptyMessage=label(f,80,-300,780,L["Данные этого персонажа ещё не загружены."],"GameFontHighlightLarge")
     f.emptyMessage:SetJustifyH("CENTER")
-    f.lookup = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-    f.lookup:SetSize(530,24); f.lookup:SetPoint("BOTTOMLEFT",150,20); f.lookup:SetAutoFocus(false)
-    f.lookup:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
+    f.lookupDivider=f:CreateTexture(nil,"ARTWORK")
+    f.lookupDivider:SetColorTexture(0.27,0.22,0.32,1); f.lookupDivider:SetHeight(1)
+    f.lookupDivider:SetPoint("BOTTOMLEFT",20,55); f.lookupDivider:SetPoint("BOTTOMRIGHT",-40,55)
+    f.lookup = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+    f.lookup:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1})
+    f.lookup:SetBackdropColor(0.06,0.05,0.08,1); f.lookup:SetBackdropBorderColor(0.40,0.29,0.51,1)
+    f.lookup:SetFontObject("GameFontHighlightSmall"); f.lookup:SetTextInsets(8,8,0,0)
+    f.lookup:SetSize(680,26); f.lookup:SetPoint("BOTTOMLEFT",20,20); f.lookup:SetAutoFocus(false)
+    f.lookup:SetScript("OnEscapePressed",function(self)
+        self:ClearFocus(); f.lookupExpanded=false; MPL.RenderProfileStats(f)
+    end)
     local function lookup() MPL.ShowProfile(strtrim(f.lookup:GetText())); f.lookup:ClearFocus() end
     f.lookup:SetScript("OnEnterPressed",lookup)
-    f.lookupButton=button(f,L["Показать профиль"],710,20,190,lookup)
+    f.lookupButton=profileButton(f,L["Показать профиль"],710,20,190,lookup)
     f.lookupButton:ClearAllPoints(); f.lookupButton:SetPoint("BOTTOMRIGHT",-40,20)
     f.lookupButton:SetScript("OnEnter",function(self)
         GameTooltip:SetOwner(self,"ANCHOR_TOP")
@@ -547,10 +605,19 @@ local function buildPanel(frameName)
         GameTooltip:Show()
     end)
     f.lookupButton:SetScript("OnLeave",function() GameTooltip:Hide() end)
+    f.searchButton=profileButton(f,L["Найти персонажа…"],150,20,210,function()
+        f.lookupExpanded=not f.lookupExpanded
+        MPL.RenderProfileStats(f)
+        if f.lookupExpanded then f.lookup:SetFocus(); f.lookup:HighlightText() end
+    end)
+    f:HookScript("OnHide",function()
+        f.lookupExpanded=false; f.lookup:ClearFocus()
+        if not frameName and MPL.downloadWindow then MPL.downloadWindow:Hide() end
+    end)
     f.applicant=false; f.inviteSent=false
     f.inviteInfo=label(f,150,-660,530)
     f.inviteInfo:ClearAllPoints(); f.inviteInfo:SetPoint("BOTTOMLEFT",150,30)
-    f.inviteButton=button(f,L["Пригласить"],710,20,190,function()
+    f.inviteButton=profileButton(f,L["Пригласить"],710,20,190,function()
         local ok,err=MPL.InviteFromProfile(f.applicant)
         if ok then f.inviteSent=true; MPL.UpdateProfileInvite()
         else f.inviteInfo:SetText(err); f.inviteButton:Disable() end
@@ -576,19 +643,20 @@ function MPL.UpdateProfileLoadButton()
     if not f then return false end
     if missingMetric(f.profile,f.viewMetric) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
+        f.loadButton:SetNormalFontObject("GameFontHighlightSmall")
         f.loadButton:SetText(f.viewMetric=="hps" and L["Load HPS"] or L["Load DPS"])
         return false,0
     end
     f.loadButton:SetText(f.profile and L["Обновить M+ логи"] or L["Загрузить M+ логи"])
     if MPL.ProfileNeedsDisplayRefresh(f.profile) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
-        f.loadButton:SetNormalFontObject("GameFontNormal")
+        f.loadButton:SetNormalFontObject("GameFontHighlightSmall")
         return false,0
     end
     if type(f.searchMember)=="table" and (not f.searchMember.loaded
         or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
-        f.loadButton:SetNormalFontObject("GameFontNormal")
+        f.loadButton:SetNormalFontObject("GameFontHighlightSmall")
         return false,0
     end
     local state=MPL.GetProfileState(f.name,f.realm,f.selectedSpec)
@@ -613,7 +681,7 @@ function MPL.UpdateProfileLoadButton()
     end
     -- Keep mouse clicks so the muted button can explain the cooldown.
     f.loadButton:SetAlpha(cooling and 0.5 or 1)
-    f.loadButton:SetNormalFontObject(cooling and "GameFontDisable" or "GameFontNormal")
+    f.loadButton:SetNormalFontObject(cooling and "GameFontDisableSmall" or "GameFontHighlightSmall")
     return cooling,remaining
 end
 
@@ -621,7 +689,7 @@ function MPL.UpdateProfileInvite()
     local f=MPL.panel
     if not f then return end
     local fromApplicant=type(f.applicant)=="table"
-    f.lookup:SetShown(not fromApplicant); f.lookupButton:SetShown(not fromApplicant)
+    layoutProfileActions(f)
     f.inviteButton:SetShown(fromApplicant); f.inviteInfo:SetShown(fromApplicant)
     if not fromApplicant then return end
     local valid,err=MPL.ValidateApplicant(f.applicant)
@@ -711,10 +779,7 @@ local function layoutProfileTable(f)
     for i,field in ipairs({f.summary,f.medianSummary,f.runSummary}) do
         field:ClearAllPoints(); field:SetPoint("TOPLEFT",total-360,-137-i*22)
     end
-    f.lookup:SetWidth(total-350); f.inviteInfo:SetWidth(total-350)
-    if type(f.profile)=="table" then
-        f.loadButton:ClearAllPoints(); f.loadButton:SetPoint("BOTTOMRIGHT",-40,53)
-    end
+    f.lookup:SetWidth(total-210); f.inviteInfo:SetWidth(total-350)
     for i,sortButton in ipairs(f.sortButtons) do
         sortButton:ClearAllPoints(); sortButton:SetPoint("TOPLEFT",f.columns[i]+1,-style.headerBand-1)
         sortButton:SetSize(widths[i]-2,style.headerBand-2)
@@ -798,10 +863,11 @@ local function layoutProfileBanner(f,profile)
     f.staleBanner.message:SetHeight(height-14)
     local footerHeight=f.footer:GetStringHeight()
     local extra=type(footerHeight)=="number" and math.max(0,math.ceil(footerHeight)-20) or 0
-    f:SetHeight((profile and 656 or 700)+offset+extra)
+    local drawer=layoutProfileActions(f)
+    f:SetHeight((profile and 656 or 700)+offset+extra+drawer)
     f.tableHeader:ClearAllPoints(); f.tableHeader:SetPoint("TOPLEFT",20,-254-offset)
     f.scroll:ClearAllPoints()
-    f.scroll:SetPoint("TOPLEFT",20,-254-style.headerHeight-offset); f.scroll:SetPoint("BOTTOMRIGHT",-40,145+extra)
+    f.scroll:SetPoint("TOPLEFT",20,-254-style.headerHeight-offset); f.scroll:SetPoint("BOTTOMRIGHT",-40,145+extra+drawer)
     for i,text in ipairs({f.source,f.note,f.footer}) do
         text:ClearAllPoints(); text:SetPoint("TOPLEFT",20,-(profile and 502 or 546)-i*20-offset)
     end
@@ -1159,9 +1225,10 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
     f.viewMetric=primary; f.stale=stale
     f.context:SetText(profile and profile.season or "Midnight M+ Season 2")
     f.loadButton:ClearAllPoints()
+    f.centerLoadButton=not profile and not stateText
     if profile then
         f.scroll:Show(); f.emptyMessage:Hide()
-        f.loadButton:SetPoint("BOTTOMLEFT",730,53); f.loadButton:SetSize(170,24)
+        f.loadButton:SetSize(170,26)
         f.loadButton:SetText(L["Обновить M+ логи"])
         f.source:SetText(MPL.T(profile.source)..L["  /  Последняя загрузка: "]..lastDate)
         f.note:SetText(L["Процентиль урона/исцеления не оценивает выживание, прерывания и механику."])
@@ -1178,7 +1245,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
         f.footer:SetText(L["Нажмите «Загрузить M+ логи». Локальный помощник должен быть запущен."])
         if stateText then
             f.loadButton:ClearAllPoints()
-            f.loadButton:SetPoint("BOTTOMLEFT",730,53); f.loadButton:SetSize(170,24)
+            f.loadButton:SetSize(170,26)
             f.loadButton:SetText(L["Обновить M+ логи"])
             f.footer:SetText("")
             f.specButton.detail:SetText(hidden and L["Логи скрыты"]
@@ -1818,7 +1885,7 @@ function MPL.UpdateApplicantLog(member,appID,index,status)
         local stale,lastDate=MPL.IsProfileStale(profile)
         cell.profile=profile; cell.stale=stale
         cell.metric=MPL.PrimaryMetric(profile,shortName,realm)
-        cell.text:SetText(MPL.PrimaryStatistic(profile,cell.metric,nil,stale))
+        cell.text:SetText(MPL.PrimaryStatistic(profile,cell.metric,nil,stale,true))
         cell.detail=MPL.SpecLabel(profile.spec).." / "..L["Последняя загрузка: "]..lastDate..(stale and L[" / Обновите логи"] or "")
     else cell.text:SetText("|cff888888—|r") end
     cell:Show()

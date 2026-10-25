@@ -56,7 +56,18 @@ function MPL.UsesDungeonMetric()
     return MPL.GetOption("percentile"):match("^dungeon_")~=nil
 end
 
-function MPL.PrimaryStatistic(profile,metric,dungeon,stale)
+local function formatRate(value)
+    if value==nil then return "—" end
+    -- Promote rounded thousands at the boundary instead of displaying 1000K.
+    if value>=999500 then
+        local text=string.format("%.2f",value/1000000):gsub("0+$",""):gsub("%.$","")
+        return text.."M"
+    end
+    if value>=1000 then return string.format("%.0fK",value/1000) end
+    return string.format("%.0f",value)
+end
+
+function MPL.PrimaryStatistic(profile,metric,dungeon,stale,compactRate)
     local option=MPL.GetOption("percentile")
     local row
     if MPL.UsesDungeonMetric() then
@@ -69,7 +80,7 @@ function MPL.PrimaryStatistic(profile,metric,dungeon,stale)
     local _,amount,best,median=MPL.MetricValues(profile,row,metric)
     if option=="dungeon_dps" then
         if not amount then return "—" end
-        local text=string.format("%.0f",amount)
+        local text=compactRate and formatRate(amount) or string.format("%.0f",amount)
         return stale and ("|cff888888"..text.."|r") or text
     end
     local value=best

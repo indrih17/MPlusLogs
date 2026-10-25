@@ -25,6 +25,50 @@ METRIC_MOCK = test_addon.MOCK.replace(
 
 
 class ProfileLayoutTests(unittest.TestCase):
+    def test_search_drawer_preserves_table_space_and_focus_across_redraws(self):
+        _, mpl = self.runtime("enUS")
+        panel = mpl.panel
+        height = panel.height
+        bottom = panel.scroll.points.BOTTOMRIGHT[2]
+        self.assertFalse(panel.lookup.shown)
+        self.assertFalse(panel.lookupDivider.shown)
+        panel.searchButton.scripts.OnClick()
+        self.assertTrue(panel.lookup.shown)
+        self.assertTrue(panel.lookupDivider.shown)
+        self.assertTrue(panel.lookup.focused)
+        self.assertEqual(panel.height, height + 44)
+        self.assertEqual(panel.scroll.points.BOTTOMRIGHT[2], bottom + 44)
+        panel.metricTabs.hps.scripts.OnClick()
+        self.assertTrue(panel.lookup.shown)
+        self.assertEqual(panel.height, height + 44)
+        panel.lookup.scripts.OnEscapePressed(panel.lookup)
+        self.assertFalse(panel.lookup.shown)
+        self.assertFalse(panel.lookup.focused)
+        self.assertEqual(panel.height, height)
+
+    def test_search_enter_uses_existing_navigation_and_applicant_collapses_drawer(self):
+        lua, mpl = self.runtime("enUS")
+        panel = mpl.panel
+        height = panel.height
+        panel.searchButton.scripts.OnClick()
+        panel.lookup.SetText(panel.lookup, "  Alice-Area 52  ")
+        lua.execute('local MPL=...; MPL.ShowProfile=function(name) lookupName=name end', mpl)
+        panel.lookup.scripts.OnEnterPressed()
+        self.assertEqual(lua.globals().lookupName, "Alice-Area 52")
+        self.assertFalse(panel.lookup.focused)
+        panel.applicant = lua.table_from({"groupSize": 1})
+        mpl.ValidateApplicant = lua.eval('function() return true end')
+        mpl.UpdateProfileInvite()
+        mpl.RenderProfileStats(panel)
+        self.assertFalse(panel.lookup.shown)
+        self.assertFalse(panel.searchButton.shown)
+        self.assertTrue(panel.inviteButton.shown)
+        self.assertEqual(panel.height, height)
+        panel.applicant = False
+        mpl.UpdateProfileInvite()
+        self.assertTrue(panel.searchButton.shown)
+        self.assertFalse(panel.lookup.shown)
+
     def runtime(self, locale="ruRU"):
         lua = test_addon.LuaRuntime(unpack_returned_tuples=True)
         lua.execute(METRIC_MOCK)

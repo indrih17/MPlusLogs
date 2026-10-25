@@ -210,7 +210,7 @@ class SettingsTests(unittest.TestCase):
         profile.dungeons[1].otherMedian=73
         self.mpl.ListedDungeon=lambda *args:'Den of Nalorakk'
         self.mpl.SetOption('percentile','dungeon_dps')
-        self.assertEqual(self.cell(1).text.text,'123457')
+        self.assertEqual(self.cell(1).text.text,'123K')
         self.mpl.ShowProfile('Alice','Гордунни')
         self.assertIn('DPS (текущий данж): 123457',self.mpl.panel.summary.text)
         self.mpl.SetOption('percentile','dungeon_best')

@@ -132,7 +132,8 @@ class ApplicantUITests(unittest.TestCase):
         self.assertEqual(f.inviteButton.text, "Отправлено")
         self.mpl.ShowProfile("Alice", "Гордунни")
         self.assertFalse(f.inviteButton.shown)
-        self.assertTrue(f.lookup.shown)
+        self.assertFalse(f.lookup.shown)
+        self.assertTrue(f.searchButton.shown)
 
     def test_reused_id_with_new_selected_member_cannot_invite(self):
         self.authorize()

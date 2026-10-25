@@ -50,6 +50,9 @@ class TutorialProfileTests(unittest.TestCase):
         self.assertIsNone(frame.loadButton.scripts.OnUpdate)
         self.assertIsNone(frame.wclButton.scripts.OnClick)
         self.assertIsNone(frame.lookupButton.scripts.OnClick)
+        self.assertIsNone(frame.searchButton.scripts.OnClick)
+        self.assertFalse(frame.searchButton.enabled)
+        self.assertFalse(frame.lookup.shown)
         self.assertIsNone(frame.lookup.scripts.OnEnterPressed)
         for row in frame.rows.values():
             self.assertIsNone(row.scripts.OnMouseUp)
