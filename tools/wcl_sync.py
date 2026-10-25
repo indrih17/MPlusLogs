@@ -9,6 +9,7 @@ from http.client import HTTPException
 import json
 import math
 import os
+import re
 from pathlib import Path
 import sys
 import time
@@ -23,10 +24,21 @@ PROFILE_CACHE_TTL_HOURS = 24
 
 class APIError(ValueError):
     """Safe upstream error with machine-readable status and retry timing."""
-    def __init__(self, message, status=None, retry_after=0, rate_limit=None, code=None):
+    def __init__(self, message, status=None, retry_after=0, rate_limit=None, code=None, global_stop=True):
         super().__init__(message)
         self.status, self.retry_after, self.rate_limit = status, retry_after, rate_limit
         self.code = code or ("budget" if status == 429 else "auth" if status == 401 else "network" if status is None or status >= 500 else "unknown")
+        self.global_stop = global_stop
+
+
+def stops_batch(error):
+    """Only failures that apply beyond one character stop the remaining work."""
+    return (isinstance(error, APIError) and error.global_stop
+            or getattr(error, 'global_stop', False)
+            or getattr(error, 'code', None) == 'auth'
+            or getattr(error, 'status', None) in {401, 429}
+            or isinstance(getattr(error, 'status', None), int) and error.status >= 500
+            or 'HTTP 429' in str(error))
 
 
 class NoProfile(ValueError):
@@ -196,6 +208,66 @@ def access_token(client_id=None, secret=None):
     return token["access_token"]
 
 
+def graphql_error(data):
+    """Retain allowlisted diagnostics, never arbitrary upstream text or values."""
+    codes = {'RATE_LIMITED': 'budget', 'THROTTLED': 'budget', 'TOO_MANY_REQUESTS': 'budget',
+             'UNAUTHENTICATED': 'auth', 'INVALID_TOKEN': 'auth', 'FORBIDDEN': 'auth',
+             'NOT_FOUND': 'missing', 'CHARACTER_NOT_FOUND': 'missing',
+             'GRAPHQL_VALIDATION_FAILED': 'schema', 'GRAPHQL_PARSE_FAILED': 'schema',
+             'INTERNAL_SERVER_ERROR': 'retry'}
+    fields = set(re.findall(r'\b[A-Za-z][A-Za-z0-9]*\b', QUERY))
+    diagnostics, kinds, local = [], [], []
+    errors = data.get('errors')
+    truncated = isinstance(errors, list) and len(errors) > 8
+    errors = errors[:8] if isinstance(errors, list) else []
+    for row in errors:
+        if not isinstance(row, dict):
+            local.append(False); kinds.append('schema'); continue
+        extensions = row.get('extensions')
+        extension = extensions.get('code') if isinstance(extensions, dict) else None
+        extension = extension if isinstance(extension, str) and extension in codes else None
+        message = row.get('message')
+        # Some upstream implementations omit extensions for common errors.
+        # Match complete known phrases, never substrings containing user values.
+        known_messages = {'rate limit exceeded': 'RATE_LIMITED', 'too many requests': 'RATE_LIMITED',
+                          'unauthenticated': 'UNAUTHENTICATED', 'invalid token': 'INVALID_TOKEN',
+                          'character not found': 'CHARACTER_NOT_FOUND'}
+        if not extension and isinstance(message, str):
+            extension = known_messages.get(message[:100].strip().rstrip('.').casefold()) if len(message) <= 100 else None
+        path = row.get('path')
+        is_local = (isinstance(path, list) and path[:2] == ['characterData', 'character']
+                    or extension == 'CHARACTER_NOT_FOUND')
+        kind = codes.get(extension, 'retry' if is_local else 'schema')
+        if extension == 'FORBIDDEN' and is_local: kind = 'hidden'
+        if kind in {'budget', 'auth', 'schema'}: is_local = False
+        kinds.append(kind); local.append(is_local)
+        if extension: diagnostics.append(extension)
+        if isinstance(path, list):
+            safe_path = []
+            for part in path[:5]:
+                if not isinstance(part, str) or part not in fields: break
+                safe_path.append(part)
+            if safe_path: diagnostics.append('.'.join(safe_path))
+        # A validation error often has no path. Only report a field already
+        # present in our own query; suggestions, literals and variables are private.
+        if isinstance(message, str):
+            match = re.match(r'Cannot query field ["\']([A-Za-z][A-Za-z0-9]*)["\']', message[:200])
+            if match and match[1] in fields: diagnostics.append(match[1])
+    if truncated: local.append(False); kinds.append('schema')
+    kind = next((value for value in ('budget', 'auth', 'schema', 'retry', 'hidden', 'missing') if value in kinds), 'schema')
+    messages = {'budget': 'WCL API rate limit reached; wait before retrying',
+                'auth': 'WCL API authentication or permissions failed; sign in again',
+                'hidden': 'WCL character rankings are hidden or access is denied',
+                'missing': 'WCL character was not found',
+                'retry': 'WCL could not load this character; retry later',
+                'schema': 'WCL GraphQL query failed; update Companion or report this error'}
+    detail = '; '.join(dict.fromkeys(diagnostics))[:160]
+    message = messages[kind] + (' [' + detail + ']' if detail else '')
+    return APIError(message, status=429 if kind == 'budget' else None,
+                    rate_limit=rate_limit_data(data), code=kind,
+                    global_stop=not local or not all(local))
+
+
 def fetch(args, token=None, endpoint="client"):
     if endpoint not in {"client", "user"}:
         raise ValueError("Unsupported WCL endpoint")
@@ -209,8 +281,7 @@ def fetch(args, token=None, endpoint="client"):
     if not isinstance(data, dict):
         raise APIError("Invalid WCL response",code="schema")
     if data.get("errors"):
-        raise APIError("WCL GraphQL error; inspect API schema/query. No export written",
-                       rate_limit=rate_limit_data(data),code="schema")
+        raise graphql_error(data)
     if not variables["includeHealing"]:
         try:
             character = character_data(data)

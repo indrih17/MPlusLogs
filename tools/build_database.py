@@ -17,7 +17,7 @@ from urllib.parse import unquote
 
 import wcl_sync as wcl
 import realm_resolver
-from api_budget import BudgetError
+from api_budget import BudgetError, failure_code, failure_deadline
 import cache_maintenance
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -259,7 +259,9 @@ def _parallel_build(entries, cache_dir, ttl_hours, max_fetch, offline, fetcher, 
         nonlocal fetched,stopped,remaining,token
         with guard:
             if stopped:
-                raise wcl.ProfileError(stopped['message'],stopped['error_code'],stopped['retry_at'])
+                error=wcl.ProfileError(stopped['message'],stopped['error_code'],stopped['retry_at'])
+                error.attempted=False
+                raise error
             if fetched>=max_fetch:
                 raise wcl.ProfileError('Per-run request limit reached','budget')
             if remaining is not None and remaining<100:
@@ -281,15 +283,18 @@ def _parallel_build(entries, cache_dir, ttl_hours, max_fetch, offline, fetcher, 
                 with guard:remaining=points if remaining is None else min(remaining,points)
             return raw
         except (ValueError,OSError,KeyError,TypeError) as exc:
-            if (isinstance(exc,wcl.APIError) or isinstance(exc,BudgetError) and exc.global_stop
-                    or getattr(exc,'code',None)=='auth' or 'HTTP 429' in str(exc)):
+            if wcl.stops_batch(exc):
                 with guard:
-                    if stopped is None:stopped=dict(message=str(exc),**wcl.error_info(exc,now))
+                    if stopped is None:
+                        details,_=_failure_details(exc,None,now)
+                        stopped=dict(message=str(exc),**details)
             raise
         finally:
             with guard:durations.append(time.monotonic()-started)
 
     shared_fetch.budget=getattr(fetcher,'budget',None)
+    shared_fetch.auth_generation=getattr(fetcher,'auth_generation','')
+    if hasattr(fetcher,'reconcile_failure'):shared_fetch.reconcile_failure=fetcher.reconcile_failure
     def run(entry):
         # Role/realm aliases can share one raw cache key. Serialize that key,
         # so the second view reads the completed cache instead of racing .tmp.
@@ -313,7 +318,7 @@ def _parallel_build(entries, cache_dir, ttl_hours, max_fetch, offline, fetcher, 
         groups={}
         for index,entry in enumerate(entries):
             path=cache_path(cache_dir,entry)
-            cached=read_cache(path)
+            cached=_prepare_retry_cache(path,read_cache(path),entry,now,fetcher)
             if offline or (_fresh_cache(cached,now,ttl_hours,refresh) and _complete_cache(cached,entry)) or _retry_cache_active(cached,now,fetcher):
                 finish(index,run(entries[index]))
             else:
@@ -341,7 +346,13 @@ def _parallel_build(entries, cache_dir, ttl_hours, max_fetch, offline, fetcher, 
                         if stopped is None:
                             budget=getattr(fetcher,'budget',None)
                             reset=budget.snapshot()['resetAt'] if budget else 0
-                            stopped=dict(message='WCL API budget is low; wait for reset',error_code='budget',retry_at=int(reset))
+                            stopped=dict(message='Local API safety reserve reached',error_code='budget',
+                                         retry_at=math.ceil(max(now+60,reset)))
+                            if budget:
+                                try:budget.check_upstream()
+                                except BudgetError as exc:
+                                    details,_=_failure_details(exc,None,now)
+                                    stopped=dict(message=str(exc),**details)
                     # Still visit cached entries and preserve old usable profiles.
                     allowed=desired
                 wave,pending=pending[:allowed],pending[allowed:]
@@ -389,15 +400,64 @@ def _complete_cache(cached, entry):
 
 def _retry_cache_active(cached,now,fetcher):
     if not cached or now>=cached.get('retry_until',0):return False
+    if cached.get('retry_policy_version')==1:return True
     budget=getattr(fetcher,'budget',None)
     message=cached.get('refresh_error','').lower()
-    if budget and (cached.get('error_code')=='budget' or 'api budget is low' in message):
+    if budget and (cached.get('error_code')=='budget' or cached.get('retry_policy_version')!=1 and 'api budget is low' in message):
         try:
             budget.check_upstream()
             return False
         except BudgetError:
             pass
     return True
+
+
+def _prepare_retry_cache(path, cached, entry, now, fetcher):
+    """One-time migration with a fixed deadline; cache reads never slide it."""
+    if not cached or not cached.get('refresh_error'):return cached
+    code=cached.get('error_code',wcl.legacy_error_code(cached['refresh_error']))
+    generation=getattr(fetcher,'auth_generation','')
+    relogged=code=='auth' and bool(generation) and cached.get('auth_generation')!=generation
+    budget=getattr(fetcher,'budget',None)
+    budget_error=None
+    if code=='budget' and budget:
+        if cached.get('retry_policy_version')==1:return cached
+        try:budget.check_upstream()
+        except BudgetError as exc:budget_error=exc
+        if budget_error and budget_error.code=='budget':
+            until=failure_deadline(budget_error,1,now)
+            if cached.get('retry_until')==until and cached.get('retry_policy_version')==1:return cached
+            record=dict(cached,retry_policy_version=1,retry_until=until,retry_at=until)
+            reconcile=getattr(fetcher,'reconcile_failure',None)
+            if reconcile:reconcile(entry,until,now)
+            atomic_write(path,json.dumps(record,ensure_ascii=False))
+            return record
+        code=budget_error.code if budget_error else 'retry'
+    elif not relogged and (cached.get('retry_policy_version')==1 or code not in {'schema','network','retry','unknown','auth'}):return cached
+    record=dict(cached)
+    stamp=record.get('error_at',record.get('error_saved_at'))
+    if type(stamp) not in (int,float) or not math.isfinite(stamp) or not 0<=stamp<=now:stamp=now
+    error=budget_error or wcl.ProfileError(record['refresh_error'],code)
+    until=0 if relogged else min(record.get('retry_until',0),failure_deadline(error,1,stamp))
+    record.update(retry_policy_version=1,error_at=stamp,retry_until=until,retry_at=until,failure_count=0,error_code=code)
+    if budget_error:record['refresh_error']=str(budget_error)
+    elif cached.get('error_code')=='budget':record['refresh_error']='WCL requests are cooling down after an upstream error'
+    if code=='auth':record['auth_generation']=generation
+    reconcile=getattr(fetcher,'reconcile_failure',None)
+    if reconcile:reconcile(entry,until,stamp)
+    atomic_write(path,json.dumps(record,ensure_ascii=False))
+    return record
+
+
+def _failure_details(error, cached, now):
+    details=wcl.error_info(error,now)
+    details['error_code']=failure_code(error)
+    previous=(cached or {}).get('failure_count',0)
+    if type(previous) is not int or not 0<=previous<=8:previous=0
+    count=getattr(error,'failure_count',previous+(getattr(error,'attempted',True) is not False))
+    if type(count) is not int or not 0<=count<=8:count=min(8,previous+1)
+    details['retry_at']=failure_deadline(error,count,now)
+    return details,count
 
 
 def build(entries, cache_dir, ttl_hours=wcl.PROFILE_CACHE_TTL_HOURS, max_fetch=20, offline=False, fetcher=None, now=None, refresh=False, progress=None, max_workers=1):
@@ -420,7 +480,7 @@ def build(entries, cache_dir, ttl_hours=wcl.PROFILE_CACHE_TTL_HOURS, max_fetch=2
         if progress:
             progress(index, len(entries), entry)
         path = cache_path(cache_dir, entry)
-        cached = read_cache(path)
+        cached = _prepare_retry_cache(path,read_cache(path),entry,now,fetcher)
         fresh = _fresh_cache(cached,now,ttl_hours,refresh) and _complete_cache(cached,entry)
         record = cached
         failure = None
@@ -439,6 +499,15 @@ def build(entries, cache_dir, ttl_hours=wcl.PROFILE_CACHE_TTL_HOURS, max_fetch=2
             elif _retry_cache_active(cached,now,fetcher):
                 failure = cached.get("refresh_error", "Profile refresh is cooling down")
                 details = dict(error_code=cached.get("error_code",wcl.legacy_error_code(failure)), retry_at=cached["retry_until"])
+                # Older releases labelled every upstream pause as exhausted
+                # quota. Keep the gate, but report the current reason accurately.
+                budget=getattr(fetcher, 'budget', None)
+                if budget and details['error_code']=='budget':
+                    try:budget.check_upstream()
+                    except BudgetError as exc:
+                        if exc.code!='budget':
+                            failure=str(exc)
+                            details['error_code']=exc.code
             elif fetched >= max_fetch:
                 failure = "Per-run request limit reached"
                 details = dict(error_code="budget",retry_at=0)
@@ -476,14 +545,14 @@ def build(entries, cache_dir, ttl_hours=wcl.PROFILE_CACHE_TTL_HOURS, max_fetch=2
                     atomic_write(path, json.dumps(record, ensure_ascii=False))
                 except (ValueError, OSError, KeyError, TypeError) as exc:
                     failure = str(exc)
-                    details=wcl.error_info(exc,now)
-                    status = getattr(exc, "status", None)
-                    if status == 429 or "HTTP 429" in failure or isinstance(exc, wcl.APIError) or isinstance(exc, BudgetError) and exc.global_stop:
+                    details,count=_failure_details(exc,cached,now)
+                    # Back off for this key without discarding a previous good result.
+                    if wcl.stops_batch(exc):
                         auth_failure = failure  # Stop this whole batch, rather than hammer upstream.
                         auth_details = details
-                    # Back off for this key without discarding a previous good result.
-                    pause = max(300, getattr(exc, "retry_after", 0))
-                    record = dict(cached or {"fetched_at": 0}, retry_until=now + pause, refresh_error=failure, **details)
+                    record = dict(cached or {"fetched_at": 0}, retry_until=details['retry_at'], refresh_error=failure,
+                                  retry_policy_version=1,error_at=now,failure_count=count, **details)
+                    if details['error_code']=='auth':record['auth_generation']=getattr(fetcher,'auth_generation','')
                     atomic_write(path, json.dumps(record, ensure_ascii=False))
                     if not token and not fetcher:
                         auth_failure = failure

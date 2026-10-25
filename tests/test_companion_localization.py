@@ -54,6 +54,15 @@ class CompanionLocalizationTests(unittest.TestCase):
         self.assertEqual(i18n.tr("MPLS1\n1-2\nMPLB1\nexample"),"MPLS1\n1-2\nMPLB1\nexample")
         self.assertEqual(i18n.tr("Киндрих–Гордунни"),"Киндрих–Гордунни")
 
+    def test_graphql_diagnostic_identifiers_and_retry_delay_survive_translation(self):
+        text='WCL GraphQL query failed; update Companion or report this error [GRAPHQL_VALIDATION_FAILED; characterData.character.damage]'
+        translated=i18n.tr(text,'ruRU')
+        self.assertTrue(translated.startswith('Ошибка запроса GraphQL WCL;'))
+        self.assertTrue(translated.endswith('[GRAPHQL_VALIDATION_FAILED; characterData.character.damage]'))
+        retry=i18n.tr('WCL requests are cooling down after an upstream error; retry after 60 seconds','ruRU')
+        self.assertIn('приостановлены',retry)
+        self.assertTrue(retry.endswith('Повторите через 60 сек.'))
+
     def test_export_contains_all_languages_but_no_user_settings(self):
         names = {entry["path"] for entry in export_release_source.entries()}
         for language in i18n.LANGUAGES:

@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 import time
 import threading
-from api_budget import Budget
+from api_budget import Budget, BudgetError
 import clipboard_history
 
 import build_database as builder
@@ -177,7 +177,7 @@ class Client:
         affordable=max(0,int(available/(cost*1.25)))
         return min(50,remaining,affordable,local_remaining)
     def __init__(self, max_hourly_queries=120, client_id=None, secret=None, token_provider=None, invalidate_token=None,
-                 state_path=None, cache_scope="public"):
+                 state_path=None, cache_scope="public", auth_generation=""):
         self.token = None
         self.queries = 0
         self.started = time.monotonic()
@@ -189,6 +189,8 @@ class Client:
         self.token_provider=token_provider
         self.invalidate_token=invalidate_token
         self.budget = Budget(state_path, max_hourly_queries)
+        self.auth_generation = auth_generation
+        self.budget.authenticated(auth_generation)
         self.cache_scope = cache_scope
         self.lock=threading.RLock()
         self.profile_cost=None
@@ -225,11 +227,23 @@ class Client:
             pass  # Optional local measurements must never stop profile loading.
 
     def __call__(self, args):
+        key = self.profile_key(args)
+        def fetch(token):
+            raw=wcl.fetch(args,token,endpoint='user' if self.token_provider else 'client')
+            try:builder.validate_raw(raw,args)
+            except wcl.NoProfile:pass  # A valid absence response uses the negative cache.
+            return raw
+        return self._query(key,fetch)
+
+    def profile_key(self, args):
         key = builder.cache_path(Path(), dict({"realm": ""}, **vars(args), _cache_scope=self.cache_scope)).stem
         # An explicit secondary-metric upgrade is distinct from refreshing the
         # same payload. Both shapes still have their own persistent cooldown.
         key += ':primary' if wcl.primary_only_request(args) else ':dual'
-        return self._query(key,lambda token:wcl.fetch(args,token,endpoint='user' if self.token_provider else 'client'))
+        return key
+
+    def reconcile_failure(self, entry, until, error_at):
+        self.budget.reconcile_failure(self.profile_key(builder.arguments(entry)),until,error_at)
 
     def query_metadata(self,query):
         import hashlib,json
@@ -251,9 +265,13 @@ class Client:
             if now - self.started >= 3600:
                 self.queries, self.started = 0, now
             if self.queries >= self.limit:
-                raise ValueError("Local hourly query limit reached; use cache or wait")
+                remaining=max(1,3600-(now-self.started))
+                raise BudgetError("Local hourly query limit reached; use cache or wait",remaining,
+                                  retry_at=math.ceil(self.budget.clock()+remaining))
             if self.remaining is not None and now < self.budget_reset and self.remaining < 100:
-                raise ValueError("WCL API budget is low; wait for reset")
+                remaining=self.budget_reset-now
+                raise BudgetError("WCL API budget is low; wait for reset",remaining,
+                                  retry_at=math.ceil(self.budget.clock()+remaining))
             delay=self.budget.reserve(key,pace=False,profile=profile)
             self.queries += 1
         sent=False
@@ -276,7 +294,7 @@ class Client:
             error_limit=getattr(exc,'rate_limit',None)
             self.budget.complete(delay,error_limit,sent=sent,
                                  uncertain=sent and self.budget._request_cost(error_limit) is None)
-            self.budget.failure(exc)
+            self.budget.failure(exc,key,delay,profile=profile,sent=sent,auth_generation=self.auth_generation)
             if getattr(exc, "status", None) == 401 or "WCL HTTP 401" in str(exc):
                 with self.lock:self.token = None
             if self.invalidate_token and "WCL HTTP 401" in str(exc):
@@ -305,7 +323,7 @@ class Client:
                 snapshot=self.budget.snapshot()
                 self.remaining=snapshot['limitPerHour']-snapshot['pointsSpentThisHour']
                 self.budget_reset=time.monotonic()+max(0,snapshot['resetAt']-time.time())
-        if profile: self.budget.success(key)
+        self.budget.success(key,delay,profile=profile)
         return result
 
 

@@ -133,6 +133,48 @@ class OAuthTests(unittest.TestCase):
             self.assertEqual(oauth.validate_access(tokens), quota)
         self.assertEqual(tokens["_account_id"], 17)
 
+    def test_validated_login_generation_changes_for_same_account_but_not_refresh_or_restart(self):
+        response={"data":{"characterData":{"__typename":"CharacterData"},
+                          "userData":{"currentUser":{"id":17}}}}
+        first={"access_token":"old","refresh_token":"old-refresh","expires_at":0}
+        second=dict(first)
+        with patch.object(wcl_sync,"request_json",return_value=response):
+            oauth.validate_access(first)
+            oauth.validate_access(second)
+        saved=[]
+        session=oauth.Session('public-id',first,saved.append)
+        relogged=oauth.Session('public-id',second,saved.append)
+        generation=session.auth_generation()
+        self.assertRegex(generation,r'^[0-9a-f]{32}$')
+        self.assertNotEqual(generation,relogged.auth_generation())
+        self.assertEqual(session.cache_scope(),relogged.cache_scope())
+        with patch.object(oauth,'exchange',return_value={'access_token':'renewed','refresh_token':'rotated','expires_in':3600}):
+            session.access_token()
+        self.assertEqual(session.auth_generation(),generation)
+        self.assertEqual(oauth.Session('public-id',saved[-1],saved.append).auth_generation(),generation)
+
+    def test_failed_auth_probe_never_advances_login_generation(self):
+        tokens={'access_token':'test','_auth_generation':'a'*32}
+        with patch.object(wcl_sync,'request_json',return_value={'errors':[{'message':'denied'}]}):
+            with self.assertRaises(ValueError):oauth.validate_access(tokens)
+        self.assertEqual(tokens['_auth_generation'],'a'*32)
+
+    def test_legacy_credentials_do_not_gain_new_auth_generation_on_restart(self):
+        tokens={'access_token':'test','expires_at':time.time()+3600,'_account_id':17}
+        session=oauth.Session('public-id',tokens,lambda _:self.fail('Restart must not rewrite authentication'))
+        self.assertEqual(session.auth_generation(),'')
+        self.assertEqual(oauth.Session('public-id',tokens,lambda _:None).auth_generation(),'')
+
+    def test_legacy_account_identity_probe_preserves_known_login_generation(self):
+        tokens={'access_token':'test','expires_at':time.time()+3600,'_auth_generation':'a'*32}
+        saved=[]
+        response={"data":{"characterData":{"__typename":"CharacterData"},
+                          "userData":{"currentUser":{"id":17}}}}
+        session=oauth.Session('public-id',tokens,saved.append)
+        with patch.object(wcl_sync,'request_json',return_value=response):session.cache_scope()
+        self.assertEqual(session.auth_generation(),'a'*32)
+        self.assertEqual(saved[-1]['_auth_generation'],'a'*32)
+
     def test_unverified_identity_never_persists_or_shares_cache(self):
         for value in (None, True, "17", 0, -1, 1.5, 2147483648):
             with self.subTest(value=value):
@@ -147,10 +189,13 @@ class OAuthTests(unittest.TestCase):
 
 
     def test_oauth_requests_use_user_endpoint_and_invalidate_401(self):
+        from test_addon import api_fixture
+        import build_database
         invalidate = unittest.mock.Mock()
         client = clipboard_companion.Client(token_provider=lambda: "fake-token", invalidate_token=invalidate)
-        with patch.object(wcl_sync, "fetch", return_value={"data": {}}) as fetch:
-            client(SimpleNamespace())
+        args=build_database.arguments(dict(name='Киндрих',realm='Gordunni',region='eu',server_slug='gordunni',spec=''))
+        with patch.object(wcl_sync, "fetch", return_value=api_fixture()) as fetch:
+            client(args)
             self.assertEqual(fetch.call_args.kwargs, {"endpoint": "user"})
         with patch.object(wcl_sync, "fetch", side_effect=ValueError("WCL HTTP 401")):
             with self.assertRaises(ValueError):

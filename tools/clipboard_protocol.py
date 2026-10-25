@@ -1,6 +1,6 @@
 """Only process explicit MPlusLogs request envelopes, never arbitrary clipboard text."""
 import re
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 import clipboard_companion as bridge
 import companion_update
 
@@ -55,6 +55,91 @@ def request_characters(text):
     except (ValueError,KeyError,TypeError):
         # A malformed request must still reach the normal protocol error path.
         return []
+
+
+def reply_summary(text):
+    """Bounded display counts, without treating envelope delivery as loaded logs.
+
+    This is deliberately not the addon's importer. Unknown/truncated formats
+    return None so the UI can say only that a reply is ready, never invent a
+    success count from the initiating request.
+    """
+    if not isinstance(text,str) or len(text)>1501000:return None
+    parts=text.replace('\r\n','\n').split('\n',2)
+    if len(parts)!=3 or parts[0]!='MPLS1' or not re.fullmatch(r'\d+-\d+',parts[1]):return None
+    body=parts[2]
+    if body.startswith('MPLV1 '):
+        _,separator,body=body.partition('\n')
+        if not separator:return None
+    try:
+        if body.startswith('MPLB1\n'):
+            encoded=body[len('MPLB1\n'):]
+            if re.search(r'%(?![0-9A-Fa-f]{2})',encoded):return None
+            body=unquote(encoded,errors='strict')
+        if len(body.encode('utf-8'))>500000:return None
+        lines=body.splitlines()
+        if not lines or len(lines)>12000:return None
+        rows=[]
+        for line in lines[1:]:
+            if not line:continue
+            if re.search(r'%(?![0-9A-Fa-f]{2})',line):return None
+            rows.append([unquote(field,errors='strict') for field in line.split('\t')])
+        if lines[0] in {'MPL1','MPL2'}:
+            parsed=_profile_reply_counts(rows,allow_failures=lines[0]=='MPL2')
+            if parsed is None:return None
+            profiles,failures,cached=parsed
+            return dict(available=len(profiles),failed=len(failures),
+                        unavailable=len(failures-profiles),cached=len(cached | (profiles & failures)),choices=0)
+        if lines[0]=='MPLN2':
+            profiles,failures,cached,choices=set(),set(),set(),set()
+            for fields in rows:
+                tag=fields[0]
+                if len(fields)<3 or not fields[1].isdigit() or not 1<=int(fields[1])<=250:return None
+                member=int(fields[1])
+                if tag=='P' and len(fields)==7:
+                    # Embedded profiles must have their own completed record.
+                    nested=fields[6].splitlines()
+                    if not nested or nested[0]!='MPL1':return None
+                    raw_rows=[line.split('\t') for line in nested[1:] if line]
+                    if any(re.search(r'%(?![0-9A-Fa-f]{2})',f) for row in raw_rows for f in row):return None
+                    parsed=_profile_reply_counts([[unquote(f,errors='strict') for f in row] for row in raw_rows],False)
+                    if parsed is None or parsed[0]!={(fields[2].casefold(),fields[3].casefold(),fields[4].casefold())}:return None
+                    profiles.add(member)
+                    if parsed[2]:cached.add(member)
+                elif tag=='F' and len(fields) in {3,7}:failures.add(member)
+                elif tag=='C' and len(fields) in {6,12}:choices.add(member)
+                else:return None
+            if profiles & choices:return None
+            return dict(available=len(profiles),failed=len(failures),unavailable=len(failures-profiles),
+                        cached=len(cached | (profiles & failures)),choices=len(choices))
+    except (UnicodeError,ValueError):
+        return None
+    return None
+
+
+def _profile_reply_counts(rows,allow_failures):
+    profiles,failures,cached=set(),set(),set()
+    variants=set()
+    active=None
+    for fields in rows:
+        tag=fields[0]
+        if tag=='P' and active is None and len(fields) in {16,17,19,20} and all(fields[1:4]):
+            active=tuple(value.casefold() for value in fields[1:4])
+            variant=active+(fields[6],fields[7],fields[16] if len(fields) in {19,20} else '')
+            if variant in variants:return None
+            variants.add(variant)
+            active_cached=fields[13].startswith('WCL API: cached')
+        elif tag=='E' and len(fields)==1 and active is not None:
+            profiles.add(active)
+            if active_cached:cached.add(active)
+            active=None
+        elif tag=='F' and allow_failures and active is None and len(fields)==5 and all(fields[1:4]):
+            failures.add(tuple(value.casefold() for value in fields[1:4]))
+        elif tag in {'D','R','A','M'} and active is not None and len(fields)>1:
+            continue
+        else:return None
+    if active is not None:return None
+    return profiles,failures,cached
 
 
 def reply(text,mapping,cache,client=None,diagnostic=False,progress=None):

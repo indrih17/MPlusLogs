@@ -17,6 +17,25 @@ def run(report_path):
     import clipboard_protocol
     import wcl_sync
     assert 'specprofiles' in clipboard_protocol.CAPABILITIES
+    summary = clipboard_protocol.reply_summary(
+        'MPLS1\n1-1\nMPLB1\nMPL2\nF%09eu%09Realm%09Player%09offline\n')
+    assert summary['available'] == 0 and summary['failed'] == 1
+    import api_budget
+    network_error = wcl_sync.APIError('Offline network fixture', code='network')
+    assert api_budget.failure_deadline(network_error, 1, 1000) == 1015
+    assert api_budget.failure_deadline(network_error, 2, 1000) == 1030
+    assert api_budget.failure_deadline(network_error, 8, 1000) == 1120
+    budget = api_budget.Budget(clock=lambda: 1000)
+    try:
+        budget.failure(wcl_sync.APIError('Offline schema fixture', code='schema'))
+        try:
+            budget.check_upstream()
+        except api_budget.BudgetError as error:
+            assert error.code == 'retry'
+        else:
+            raise AssertionError('Expected temporary upstream pause')
+    finally:
+        budget.close()
     assert wcl_sync.logged_specs({'data':{'characterData':{'character':{
         'damage':{'rankings':[{'spec':'Elemental'}],'allStars':[{'spec':'Restoration'}]}
     }}}})==['Elemental','Restoration']
@@ -60,4 +79,4 @@ def run(report_path):
     finally:
         root.destroy()
     Path(report_path).write_text(json.dumps({"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
-        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide", "clipboard-privacy", "name-search-api"]}, indent=2), encoding="utf-8")
+        "executable": sys.executable, "checks": ["tkinter", "branding", "oauth-config", "realms", "single-instance", "retail-launcher", "startup-path", "companion-locales", "personal-api-guide", "clipboard-privacy", "name-search-api", "failed-batch-summary", "upstream-retry-classification", "short-error-backoff"]}, indent=2), encoding="utf-8")

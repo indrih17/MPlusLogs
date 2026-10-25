@@ -12,6 +12,8 @@ from test_addon import ROOT
 sys.path.insert(0,str(ROOT/'tools'))
 import companion_i18n as i18n
 import windows_integration as windows
+from test_reply_summary import envelope,profile
+import wcl_sync as wcl
 
 
 loader=importlib.machinery.SourceFileLoader('ready_notifications_gui',str(ROOT/'tools/companion_gui.pyw'))
@@ -47,6 +49,7 @@ class ReadyNotificationTests(unittest.TestCase):
         app.status.get.side_effect=lambda: i18n.tr(app.status.set.call_args.args[0])
         app.update_status=Mock()
         app.update_button=Mock()
+        app.copy_button=Mock()
         app.notification_test_status=Mock()
         self.play_sound=self.enterContext(patch.object(gui.companion_audio,'play_ready',return_value=True))
 
@@ -73,6 +76,7 @@ class ReadyNotificationTests(unittest.TestCase):
 
     def test_new_request_clears_old_ready_and_names_the_new_character_without_sound(self):
         self.event('request_started',[dict(name='Mignøn',realm="Cho'gall")])
+        self.event('result',envelope('MPL1\n'+profile('Mignøn')))
         self.event('ready','Ответ в буфере. Вернитесь в WoW и нажмите Ctrl+V.')
         with patch.object(i18n,'_language','ruRU'):
             self.app.poll()
@@ -84,11 +88,34 @@ class ReadyNotificationTests(unittest.TestCase):
     def test_group_and_realm_unknown_titles_are_localized(self):
         with patch.object(i18n,'_language','enUS'):
             self.app.notification_characters=[dict(name='One',realm=''),dict(name='Two',realm='')]
+            self.app.result=envelope('MPL2\n'+profile()+profile('Two'))
             self.assertEqual(self.app.reply_notification_title(),'Group logs ready · 2 characters')
             self.app.notification_characters=self.app.notification_characters[:1]
+            self.app.result=envelope('MPL1\n'+profile())
             self.assertEqual(self.app.reply_notification_title(),'Logs ready · One')
             self.app.result='MPLE1\n1-2\nerror'
             self.assertEqual(self.app.reply_notification_title(),'Reply ready')
+
+    def test_failed_batch_title_counts_actual_results_not_requested_characters(self):
+        self.app.notification_characters=[dict(name='Player'+str(i),realm='Realm') for i in range(22)]
+        self.app.result=envelope('MPL2\n'+''.join(wcl.line('F','eu','Realm',p['name'],'MPLERR1 schema 1234:WCL error')+'\n' for p in self.app.notification_characters))
+        with patch.object(i18n,'_language','enUS'):
+            self.assertEqual(self.app.reply_notification_title(),'Logs unavailable · 22 characters')
+        with patch.object(i18n,'_language','ruRU'):
+            self.assertEqual(self.app.reply_notification_title(),'Логи недоступны · 22 персонажей')
+
+    def test_partial_and_cached_failure_titles_keep_both_available_and_errors(self):
+        self.app.notification_characters=[dict(name='One',realm='Realm'),dict(name='Two',realm='Realm')]
+        self.app.result=envelope('MPL2\n'+profile()+profile('Two',source='WCL API: cached; refresh unavailable')+wcl.line('F','eu','Realm','Two','refresh failed')+'\n')
+        with patch.object(i18n,'_language','enUS'):
+            self.assertEqual(self.app.reply_notification_title(),'Profiles available: 2 · errors: 1')
+
+    def test_unknown_result_and_unresolved_realms_never_claim_all_logs_loaded(self):
+        self.app.notification_characters=[dict(name='One',realm='Realm'),dict(name='Two',realm='')]
+        with patch.object(i18n,'_language','enUS'):
+            for response in (None,'MPLS1\n1-2\nfixture',envelope('MPLN2\n'+wcl.line('C',1,'eu','A','One','DRUID')+'\n')):
+                self.app.result=response
+                self.assertEqual(self.app.reply_notification_title(),'Reply ready')
 
     def test_stale_worker_cannot_clear_current_readiness(self):
         self.event('request_started',[],threading.Event())
@@ -160,7 +187,7 @@ class ReadyNotificationTests(unittest.TestCase):
             self.app.poll()
         self.assertEqual(self.app.popup.clear_reply.call_count,2)
         self.assertEqual(self.app.popup.show_reply.call_count,2)
-        self.app.popup.show_reply.assert_called_with('Group logs ready · 2 characters',
+        self.app.popup.show_reply.assert_called_with('Reply ready',
             'The reply is ready. The clipboard changed — click Copy last reply.')
 
     def test_notifications_can_be_disabled_without_disabling_sound(self):

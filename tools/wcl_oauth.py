@@ -60,7 +60,7 @@ def token_record(response, previous=None):
             "refresh_token": refresh or (previous or {}).get("refresh_token"),
             "expires_at": now + lifetime}
     # Refreshing credentials does not change the authenticated account.
-    for key in ("_account_id", "_api_budget"):
+    for key in ("_account_id", "_api_budget", "_auth_generation"):
         if key in (previous or {}):
             record[key] = previous[key]
     return record
@@ -136,6 +136,16 @@ class Session:
         self.client_id, self.tokens, self.persist = client_id, dict(tokens), persist
         self.lock = threading.RLock()
 
+    def auth_generation(self):
+        """Nonsecret login identity, unchanged by token refresh or restart.
+
+        Legacy credentials keep an empty generation until their next validated
+        authentication, so merely restarting cannot bypass an auth failure.
+        """
+        with self.lock:
+            value=self.tokens.get('_auth_generation','')
+            return value if valid_auth_generation(value) else ''
+
     def cache_scope(self):
         # Older installations resolve their account once; new logins already
         # include it in the existing authentication probe.
@@ -143,7 +153,7 @@ class Session:
             if not valid_account_id(self.tokens.get("_account_id")):
                 self.access_token()
                 updated = dict(self.tokens)
-                validate_access(updated)
+                validate_access(updated,rotate_generation=False)
                 self.persist(updated)
                 self.tokens = updated
             principal = f"{self.client_id}:{self.tokens['_account_id']}"
@@ -170,7 +180,11 @@ def valid_account_id(value):
     return type(value) is int and 0 < value <= 2147483647
 
 
-def validate_access(tokens):
+def valid_auth_generation(value):
+    return isinstance(value,str) and len(value)==32 and all(c in '0123456789abcdef' for c in value)
+
+
+def validate_access(tokens,*,rotate_generation=True):
     """Verify authentication and character API before persisting a new login."""
     data = wcl.request_json(wcl.ROOT + "/api/v2/user",
                            b'{"query":"{ rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn } characterData { __typename } userData { currentUser { id } } }"}',
@@ -183,4 +197,8 @@ def validate_access(tokens):
     if not isinstance(account, dict) or not valid_account_id(account.get("id")):
         raise ValueError("WCL account identity could not be verified. Sign in again.")
     tokens["_account_id"] = account["id"]
+    # Only a confirmed authentication advances this identity. Ordinary token
+    # rotation preserves it, as does reloading the persisted session.
+    if rotate_generation or not valid_auth_generation(tokens.get('_auth_generation')):
+        tokens["_auth_generation"] = secrets.token_hex(16)
     return wcl.rate_limit_data(data)

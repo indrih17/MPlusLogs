@@ -9,11 +9,37 @@ import uuid
 import wcl_sync as wcl
 
 
+def failure_code(error):
+    code = getattr(error, 'code', None)
+    if code in wcl.ERROR_CODES: return code
+    if getattr(error, 'status', None) == 429 or 'HTTP 429' in str(error): return 'budget'
+    if getattr(error, 'status', None) == 401: return 'auth'
+    return 'network' if isinstance(error, OSError) else 'unknown'
+
+
+def failure_deadline(error, count, now):
+    """Retry hints are lower bounds; only actual failures advance the backoff."""
+    code = failure_code(error)
+    details = wcl.error_info(error, now)
+    hint = details['retry_at'] if getattr(error,'retry_at',0)>now else now + max(0,getattr(error,'retry_after',0))
+    limit=getattr(error,'rate_limit',None)
+    if code=='budget' and isinstance(limit,dict):
+        reset=limit.get('pointsResetIn')
+        if type(reset) in (int,float) and math.isfinite(reset) and 0<reset<=86400:
+            hint=max(hint,now+reset)
+    if code == 'budget': delay = 0 if hint > now else 60
+    elif code in {'schema', 'auth'}: delay = 60
+    else: delay = min(120, 15 * 2 ** min(3, max(0, count - 1)))
+    return math.ceil(max(now + delay, hint))
+
+
 class BudgetError(ValueError):
-    def __init__(self, message, retry_after, global_stop=True):
+    def __init__(self, message, retry_after, global_stop=True, code=None, retry_at=0):
         self.global_stop = global_stop
-        self.code = "budget" if global_stop else "retry"
+        self.code = code or ("budget" if global_stop else "retry")
         self.retry_after = max(1, math.ceil(retry_after))
+        self.attempted = False
+        self.retry_at = retry_at
         super().__init__(message + f"; retry after {self.retry_after} seconds")
 
 
@@ -70,7 +96,7 @@ class Budget:
     def _check_upstream(self,now, reserve_next=False):
         until=self._value('blocked_until')
         if until>now:
-            raise BudgetError('WCL API budget is low',until-now)
+            self._raise_blocked(now, until)
         reset=self._value('reset_at')
         cap=self._value('limit')
         if now < reset:
@@ -78,7 +104,16 @@ class Budget:
             needed=max(100, cap * .1) + (cost if reserve_next else 0)
             if cap - projected < needed:
                 message='WCL API budget is low' if cap-self._value('spent')<needed else 'Local API safety reserve reached'
-                raise BudgetError(message,reset-now)
+                raise BudgetError(message,reset-now,retry_at=math.ceil(reset))
+
+    def _raise_blocked(self, now, until):
+        # Legacy records do not say what caused the pause. Keep the admission
+        # gate, but only call it exhausted quota when we have quota evidence.
+        low = (now < self._value('budget_blocked_until') or
+               now < self._value('reset_at') and
+               self._value('limit') - self._value('spent') < max(100, self._value('limit') * .1))
+        if low: raise BudgetError('WCL API budget is low', until-now,retry_at=math.ceil(until))
+        raise BudgetError('WCL requests are cooling down after an upstream error', until-now, code='retry',retry_at=math.ceil(until))
 
     def check_upstream(self, admission=None):
         with self.lock:
@@ -87,10 +122,10 @@ class Budget:
                 # stop can revoke it; other local holds cannot reject it again.
                 now=self.clock()
                 until=self._value('blocked_until')
-                if until>now:raise BudgetError('WCL API budget is low',until-now)
+                if until>now:self._raise_blocked(now, until)
                 cap=self._value('limit');reset=self._value('reset_at')
                 if now<reset and cap-self._value('spent')<max(100,cap*.1):
-                    raise BudgetError('WCL API budget is low',reset-now)
+                    raise BudgetError('WCL API budget is low',reset-now,retry_at=math.ceil(reset))
             else:self._check_upstream(self.clock())
 
     def reserve(self, key, pace=False, profile=True):
@@ -103,13 +138,13 @@ class Budget:
             self._check_upstream(now, reserve_next=True)
             until = self._value("profile:" + key)
             if profile and until > now:
-                raise BudgetError("Profile refresh is cooling down", until - now, False)
+                raise BudgetError("Profile refresh is cooling down", until - now, False,retry_at=math.ceil(until))
             count, first = self.db.execute("SELECT COUNT(*), MIN(at) FROM attempts").fetchone()
             if count >= self.hourly:
-                raise BudgetError("Local hourly query limit reached", first + 3600 - now)
+                raise BudgetError("Local hourly query limit reached", first + 3600 - now,retry_at=math.ceil(first+3600))
             scheduled = max(now, self._value("next_request_at")) if pace else now
             if scheduled - now > 30:
-                raise BudgetError("WCL requests are cooling down", scheduled - now)
+                raise BudgetError("WCL requests are cooling down", scheduled - now,retry_at=math.ceil(scheduled))
             self.db.execute("INSERT INTO attempts VALUES (?,?)", (now, key))
             identity=uuid.uuid4().hex
             self.db.execute("INSERT INTO point_reservations VALUES (?,?,?,?,?,?)",(identity,now,key,max(1,self._value('largest_observed_cost')),'pending',0))
@@ -183,27 +218,78 @@ class Budget:
         # Absolute reserve helps small quotas; proportional reserve scales up.
         if cap - spent < max(100, cap * .1):
             self._set("blocked_until", max(self._value("blocked_until"), now + reset))
+            self._set("budget_blocked_until", max(self._value("budget_blocked_until"), now + reset))
 
-    def success(self, key):
+    def _owns_profile(self, key, admission):
+        identity=getattr(admission, 'identity', None)
+        if not identity:return False
+        row=self.db.execute('SELECT id FROM point_reservations WHERE key=? ORDER BY rowid DESC LIMIT 1',(key,)).fetchone()
+        return bool(row and row[0]==identity)
+
+    def authenticated(self, generation):
+        """A validated login clears authentication failures, never quota holds."""
+        if not isinstance(generation, str) or not generation:return
+        with self.lock,self.db:
+            previous=self._value('auth_generation', '')
+            if previous==generation:return
+            keys=[row[0][len('failure_code:'):] for row in self.db.execute(
+                "SELECT key FROM state WHERE key LIKE 'failure_code:%' AND value='auth'")]
+            for key in keys:
+                for prefix in ('profile:', 'failure_count:', 'failure_code:'):
+                    self.db.execute('DELETE FROM state WHERE key=?',(prefix+key,))
+            self._set('auth_generation', generation)
+
+    def reconcile_failure(self, key, until, error_at):
+        """Migrate an old failed-cache gate without changing a newer admission."""
+        with self.lock,self.db:
+            latest=self.db.execute('SELECT at FROM point_reservations WHERE key=? ORDER BY rowid DESC LIMIT 1',(key,)).fetchone()
+            if latest and latest[0]>error_at:return
+            gate=self._value('profile:'+key)
+            if gate and gate<=error_at+301:self._set('profile:'+key,min(gate,until))
+
+    def success(self, key, admission=None, profile=True):
         with self.lock, self.db:
             # Normal reads use the cache TTL; explicit refresh is allowed after
             # five minutes, matching the addon and builder refresh controls.
-            self._set("profile:" + key, self.clock() + 300)
+            if admission is not None and not self._owns_profile(key,admission):return
+            if profile:self._set("profile:" + key, self.clock() + 300)
+            for prefix in ('failure_count:', 'failure_code:'):
+                self.db.execute('DELETE FROM state WHERE key=?',(prefix+key,))
 
-    def failure(self, error):
+    def failure(self, error, key=None, admission=None, profile=True, sent=True, auth_generation=None):
         self.observe(getattr(error, "rate_limit", None))
+        now=self.clock()
+        code=failure_code(error)
+        with self.lock,self.db:
+            owned=key is not None and self._owns_profile(key,admission)
+            if (owned and code=='auth' and auth_generation is not None
+                    and self._value('auth_generation','')!=auth_generation):
+                # A worker from the previous validated login must not recreate
+                # an authentication gate after the new login has cleared it.
+                if profile:self._set('profile:'+key,min(self._value('profile:'+key),now))
+                owned=False
+            count=int(self._value('failure_count:'+key)) + int(sent) if owned else 1
+            until=failure_deadline(error,count,now)
+            if owned:
+                self._set('failure_count:'+key,min(count,8))
+                self._set('failure_code:'+key,code)
+                if profile:self._set('profile:'+key,until)
+                error.failure_count=min(count,8)
+                error.retry_at=until
+                error.attempted=sent
         status = getattr(error, "status", None)
         if status is None and "HTTP 429" in str(error):
             status = 429
-        if status == 429 or status == 401 or status is not None and status >= 500 or isinstance(error, wcl.APIError):
-            now = self.clock()
+        if code!='auth' and wcl.stops_batch(error):
             with self.lock, self.db:
                 self.db.execute('BEGIN IMMEDIATE')
                 self._increment("upstream_errors")
-                pause = max(60, getattr(error, "retry_after", 0))
+                pause = until-now
                 if status == 429:
                     pause = max(pause, self._value("reset_at") - now)
+                    self._set("budget_blocked_until", max(self._value("budget_blocked_until"), now + pause))
                 self._set("blocked_until", max(self._value("blocked_until"), now + pause))
+                error.retry_at=math.ceil(max(getattr(error,'retry_at',0),self._value('blocked_until')))
             return True
         return False
 

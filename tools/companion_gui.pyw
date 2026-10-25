@@ -433,11 +433,18 @@ class App:
 
     def reply_notification_title(self):
         characters=getattr(self,'notification_characters',[])
-        response=getattr(self,'result',None)
-        if not characters or (isinstance(response,str) and response.startswith('MPLE1\n')):
+        summary=clipboard_protocol.reply_summary(getattr(self,'result',None))
+        if summary is None:
             return i18n.tr('Reply ready')
-        if len(characters)>1:
-            return i18n.tr('Group logs ready · {count} characters').format(count=len(characters))
+        if summary['failed']:
+            if not summary['available']:
+                return i18n.tr('Logs unavailable · {count} characters').format(count=summary['failed'])
+            return i18n.tr('Profiles available: {loaded} · errors: {failed}').format(
+                loaded=summary['available'],failed=summary['failed'])
+        if summary['choices'] or not summary['available']:
+            return i18n.tr('Reply ready')
+        if summary['available']>1 or len(characters)!=1:
+            return i18n.tr('Group logs ready · {count} characters').format(count=summary['available'])
         character=characters[0]
         template='Logs ready · {character} — {realm}' if character['realm'] else 'Logs ready · {character}'
         return i18n.tr(template).format(character=character['name'],realm=character['realm'])
@@ -500,7 +507,7 @@ class App:
                 state_path = personal_api.budget_path(DATA_ROOT, self.api_mode, self.client_id)
                 client = bridge.Client(3600 if self.api_mode == "personal" else 120,
                     token_provider=session.access_token, invalidate_token=session.invalidate,
-                    state_path=state_path, cache_scope=scope)
+                    state_path=state_path, cache_scope=scope, auth_generation=session.auth_generation())
                 client.api_mode = self.api_mode
                 client.cancel = stop
                 client.search_status = lambda message: post("status",message)

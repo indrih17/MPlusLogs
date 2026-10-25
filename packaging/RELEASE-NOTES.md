@@ -1,3 +1,5 @@
-## MPlusLogs 0.5.35
+## Companion 1.0.31
 
-- Fix duplicated key-level digits by hiding the underlying number and removing its extra shadow.
+- Report actual batch results instead of claiming failed profiles are ready, while preserving usable cached profiles.
+- Use short failure-specific retry delays, honor API reset times, and recover immediately after a validated sign-in.
+- Classify Warcraft Logs GraphQL failures safely and isolate character-specific errors without stopping the whole batch.

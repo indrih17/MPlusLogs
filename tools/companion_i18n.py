@@ -57,6 +57,16 @@ def tr(text, language=None):
     selected = catalog(language)
     if text in base:
         return selected.get(text) or base[text]
+    # Backend diagnostics contain only allowlisted codes/query paths. Translate
+    # the authored message while keeping those technical identifiers intact.
+    for prefix in (key for key in base if key.startswith('WCL ')):
+        if text.startswith(prefix):
+            suffix=text[len(prefix):]
+            match=re.fullmatch(r'( \[[A-Za-z0-9_.; ]{1,160}\])?(?:; retry after ([0-9]{1,8}) seconds)?',suffix)
+            if match and suffix:
+                result=tr(prefix,language)+(match[1] or '')
+                if match[2]:result+='; '+tr('Retry after {seconds} seconds.',language).format(seconds=match[2])
+                return result
     if text.startswith("WCL HTTP "):
         match = re.match(r"WCL HTTP (\d+);", text)
         if match:
