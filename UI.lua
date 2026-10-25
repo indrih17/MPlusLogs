@@ -231,6 +231,7 @@ local function renderLevelDigits(row,value,r,g,b)
     if type(row.levelDigits)~="table" then row.levelDigits={} end
     for _,digit in ipairs(row.levelDigits) do digit:Hide() end
     row.levelDigitWidth=nil
+    cell:Show()
     if not text:match("^%d+$") then cell:SetAlpha(1); return end
     local function digitAt(index)
         local digit=row.levelDigits[index]
@@ -258,10 +259,14 @@ local function renderLevelDigits(row,value,r,g,b)
         local digit=digitAt(index)
         digit:SetText(text:sub(index,index)); digit:SetWidth(step)
         digit:ClearAllPoints(); digit:SetPoint("TOPRIGHT",cell,"TOPRIGHT",-(#text-index)*step,0)
-        digit:SetTextColor(r,g,b); emphasizeNumber(digit,r,g,b,true); digit:Show()
+        -- Avoid a second colored stroke on narrow glyphs such as "1".
+        digit:SetTextColor(r,g,b); emphasizeNumber(digit,r,g,b,false); digit:Show()
     end
-    -- Retain the full value for measurement and the normal missing-data path.
+    -- Keep the full value for measurement, but hide its glyphs and shadow.
+    -- Only the independently anchored digit slots should draw this number.
+    emphasizeNumber(cell,r,g,b,false)
     cell:SetAlpha(0)
+    cell:Hide()
 end
 local function gridLine(parent,x,y,width,height)
     local texture=parent:CreateTexture(nil,"ARTWORK")
@@ -1038,7 +1043,7 @@ function MPL.RenderProfileStats(f)
                 sr,sg,sb=percentileRGB(i==8 and firstValue or secondValue)
             end
             -- Keep dungeon names regular; a colored stroke adds unwanted weight.
-            emphasizeNumber(row.cells[i],sr,sg,sb,value~="—" and i~=1)
+            emphasizeNumber(row.cells[i],sr,sg,sb,value~="—" and i~=1 and i~=2)
             if i==2 then renderLevelDigits(row,value,r,g,b) end
         end
         row:Show()

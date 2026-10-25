@@ -1,5 +1,9 @@
 # Changelog
 
+## MPlusLogs 0.5.35
+
+- Fix duplicated key-level digits by hiding the underlying number and removing its extra shadow.
+
 ## MPlusLogs 0.5.34
 
 - Unify profile controls with a flat appearance and a larger close icon; move character lookup into a collapsible search panel while keeping log refresh and applicant invitations accessible.

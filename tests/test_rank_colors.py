@@ -130,7 +130,12 @@ class RankColorTests(unittest.TestCase):
         row = panel.rows[1]
         self.assertEqual(list(row.cells[1].shadowOffset.values()), [0, 0])
         self.assertEqual(row.cells[1].shadowColor[4], 0)
-        for index in range(2, 10):
+        self.assertEqual(list(row.cells[2].shadowOffset.values()), [0, 0])
+        self.assertEqual(row.cells[2].shadowColor[4], 0)
+        for digit in row.levelDigits.values():
+            self.assertEqual(list(digit.shadowOffset.values()), [0, 0])
+            self.assertEqual(digit.shadowColor[4], 0)
+        for index in range(3, 10):
             self.assertEqual(list(row.cells[index].shadowOffset.values()), [0.5, 0])
             self.assertEqual(row.cells[index].shadowColor[4], 1)
         for index, color in ((6, "ff8000"), (8, "0070ff"), (9, "1eff00")):
