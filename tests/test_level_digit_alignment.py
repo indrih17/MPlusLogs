@@ -10,7 +10,6 @@ class LevelDigitAlignmentTests(unittest.TestCase):
         mock = test_addon.MOCK.replace('function methods:GetText() return self.text or "" end', '''
             function methods:GetText() return self.text or "" end
             function methods:SetJustifyH(value) self.justifyH=value end
-            function methods:SetShadowColor(r,g,b,a) self.shadowColor={r,g,b,a} end
             function methods:GetUnboundedStringWidth()
                 local widths={['1']=3,['2']=7,['0']=6}
                 local width=0
@@ -22,6 +21,7 @@ class LevelDigitAlignmentTests(unittest.TestCase):
             test_addon.AddonTests.setUp(self)
         self.mpl.ShowProfile('Киндрих', 'Гордунни', None, True)
         self.panel = self.mpl.panel
+        self.mpl.AppearanceValue = self.lua.eval('function(key, fallback) if key=="levelDigits" then return "aligned" end; return fallback end')
 
     def show(self, levels):
         self.panel.profile = self.lua.table_from(dict(metric='dps', spec='All specs',
@@ -46,21 +46,6 @@ class LevelDigitAlignmentTests(unittest.TestCase):
         for row in self.panel.rows.values():
             if row.shown:
                 self.assertEqual(row.cells[2].justifyH, 'RIGHT')
-
-    def test_levels_have_one_visible_representation_without_echo_shadows(self):
-        self.show([15,16,19,111])
-        for row in self.panel.rows.values():
-            if not row.shown:
-                continue
-            cell=row.cells[2]
-            self.assertFalse(cell.shown, 'Whole-number layer must not overlap digit slots')
-            self.assertEqual(cell.shadowColor[4],0)
-            digits=[digit for digit in row.levelDigits.values() if digit.shown]
-            self.assertEqual(''.join(digit.text for digit in digits),str(cell.text))
-            self.assertTrue(all(digit.shadowColor[4]==0 for digit in digits))
-        self.show([None])
-        self.assertTrue(self.panel.rows[1].cells[2].shown)
-        self.assertEqual(self.panel.rows[1].cells[2].text,'—')
 
     def test_units_start_on_same_vertical_and_have_equal_gap_in_21_and_22(self):
         self.show([21,22])

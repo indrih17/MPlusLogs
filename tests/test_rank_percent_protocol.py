@@ -236,7 +236,7 @@ class RankPercentProtocolTests(unittest.TestCase):
                             (95,'ff8000'),(99,'e268a8'),(100,'e5cc80')):
             self.assertEqual(self.mpl.PercentColor(value),color)
             self.assertEqual(self.mpl.Percent(value),'|cff'+color+str(value)+'%|r')
-            self.assertEqual(self.mpl.Percent(value,True),'|cff888888'+str(value)+'%|r')
+            self.assertEqual(self.mpl.Percent(value,True),'|cff'+color+str(value)+'%|r')
 
     def test_spec_rank_colors_only_export_when_negotiated_and_details_enabled(self):
         raw=self.raw()

@@ -62,6 +62,9 @@ class ArchiveTests(unittest.TestCase):
                 self.assertIn('MPlusLogs/Tutorial.lua',z.namelist())
                 self.assertIn('MPlusLogs/TutorialSteps.lua',z.namelist())
                 self.assertIn('MPlusLogs/TutorialProfile.lua',z.namelist())
+                for name in ('Appearance.lua','AppearancePresets.lua','DungeonNames.lua',
+                             'ProfileAppearance.lua','AppearanceSettings.lua'):
+                    self.assertIn('MPlusLogs/'+name,z.namelist())
                 entries={entry['path']:entry for entry in export_release_source.entries()}
                 for locale in ('deDE','esES','esMX','frFR','itIT','koKR','ptBR','zhCN','zhTW'):
                     name=f'Locales/Tutorial/{locale}.lua'
@@ -72,6 +75,42 @@ class ArchiveTests(unittest.TestCase):
                 toc=z.read('MPlusLogs/MPlusLogs.toc').decode('utf-8')
                 self.assertIn(r'## IconTexture: Interface\AddOns\MPlusLogs\assets\mpluslogs-icon.tga',toc)
                 self.assertNotIn('MPlusLogs/.git/config',z.namelist())
+                for name in export_release_source.LIBRARY_FILES:
+                    self.assertIn('MPlusLogs/'+name,z.namelist())
+                    self.assertEqual(z.read('MPlusLogs/'+name),(ROOT/name).read_bytes())
+                    self.assertEqual(entries[name]['content'],(ROOT/name).read_text(encoding='utf-8-sig'))
+
+    def test_library_export_is_explicit_and_not_a_recursive_glob(self):
+        with tempfile.TemporaryDirectory(prefix='mpluslogs-public-libs-') as folder:
+            root=Path(folder)
+            self.make_source_fixture(root)
+            for name in export_release_source.LIBRARY_FILES:
+                path=root/name
+                path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_text('Public vendored file\n',encoding='utf-8')
+            for name in ('libs/private.lua','libs/tokens.json',
+                         'libs/LibSharedMedia-3.0/private.lua',
+                         'libs/LibSharedMedia-3.0/fonts/private.ttf'):
+                path=root/name
+                path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_text('Must not leave workspace',encoding='utf-8')
+            with patch.object(export_release_source,'ROOT',root):
+                names={entry['path'] for entry in export_release_source.entries()}
+            self.assertEqual({name for name in names if name.startswith('libs/')},
+                             set(export_release_source.LIBRARY_FILES))
+
+    def test_vendored_library_cannot_ship_without_its_notice(self):
+        with tempfile.TemporaryDirectory(prefix='mpluslogs-library-notices-') as folder:
+            root=Path(folder)
+            self.make_source_fixture(root)
+            source='libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua'
+            path=root/source
+            path.parent.mkdir(parents=True)
+            path.write_text('-- library fixture',encoding='utf-8')
+            (root/'MPlusLogs.toc').write_text(source+'\n',encoding='utf-8')
+            (root/'libs/README.md').write_text('Library provenance',encoding='utf-8')
+            with self.assertRaises(FileNotFoundError):
+                build_release.addon(root,'test',source_root=root)
 
     def test_windows_line_endings_are_preserved_in_archive_and_normalized_in_export(self):
         with tempfile.TemporaryDirectory(prefix='mpluslogs-crlf-') as folder:

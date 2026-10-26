@@ -75,7 +75,7 @@ MPL.RegisterTutorialLocale("frFR", {
                 "Cliquez sur la valeur pour ouvrir le profil complet. Autre accès : clic droit sur le candidat > « M+ (MPlusLogs) ».",
             },
             result = "Le profil du candidat sélectionné s'ouvre. Une candidature groupée propose des onglets pour ses membres.",
-            pitfall = "Il s'agit généralement d'un percentile ; les paramètres permettent d'afficher plutôt le DPS/HPS du donjon actuel. Le gris indique des données périmées ; un tiret indique l'absence de données pour l'indicateur choisi.",
+            pitfall = "Il s'agit généralement d'un percentile ; les paramètres permettent d'afficher plutôt le DPS/HPS du donjon actuel. L’infobulle indique l’ancienneté des données ; un tiret indique l'absence de données pour l'indicateur choisi.",
         },
         {
             id = "profile",
@@ -137,11 +137,13 @@ MPL.RegisterTutorialLocale("frFR", {
         },
         {
             id = "settings",
-            shortTitle = "Paramètres et données",
-            title = "Choisir les indicateurs et vérifier les dates",
-            intro = "Les paramètres déterminent quelles données apparaissent en premier et quand l'addon propose une actualisation.",
+            shortTitle = "Réglages et apparence",
+            title = "Personnaliser la fenêtre et les statistiques",
+            intro = "L’apparence modifie la fenêtre du profil ; les réglages généraux contrôlent les statistiques et la fraîcheur des données.",
             location = "« Paramètres » dans le profil ou /mpl settings > MPlusLogs.",
             instructions = {
+                "Cliquez sur Apparence dans l’en-tête du profil ou dans les réglages généraux de MPlusLogs. Choisissez un style et une palette, ou ajustez les polices, les tailles et les colonnes.",
+                "Les changements d’apparence sont immédiatement visibles dans l’aperçu. Cliquez sur Save pour les conserver ou sur Cancel pour retrouver l’apparence précédente.",
                 "Dans « Centile principal », choisissez Best avg, Median ou un indicateur du donjon actuel de votre annonce.",
                 "Choisissez « Spécialisation principale » : celle de la candidature/du groupe ou celle de l'historique des logs. Vous pouvez aussi activer « HPS première pour les guérisseurs » et régler les infobulles.",
                 "Choisissez la « Période de validité des journaux » ; la valeur par défaut est de 24 heures. Le chargement groupé ignore les profils à jour. Utilisez « Actualiser les logs M+ » pour demander un nouveau téléchargement.",

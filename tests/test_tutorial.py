@@ -183,6 +183,22 @@ class TutorialTests(unittest.TestCase):
                 self.assertFalse(window.shown)
                 self.assertEqual(self.lua.globals().MPlusLogsDB.tutorialCompletedVersion,2)
 
+    def test_settings_chapter_explains_appearance_entry_preview_and_commit(self):
+        for locale, words in (
+            ("ruRU", ("Оформление", "шапке профиля", "стиль", "палитру", "шрифты", "столбцы", "предпросмотре", "Сохранить", "Отмена")),
+            ("enUS", ("Appearance", "profile header", "style", "palette", "fonts", "columns", "preview", "Save", "Cancel")),
+        ):
+            with self.subTest(locale=locale):
+                self.mpl.locale=locale
+                window=self.show(9)
+                chapter=self.mpl.GetTutorialCopy(locale).steps[9]
+                guidance=" ".join(chapter.instructions.values())
+                for word in words:
+                    self.assertIn(word,guidance)
+                self.assertIn("оформление" if locale=="ruRU" else "appearance",chapter.shortTitle.lower())
+                self.assertEqual(len(chapter.instructions),6)
+                self.assertEqual(window.instructions[2].text,"2. "+chapter.instructions[2])
+
     def test_bulk_loading_is_early_and_explicitly_located_above_applicants(self):
         copy=self.mpl.GetTutorialCopy("ruRU")
         stage=copy.steps[2]

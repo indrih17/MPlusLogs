@@ -57,3 +57,10 @@ repair Git object's read-only attributes and can repeatedly initialize updates.
 The live AddOns folder is separate: never check out remote files over another
 chat's live edits. Old local `.build-tools` content was moved outside WoW;
 do not recreate a repository there.
+
+# WoW UI symbols
+
+Use textures, atlases, or drawn texture strokes for selection marks, arrows,
+and other UI icons. Do not put Unicode pictograms (for example U+2713 CHECK MARK)
+in FontString or button text: the game font can render them as an empty square.
+Use localized words when an icon is unnecessary; verify any new symbol in game.

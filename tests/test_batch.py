@@ -153,7 +153,7 @@ class BatchTests(unittest.TestCase):
         f.edit.SetText(f.edit,response); f.edit.scripts.OnTextChanged(f.edit,True); self.flush()
         self.assertIsNone(self.mpl.pendingReply)
         self.assertFalse(f.shown)
-        self.assertIsNone(self.mpl.batchResultsWindow)
+        self.assertTrue(self.mpl.batchResultsWindow.shown)
         self.assertEqual(self.mpl.lastBatchResult.count,1)
         self.mpl.OpenBatchResults()
         result=self.mpl.batchResultsWindow
@@ -172,9 +172,206 @@ class BatchTests(unittest.TestCase):
         self.assertTrue(response.startswith("MPLS1\n"))
         self.assertEqual(self.mpl.ReceiveReply(response,True),0)
         self.assertIsNone(self.mpl.pendingReply)
-        self.assertIsNone(self.mpl.batchResultsWindow)
+        self.assertTrue(self.mpl.batchResultsWindow.shown)
         self.mpl.OpenBatchResults()
         self.assertIn("0 из 2",self.mpl.batchResultsWindow.summary.text)
+
+    def error_reply(self, players, failures):
+        request_id,_=self.mpl.SendBatchRequest(players)
+        rows=['MPL2']
+        for player in self.mpl.pendingReply.players.values():
+            code,retry,message=failures[player.name]
+            fields=('F','eu',player.realm,player.name,f'MPLERR1 {code} {retry}:{message}')
+            rows.append('\t'.join(quote(field,safe='') for field in fields))
+        return 'MPLS1\n'+request_id+'\nMPLV1 1.0.30 batch,errorcodes\nMPLB1\n'+quote('\n'.join(rows)+'\n',safe='')
+
+    def test_failure_only_paste_exposes_zero_loaded_instead_of_success(self):
+        self.mpl.ShowBatchDownload()
+        f=self.mpl.downloadWindow
+        players=self.mpl.pendingReply.players
+        response=self.error_reply(players,{
+            'Alice':('budget',1791777660,'Personal API; API reset at 1791777800; WCL API budget is low'),
+            'Bob':('schema',1791777630,'WCL GraphQL error; inspect API schema/query. No export written'),
+        })
+        f.edit.SetText(f.edit,response); f.edit.scripts.OnTextChanged(f.edit,True); self.flush()
+        self.assertFalse(f.shown)
+        self.assertNotEqual(f.status.text,'Логи получены.')
+        result=self.mpl.batchResultsWindow
+        self.assertTrue(result.shown)
+        self.assertIn('0 из 2',result.summary.text)
+        self.assertIn('Ошибки обновления: 2',result.summary.text)
+        self.assertIn('лимит',result.rows[1].status.text)
+        self.assertIn('WCL GraphQL error',result.rows[2].status.text)
+
+    def test_transient_errors_block_only_until_retry_timestamp_and_show_waiting(self):
+        self.mpl.InstallBatchButton()
+        response=self.error_reply(self.players(),{
+            'Alice':('budget',1791777660,'Personal API; API reset at 1791777800; WCL API budget is low'),
+            'Bob':('schema',1791777630,'WCL GraphQL error; inspect API schema/query. No export written'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(response,True),0)
+        alice=self.mpl.GetProfileState('Alice','Гордунни','All specs')
+        self.assertEqual(alice.errorCode,'budget')
+        self.assertEqual(alice.expires,1791777660)
+        result=self.mpl.batchResultsWindow
+        result.scripts.OnUpdate(result,1)
+        self.assertIn('0 мин. 30 сек.',result.summary.text)
+        details=self.lua.table()
+        pending,loaded=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
+        self.assertEqual((len(pending),loaded,details.waiting),(0,0,2))
+        self.assertFalse(self.mpl.batchButton.enabled)
+        self.mpl.ShowBatchDownload()
+        f=self.mpl.downloadWindow
+        self.assertIsNone(self.mpl.pendingReply)
+        self.assertEqual(f.request,'')
+        self.assertIn('отложены',f.status.text)
+        self.assertNotIn('актуальные логи',f.status.text)
+        self.assertIn('0 мин. 30 сек.',f.status.text)
+        self.assertIsNone(self.mpl.SendRequest('Alice','Гордунни','dps')[0])
+        self.lua.execute('GetServerTime=function() return 1791777631 end')
+        result.scripts.OnUpdate(result,1)
+        self.assertIn('0 мин. 29 сек.',result.summary.text)
+        self.mpl.batchButton.scripts.OnUpdate(self.mpl.batchButton,1)
+        self.assertTrue(self.mpl.batchButton.enabled)
+        pending,loaded=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
+        self.assertEqual((len(pending),loaded,details.waiting),(1,0,1))
+        self.assertEqual(pending[1].name,'Bob')
+        self.lua.execute('GetServerTime=function() return 1791777661 end')
+        self.assertIsNone(self.mpl.GetProfileState('Alice','Гордунни','All specs'))
+        pending,_=self.mpl.FilterFreshProfiles(self.players())
+        self.assertEqual(len(pending),2)
+
+    def test_transient_error_keeps_existing_profile_and_success_count_honest(self):
+        _,request=self.mpl.SendBatchRequest(self.players())
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response,True),1)
+        profile,_,_=self.mpl.GetProfile('Alice','Гордунни')
+        profile.updated='2026-10-01 00:00 UTC'
+        error_response=self.error_reply(self.players(),{
+            'Alice':('schema',1791777630,'WCL GraphQL error; inspect API schema/query. No export written'),
+            'Bob':('budget',1791777660,'Personal API; WCL API budget is low'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(error_response,True),0)
+        self.mpl.ShowProfile('Alice','Гордунни')
+        self.assertTrue(self.mpl.panel.profile)
+        self.assertFalse(self.mpl.panel.emptyMessage.shown)
+        self.assertIn('WCL GraphQL error',self.mpl.panel.footer.text)
+        self.assertIn('62',self.mpl.panel.summary.text)
+        # A cached fallback may be imported, but was not freshly loaded.
+        players=self.players()
+        profiles=self.lua.table()
+        profiles[self.mpl.Key('Alice','Гордунни')]=profile
+        failures=self.lua.table()
+        failures[self.mpl.Key('Alice','Гордунни')]=self.lua.table_from({'error':'WCL unavailable'})
+        self.mpl.ShowBatchResults(players,profiles,failures,1,True)
+        self.assertIn('0 из 2',self.mpl.batchResultsWindow.summary.text)
+
+    def test_expired_or_legacy_batch_errors_do_not_create_permanent_retry_block(self):
+        response=self.error_reply(self.players(),{
+            'Alice':('budget',1791777599,'Personal API; WCL API budget is low'),
+            'Bob':('schema',0,'WCL GraphQL error; inspect API schema/query. No export written'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(response,True),0)
+        self.assertIsNone(self.mpl.GetProfileState('Alice','Гордунни','All specs'))
+        self.assertIsNone(self.mpl.GetProfileState('Bob','Гордунни','All specs'))
+        pending,loaded=self.mpl.FilterFreshProfiles(self.players())
+        self.assertEqual((len(pending),loaded),(2,0))
+
+    def test_network_failure_retry_deadline_applies_to_single_and_batch_requests(self):
+        response=self.error_reply(self.players(),{
+            'Alice':('network',1791777660,'Could not connect to Warcraft Logs'),
+            'Bob':('auth',1791777630,'Session expired'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(response,True),0)
+        details=self.lua.table()
+        pending,_=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
+        self.assertEqual((len(pending),details.waiting),(1,1))
+        self.assertEqual(pending[1].name,'Bob')
+        self.assertEqual(self.mpl.ProfileRetryRemaining('Alice','Гордунни','All specs'),60)
+        request_id,error=self.mpl.SendRequest('Alice','Гордунни','dps')
+        self.assertIsNone(request_id)
+        self.assertIn('MPLERR1 network 1791777660:',error)
+
+    def test_auth_error_preserves_guidance_but_never_delays_relogin_retry(self):
+        response=self.error_reply(self.players(),{
+            'Alice':('auth',1791777900,'Session expired'),
+            'Bob':('auth',0,'Session expired'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(response,True),0)
+        state=self.mpl.GetProfileState('Alice','Гордунни','All specs')
+        self.assertEqual(state.errorCode,'auth')
+        self.assertEqual(self.mpl.ProfileRetryRemaining('Alice','Гордунни','All specs'),0)
+        result=self.mpl.batchResultsWindow
+        self.assertIn('Companion',result.rows[1].status.text)
+        self.assertIn('Session expired',result.rows[1].status.text)
+        self.assertNotIn('Повторная загрузка доступна',result.summary.text)
+        result.scripts.OnUpdate(result,1)
+        self.assertNotIn('Повторная загрузка доступна',result.summary.text)
+        self.mpl.ShowProfile('Alice','Гордунни')
+        self.assertIn('Session expired',self.mpl.panel.emptyMessage.text)
+        self.assertNotIn('Повторная загрузка доступна',self.mpl.panel.emptyMessage.text)
+        request_id,_=self.mpl.SendRequest('Alice','Гордунни','dps')
+        self.assertIsNotNone(request_id)
+        request_id,_=self.mpl.SendBatchRequest(self.players())
+        self.assertIsNotNone(request_id)
+        self.assertEqual(len(self.mpl.pendingReply.players),2)
+
+    def test_old_auth_retry_state_does_not_block_single_or_batch(self):
+        self.lua.execute('''
+            MPlusLogs.profileStates={}
+            for _,name in ipairs({"Alice","Bob"}) do
+                MPlusLogs.profileStates[MPlusLogs.Key(name,"Гордунни")]=
+                    {reason=name=="Alice" and "retry" or nil,errorCode="auth",error="Session expired",expires=1791777900,spec=""}
+            end
+        ''')
+        details=self.lua.table()
+        pending,_=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
+        self.assertEqual((len(pending),details.waiting),(2,0))
+        self.assertEqual(self.mpl.ProfileRetryRemaining('Alice','Гордунни','All specs'),0)
+        self.assertIsNotNone(self.mpl.SendRequest('Alice','Гордунни','dps')[0])
+        self.assertIsNotNone(self.mpl.SendBatchRequest(self.players())[0])
+        self.assertEqual(len(self.mpl.pendingReply.players),2)
+
+    def test_short_retry_deadline_is_not_extended_to_five_minutes(self):
+        response=self.error_reply(self.players(),{
+            'Alice':('network',1791777615,'Could not connect'),
+            'Bob':('schema',1791777660,'WCL GraphQL error'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(response,True),0)
+        self.assertEqual(self.mpl.ProfileRetryRemaining('Alice','Гордунни','All specs'),15)
+        self.lua.execute('GetServerTime=function() return 1791777616 end')
+        details=self.lua.table()
+        pending,_=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
+        self.assertEqual((len(pending),details.waiting),(1,1))
+        self.assertEqual(pending[1].name,'Alice')
+
+    def test_auth_failure_preserves_stale_usable_profile_and_allows_immediate_retry(self):
+        _,request=self.mpl.SendBatchRequest(self.players())
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response,True),1)
+        profile,_,_=self.mpl.GetProfile('Alice','Гордунни')
+        profile.updated='2026-10-01 00:00 UTC'
+        auth=self.error_reply(self.players(),{'Alice':('auth',0,'Session expired')})
+        self.assertEqual(self.mpl.ReceiveReply(auth,True),0)
+        self.mpl.ShowProfile('Alice','Гордунни')
+        self.assertTrue(self.mpl.panel.profile)
+        self.assertTrue(self.mpl.panel.scroll.shown)
+        self.assertFalse(self.mpl.panel.emptyMessage.shown)
+        self.assertIn('Session expired',self.mpl.panel.footer.text)
+        self.assertIsNotNone(self.mpl.SendRequest('Alice','Гордунни','dps')[0])
+
+    def test_fresh_cached_profile_still_counts_loaded_during_failed_forced_refresh(self):
+        _,request=self.mpl.SendBatchRequest(self.players())
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        self.assertEqual(self.mpl.ReceiveReply(response,True),1)
+        error_response=self.error_reply(self.players(),{
+            'Alice':('network',1791777660,'Could not connect to Warcraft Logs'),
+        })
+        self.assertEqual(self.mpl.ReceiveReply(error_response,True),0)
+        details=self.lua.table()
+        pending,loaded=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
+        self.assertEqual((len(pending),loaded,details.waiting),(0,1,0))
+        self.assertIsNotNone(self.mpl.GetProfile('Alice','Гордунни')[0])
 
     def test_download_shortcuts_select_request_and_require_ctrl_for_copy(self):
         self.lua.execute('IsControlKeyDown=function() return controlDown or false end')

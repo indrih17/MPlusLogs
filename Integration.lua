@@ -381,11 +381,13 @@ function MPL.InstallBatchButton()
         MPL.batchTutorialButton:SetPoint("LEFT",b,"RIGHT",4,0)
         MPL.batchTutorialButton:SetText("?")
     end
-    local loaded,total,hidden=0,0,0
+    local loaded,total,hidden,waiting,retryAt=0,0,0,0,nil
     local function update()
         local players,err=MPL.CollectApplicants()
         local pending
-        pending,loaded=MPL.FilterFreshProfiles(players)
+        local details={}
+        pending,loaded=MPL.FilterFreshProfiles(players,nil,nil,details)
+        waiting=details.waiting or 0; retryAt=details.retryAt
         total=#players
         hidden=0
         for _,player in ipairs(players) do
@@ -407,7 +409,7 @@ function MPL.InstallBatchButton()
     b:SetScript("OnUpdate",function(self,elapsed)
         if not self:IsShown() then return end
         elapsedTotal=elapsedTotal+elapsed
-        if elapsedTotal>=30 then elapsedTotal=0; update() end
+        if elapsedTotal>=(waiting>0 and 1 or 30) then elapsedTotal=0; update() end
     end)
     b:SetScript("OnEnter",function()
         update()
@@ -416,6 +418,10 @@ function MPL.InstallBatchButton()
         GameTooltip:AddLine(L["Логи текущих кандидатов"])
         GameTooltip:AddLine(L["Актуальные данные: "]..loaded..L[" из "]..total,1,1,1)
         GameTooltip:AddLine(L["Нет актуальных данных: "]..(total-loaded-hidden),0.7,0.7,0.7)
+        if waiting>0 then
+            GameTooltip:AddLine(L["Ожидают повторной загрузки: "]..waiting,1,0.7,0.2)
+            GameTooltip:AddLine(MPL.RetryDelayText(retryAt),1,0.7,0.2,true)
+        end
         if hidden>0 then GameTooltip:AddLine(L["Скрытые логи: "]..hidden,0.7,0.7,0.7) end
         GameTooltip:AddLine(L["Срок актуальности логов"]..": "..string.format(L["%d ч."],MPL.GetOption("freshHours")),0.7,0.7,0.7)
         GameTooltip:AddLine(L["Загружаются только отсутствующие или устаревшие логи."],0.7,0.7,0.7,true)
@@ -484,6 +490,7 @@ events:SetScript("OnEvent",function(_,event,loaded)
     if event == "ADDON_LOADED" and loaded == addonName then
         MPlusLogsDB = MPlusLogsDB or {}
         MPlusLogsDB.profiles = MPlusLogsDB.profiles or {}
+        if MPL.InitAppearance then MPL.InitAppearance() end
         MPL.LoadBundle()
     end
     if event == "PLAYER_LOGIN" then
@@ -516,7 +523,11 @@ SLASH_MPLUSLOGS1 = "/mpl"
 SLASH_MPLUSLOGS2 = "/mpluslogs"
 SlashCmdList.MPLUSLOGS = function(text)
     text = strtrim(text or "")
-    if text == "settings" then MPL.OpenSettings()
+    if text == "appearance" then MPL.OpenAppearanceSettings()
+    elseif text == "appearance reset" then
+        if MPL.ResetAppearanceForCharacter then MPL.ResetAppearanceForCharacter()
+        elseif MPL.ResetAppearance then MPL.ResetAppearance() end
+    elseif text == "settings" then MPL.OpenSettings()
     elseif text == "tutorial" then MPL.ShowTutorial()
     elseif text == "testintro" then MPL.ShowCompanionIntroPreview()
     elseif text == "testupdate" then

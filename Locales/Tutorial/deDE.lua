@@ -75,7 +75,7 @@ MPL.RegisterTutorialLocale("deDE", {
                 "Klicke auf den Wert, um das vollständige Profil zu öffnen. Alternativ: Rechtsklick auf den Bewerber > „M+ Protokolle (MPlusLogs)“.",
             },
             result = "Das Profil des gewählten Bewerbers öffnet sich. Bei einer gemeinsamen Bewerbung gibt es Reiter für die einzelnen Mitglieder.",
-            pitfall = "Normalerweise erscheint hier ein Perzentil. In den Einstellungen kannst du stattdessen DPS/HPS für den aktuellen Dungeon wählen. Grau bedeutet veraltete Daten; ein Strich bedeutet, dass Daten für die gewählte Kennzahl fehlen.",
+            pitfall = "Normalerweise erscheint hier ein Perzentil. In den Einstellungen kannst du stattdessen DPS/HPS für den aktuellen Dungeon wählen. Der Tooltip zeigt das Alter der Daten; ein Strich bedeutet, dass Daten für die gewählte Kennzahl fehlen.",
         },
         {
             id = "profile",
@@ -137,11 +137,13 @@ MPL.RegisterTutorialLocale("deDE", {
         },
         {
             id = "settings",
-            shortTitle = "Einstellungen und Daten",
-            title = "Kennzahlen wählen und Datenstand prüfen",
-            intro = "Die Einstellungen bestimmen, welche Daten zuerst erscheinen und wann das Addon ein Update vorschlägt.",
+            shortTitle = "Einstellungen und Aussehen",
+            title = "Fenster und Kennzahlen anpassen",
+            intro = "Das Aussehen ändert das Profilfenster. Allgemeine Einstellungen steuern Kennzahlen und Datenaktualität.",
             location = "„Einstellungen“ im Profil oder /mpl settings > MPlusLogs.",
             instructions = {
+                "Klicke im Profilkopf oder in den allgemeinen MPlusLogs-Einstellungen auf Darstellung. Wähle Stil und Farbpalette oder passe Schriften, Größen und Spalten an.",
+                "Änderungen am Aussehen siehst du sofort in der Vorschau. Mit Save behältst du sie; Cancel stellt das vorherige Aussehen wieder her.",
                 "Wähle unter „Hauptperzentil“ Best avg, Median oder eine Kennzahl für den aktuellen Dungeon deines Gesuchs.",
                 "Wähle die „Hauptspezialisierung“: aktuell aus Bewerbung/Gruppe oder anhand der Log-Historie. Bei Bedarf kannst du „HPS zuerst für Heiler“ aktivieren und Tooltips anpassen.",
                 "Lege in den Einstellungen fest, wie lange Logs als aktuell gelten; Standard sind 24 Stunden. Gemeinsames Laden überspringt aktuelle Profile. Für einen erneuten Download nutze „M+-Logs aktualisieren“.",

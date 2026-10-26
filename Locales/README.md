@@ -5,8 +5,9 @@ locales: enUS, enGB, ruRU, deDE, esES, esMX, frFR, itIT, ptBR, koKR, zhCN, zhTW.
 enGB shares enUS. Unknown locales use English. English loads first; a missing
 entry in another locale retains its English translation.
 
-`catalog.json` contains the source keys. Keys are the original Russian UI
-strings and must remain unchanged. Each locale JSON maps these keys to text.
+`catalog.json` contains the source keys. Existing keys are the original Russian
+UI strings; the appearance editor uses English source keys. Keys must remain
+unchanged. Each locale JSON maps these keys to text.
 Generated Lua files are loaded by the TOC before the addon code.
 
 The nine-step tutorial has separate authored translations in `Tutorial/*.lua`,
@@ -29,6 +30,12 @@ Other locales started as Google Translate drafts with selected recruitment
 and Mythic+ terms edited. They still need native-speaker review before a
 public release; automated checks do not establish linguistic quality.
 
+The 0.6.0 appearance editor has authored English and Russian copy. New appearance
+keys in the other nine dictionaries currently retain explicit English fallback
+text rather than unreviewed machine translation. Existing translated copy is
+preserved. Dynamic descriptor labels (font roles and per-column controls) are
+catalog entries too; add those exact labels when extending the schema.
+
 `tools/review_locale_terms.py` records initial terminology edits. Do not rerun
 it over contributor edits unless intentionally reapplying those defaults.
 `tools/localize_addon.py translate` is an optional build tool that sends only
@@ -40,3 +47,8 @@ filter identifiers, clipboard envelopes and SavedVariables records stay
 unchanged. WCL-provided dungeon/season/spec names remain source data; known
 generic labels such as `All specs` are translated when displayed. The Companion uses a separate offline catalog in tools/companion_locales and has
 a language selector in Settings; it supports the same client languages.
+
+`../DungeonNames.lua` resolves profile dungeon labels without modifying canonical
+WCL names. It includes verified English/Russian names for the current rotation;
+"Game language" can use the client's ChallengeMode API for other languages.
+Unknown dungeons and unavailable translations retain the source English name.

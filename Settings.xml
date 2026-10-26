@@ -1,4 +1,25 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="MPlusLogsAppearanceLinkTemplate" mixin="MPlusLogsAppearanceLinkMixin" virtual="true">
+        <Size y="140"/>
+        <Layers>
+            <Layer level="ARTWORK">
+                <FontString parentKey="Text" inherits="GameFontHighlightSmall" justifyH="LEFT" justifyV="TOP" wordwrap="true">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="37" y="-8"/>
+                        <Anchor point="TOPRIGHT" x="-40" y="-8"/>
+                    </Anchors>
+                </FontString>
+            </Layer>
+        </Layers>
+        <Frames>
+            <Button parentKey="Button" inherits="UIPanelButtonTemplate">
+                <Size x="300" y="28"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeKey="$parent.Text" relativePoint="BOTTOMLEFT" y="-12"/>
+                </Anchors>
+            </Button>
+        </Frames>
+    </Frame>
     <Frame name="MPlusLogsTutorialLinkTemplate" mixin="MPlusLogsTutorialLinkMixin" virtual="true">
         <Size y="46"/>
         <Frames>

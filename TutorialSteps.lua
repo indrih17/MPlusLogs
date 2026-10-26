@@ -78,7 +78,7 @@ local copies = {
                     "Нажмите на значение для полной сводки. Другой путь: ПКМ по кандидату > «M+ логи (MPlusLogs)».",
                 },
                 result = "Откроется профиль выбранного кандидата; у групповой заявки будут вкладки её участников.",
-                pitfall = "Обычно здесь процентиль; в настройках можно выбрать DPS/HPS текущего данжа. Серое значение означает устаревшие данные, а прочерк — отсутствие данных для выбранного показателя.",
+                pitfall = "Обычно здесь процентиль; в настройках можно выбрать DPS/HPS текущего данжа. Давность данных указана в подсказке, а прочерк означает отсутствие данных для выбранного показателя.",
             },
             {
                 id = "profile",
@@ -140,11 +140,13 @@ local copies = {
             },
             {
                 id = "settings",
-                shortTitle = "Настройки и данные",
-                title = "Настройте показатели и следите за давностью",
-                intro = "Настройки определяют, какие данные вы видите первыми и когда аддон предлагает их обновить.",
+                shortTitle = "Настройки и оформление",
+                title = "Настройте вид окна и показатели",
+                intro = "Оформление меняет вид окна профиля, а общие настройки — показатели и актуальность данных.",
                 location = "Кнопка «Настройки» в профиле или /mpl settings > MPlusLogs.",
                 instructions = {
+                    "Нажмите «Оформление» в шапке профиля или откройте его из общих настроек MPlusLogs. Выберите готовый стиль и палитру или настройте шрифты, размеры и столбцы под себя.",
+                    "Изменения оформления сразу видны в предпросмотре. Нажмите «Сохранить», чтобы оставить их, или «Отмена», чтобы вернуть прежний вид.",
                     "В «Основной процентиль» выберите Best avg, Median или показатель текущего данжа вашей группы в поиске.",
                     "Выберите «Основной спек»: текущий из заявки/группы или по истории логов. При желании включите HPS первым для хилов и настройте подсказки.",
                     "Задайте «Срок актуальности логов»: по умолчанию 24 часа. Общая загрузка пропускает актуальные профили; повторная загрузка доступна через «Обновить M+ логи».",
@@ -231,7 +233,7 @@ local copies = {
                     "Click the value for a full profile. You can also right-click the applicant > \"M+ logs (MPlusLogs)\".",
                 },
                 result = "The selected applicant's profile opens; a group application has tabs for its members.",
-                pitfall = "This is usually a percentile; settings can show DPS/HPS for the current dungeon instead. Gray means stale data; a dash means no data for the selected statistic.",
+                pitfall = "This is usually a percentile; settings can show DPS/HPS for the current dungeon instead. The tooltip shows data age; a dash means no data for the selected statistic.",
             },
             {
                 id = "profile",
@@ -293,11 +295,13 @@ local copies = {
             },
             {
                 id = "settings",
-                shortTitle = "Settings and data",
-                title = "Choose statistics and check freshness",
-                intro = "Settings determine which data comes first and when the addon suggests updating it.",
+                shortTitle = "Settings and appearance",
+                title = "Customize the window and statistics",
+                intro = "Appearance changes the profile window; general settings control statistics and data freshness.",
                 location = "Settings in the profile or /mpl settings > MPlusLogs.",
                 instructions = {
+                    "Click Appearance in the profile header or open it from general MPlusLogs settings. Choose a style and palette, or adjust fonts, sizes and columns.",
+                    "Appearance changes appear in the preview immediately. Click Save to keep them or Cancel to restore the previous look.",
                     "Under Primary percentile, select Best avg, Median or a statistic for your listing's current dungeon.",
                     "Choose Main specialization: current from the application/party or based on logged history. Optionally enable HPS first for healers and adjust tooltips.",
                     "Choose Log freshness period; the default is 24 hours. Batch loading skips fresh profiles; use Update M+ logs to request another download.",

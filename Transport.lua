@@ -1,6 +1,7 @@
 local _, MPL = ...
 local L = MPL.L
 local sequence = 0
+local transientErrors={budget=true,schema=true,network=true,auth=true,unknown=true}
 
 -- Negotiate specialization details so older addons still receive legacy rows
 -- from the updated Companion, while new requests can include ranks and icons.
@@ -60,13 +61,16 @@ end
 
 function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
-    local state=MPL.GetProfileState(name,realm,spec)
-    if state and state.reason=="hidden" then return nil,L["Логи скрыты в Warcraft Logs."] end
-    sequence=sequence+1
-    local id=tostring(GetServerTime()).."-"..sequence
     local role=MPL.roles and MPL.roles[MPL.Key(name,realm)]
     spec=spec or MPL.SelectedSpec(name,realm,role) or ""
     if spec=="All specs" then spec="" end
+    local state=MPL.GetProfileState(name,realm,spec)
+    if state and state.reason=="hidden" then return nil,L["Логи скрыты в Warcraft Logs."] end
+    if MPL.ProfileRetryRemaining(name,realm,spec)>0 then
+        return nil,"MPLERR1 "..(state.errorCode or "retry").." "..string.format("%.0f",state.expires)..":"..(state.error or MPL.RetryDelayText(state.expires))
+    end
+    sequence=sequence+1
+    local id=tostring(GetServerTime()).."-"..sequence
     if includeSpecs and spec~="" then role=MPL.ProfileRole({spec=spec}) end
     local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role),includeSpecs,refresh)
     MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context,includeSpecs=includeSpecs,refresh=refresh,
@@ -78,17 +82,23 @@ function MPL.SendBatchRequest(players,refresh)
     if InCombatLockdown() then return nil,L["Запрос доступен вне боя"] end
     if #players==0 then return nil,L["Нет кандидатов для загрузки"] end
     if #players>250 then return nil,L["Слишком много кандидатов (максимум 250)"] end
-    local available={}
+    local available,retryAt={}
     for _,player in ipairs(players) do
-        local state=MPL.GetProfileState(player.name,player.realm,player.spec)
-        if not state or state.reason~="hidden" then
+        local selected=player.spec or MPL.SelectedSpec(player.name,player.realm,player.role)
+        local state=MPL.GetProfileState(player.name,player.realm,selected)
+        local waiting=MPL.ProfileRetryRemaining(player.name,player.realm,selected)>0
+        if waiting then retryAt=math.min(retryAt or state.expires,state.expires)
+        elseif not state or state.reason~="hidden" then
             -- The reply belongs to this selection even if a live tab changes.
             local snapshot={}
             for key,value in pairs(player) do snapshot[key]=value end
             available[#available+1]=snapshot
         end
     end
-    if #available==0 then return nil,L["Логи скрыты в Warcraft Logs."] end
+    if #available==0 then
+        if retryAt then return nil,L["Все оставшиеся запросы временно отложены."].."\n"..MPL.RetryDelayText(retryAt) end
+        return nil,L["Логи скрыты в Warcraft Logs."]
+    end
     players=available
     local rows,expected={},{}
     for _,player in ipairs(players) do
@@ -111,7 +121,9 @@ end
 local function recordProfileFailure(name,realm,spec,message,code,retryAt)
     local lower=string.lower(message)
     local reason
-    if code then reason=({hidden="hidden",missing="missing",empty="empty",retry="retry"})[code]
+    if code then
+        reason=({hidden="hidden",missing="missing",empty="empty",retry="retry",auth="auth"})[code]
+        if transientErrors[code] and code~="auth" and retryAt and retryAt>GetServerTime() then reason="retry" end
     elseif lower:find("rankings hidden",1,true) then reason="hidden"
     elseif lower:find("character not found",1,true) then reason="missing"
     elseif lower:find("no public logs",1,true)
@@ -126,6 +138,9 @@ local function recordProfileFailure(name,realm,spec,message,code,retryAt)
     if wasRetry and known and known.reason=="hidden" then reason="hidden" end
     local state={reason=reason,spec=reason~="hidden" and spec or nil}
     if reason=="retry" and retryAt and retryAt>GetServerTime() then state.expires=retryAt end
+    if (reason=="retry" or reason=="auth") and transientErrors[code] then
+        state.error=message; state.errorCode=code
+    end
     if reason=="hidden" then
         state.expires=wasRetry and known.expires or GetServerTime()+6*3600
         MPlusLogsDB.profileStates[key]=state
@@ -154,7 +169,8 @@ function MPL.ReceiveReply(text, strict)
         message,code,retryAt=MPL.DecodeCompanionError(message)
         companionReplied()
         if not pendingReply.batch then
-            if recordProfileFailure(pendingReply.name,pendingReply.realm,pendingReply.spec,message,code,retryAt) then
+            local state=recordProfileFailure(pendingReply.name,pendingReply.realm,pendingReply.spec,message,code,retryAt)
+            if state and not transientErrors[code] then
                 MPL.pendingReply=nil
                 MPL.ShowProfile(pendingReply.name,pendingReply.realm,pendingReply.context,true)
                 return 0

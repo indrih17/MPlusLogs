@@ -153,6 +153,29 @@ class AddonTests(unittest.TestCase):
         self.mpl.UpdatePanelScroll(panel)
         self.assertFalse(panel.scroll.ScrollBar.shown)
 
+    def test_stale_notice_survives_background_profile_refresh_until_dismissed(self):
+        self.mpl.Import(self.export())
+        profile,_,_=self.mpl.GetProfile("Киндрих-Гордунни",None)
+        profile.updated="2026-10-09 00:00 UTC"
+        self.mpl.ShowProfile("Киндрих-Гордунни")
+        notice=self.mpl.staleWindow
+        self.assertTrue(notice.shown)
+        # INSPECT_READY redraws the same profile without requesting a new notice.
+        self.mpl.ShowProfile("Киндрих","Гордунни",None,True)
+        self.assertTrue(notice.shown)
+        notice.Hide(notice)
+        self.mpl.ShowProfile("Киндрих","Гордунни",None,True)
+        self.assertFalse(notice.shown)
+
+    def test_stale_notice_closes_when_navigating_to_another_character(self):
+        self.mpl.Import(self.export())
+        profile,_,_=self.mpl.GetProfile("Киндрих-Гордунни",None)
+        profile.updated="2026-10-09 00:00 UTC"
+        self.mpl.ShowProfile("Киндрих-Гордунни")
+        self.assertTrue(self.mpl.staleWindow.shown)
+        self.mpl.ShowProfile("Nobody","Гордунни",None,True)
+        self.assertFalse(self.mpl.staleWindow.shown)
+
     def test_stale_banner_preserves_result_colors_and_clears_after_refresh(self):
         self.mpl.Import(self.export())
         profile,_,_=self.mpl.GetProfile("Киндрих-Гордунни",None)

@@ -10,6 +10,17 @@ function MPlusLogsTutorialLinkMixin:Release()
     self.Button:SetScript("OnClick",nil)
 end
 
+MPlusLogsAppearanceLinkMixin={}
+function MPlusLogsAppearanceLinkMixin:Init()
+    self.Text:SetText(L["Choose styles and colors, adjust fonts and table columns, and preview changes before saving."].."\n\n"..L["Open Appearance in the profile window header or use the button below. Save keeps your changes; Cancel restores the previous appearance."])
+    self:SetHeight(self.Text:GetStringHeight()+52)
+    self.Button:SetText(L["Customize window appearance…"])
+    self.Button:SetScript("OnClick",function() if MPL.OpenAppearanceSettings then MPL.OpenAppearanceSettings() end end)
+end
+function MPlusLogsAppearanceLinkMixin:Release()
+    self.Button:SetScript("OnClick",nil)
+end
+
 local percentileDescriptions={
     best=L["Best avg — среднее лучших процентилей по подземельям. Процентиль показывает результат относительно других игроков той же специализации и уровня ключа."],
     median=L["Median — среднее медианных процентилей по подземельям. Медиана отражает типичный результат, а не лучший забег."],
@@ -52,11 +63,13 @@ function MPL.RegisterSettings()
         return Settings.RegisterProxySetting(category,"MPLUSLOGS_"..key,kind,title,default,
             function() return MPL.GetOption(key) end,function(value) MPL.SetOption(key,value) end)
     end
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Appearance"]))
+    layout:AddInitializer(Settings.CreateElementInitializer("MPlusLogsAppearanceLinkTemplate",{}))
     Settings.CreateCheckbox(category,setting("healerHpsFirst",Settings.VarType.Boolean,L["HPS первым для хилов"],false),
         L["Для хилов показывать HPS перед DPS в заявках, тултипе и полной сводке."])
     Settings.CreateDropdown(category,setting("percentile",Settings.VarType.String,L["Основной процентиль"],"best"),function()
         local options=Settings.CreateControlTextContainer()
-        options:Add("best","Best avg"); options:Add("median","Median")
+        options:Add("best",L["Average best percentile"]); options:Add("median",L["Average median percentile"])
         options:Add("dungeon_dps",L["DPS / HPS (текущий данж)"])
         options:Add("dungeon_median",L["Median (текущий данж)"])
         options:Add("dungeon_best",L["Best (текущий данж)"])

@@ -75,7 +75,7 @@ MPL.RegisterTutorialLocale("esMX", {
                 "Haz clic en el valor para abrir el perfil completo. También puedes hacer clic derecho en el solicitante > «M+ (MPlusLogs)».",
             },
             result = "Se abre el perfil del solicitante que elegiste; las solicitudes de grupo incluyen pestañas para sus integrantes.",
-            pitfall = "Por lo general se muestra un percentil; los ajustes permiten mostrar el DPS/HPS de la mazmorra actual. Un valor gris indica datos antiguos; un guion indica que no hay datos para la estadística seleccionada.",
+            pitfall = "Por lo general se muestra un percentil; los ajustes permiten mostrar el DPS/HPS de la mazmorra actual. La descripción emergente muestra la antigüedad de los datos; un guion indica que no hay datos para la estadística seleccionada.",
         },
         {
             id = "profile",
@@ -137,11 +137,13 @@ MPL.RegisterTutorialLocale("esMX", {
         },
         {
             id = "settings",
-            shortTitle = "Ajustes y datos",
-            title = "Elige estadísticas y revisa su antigüedad",
-            intro = "Los ajustes determinan qué datos aparecen primero y cuándo el addon sugiere actualizarlos.",
+            shortTitle = "Ajustes y apariencia",
+            title = "Personaliza la ventana y las estadísticas",
+            intro = "La apariencia cambia la ventana del perfil; los ajustes generales controlan las estadísticas y la vigencia de los datos.",
             location = "«Ajustes» en el perfil o /mpl settings > MPlusLogs.",
             instructions = {
+                "Haz clic en Apariencia en el encabezado del perfil o en los ajustes generales de MPlusLogs. Elige un estilo y una paleta, o ajusta fuentes, tamaños y columnas.",
+                "Los cambios de apariencia se ven al instante en la vista previa. Haz clic en Save para conservarlos o en Cancel para recuperar el aspecto anterior.",
                 "En «percentil principal», selecciona Best avg, Median o una estadística de la mazmorra actual del anuncio de tu grupo.",
                 "Elige la «Especialización principal»: «Actual», a partir de la solicitud o del grupo, o «Según registros», basada en el historial. Si quieres, activa «HPS primero en curaciones» y ajusta las descripciones.",
                 "Elige el «Período de validez de los registros»; el valor predeterminado es 24 horas. La carga por lote omite los perfiles vigentes; usa «Actualizar logs de M+» para pedir otra descarga.",

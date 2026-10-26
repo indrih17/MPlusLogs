@@ -75,7 +75,7 @@ MPL.RegisterTutorialLocale("itIT", {
                 "Premi il valore per aprire il profilo completo. Puoi anche fare clic destro sul candidato > «M+ registri (MPlusLogs)».",
             },
             result = "Si apre il profilo del candidato selezionato. Le candidature di gruppo hanno schede per i singoli membri.",
-            pitfall = "Di solito è un percentile; dalle impostazioni puoi scegliere invece DPS/HPS della spedizione attuale. Il grigio indica dati non più aggiornati; un trattino indica l'assenza di dati per l'indicatore scelto.",
+            pitfall = "Di solito è un percentile; dalle impostazioni puoi scegliere invece DPS/HPS della spedizione attuale. Il tooltip mostra quanto sono recenti i dati; un trattino indica l'assenza di dati per l'indicatore scelto.",
         },
         {
             id = "profile",
@@ -137,11 +137,13 @@ MPL.RegisterTutorialLocale("itIT", {
         },
         {
             id = "settings",
-            shortTitle = "Impostazioni e dati",
-            title = "Scegli gli indicatori e controlla le date",
-            intro = "Le impostazioni determinano quali dati vedere per primi e quando l'addon propone di aggiornarli.",
+            shortTitle = "Impostazioni e aspetto",
+            title = "Personalizza finestra e statistiche",
+            intro = "L’aspetto modifica la finestra del profilo; le impostazioni generali controllano statistiche e aggiornamento dei dati.",
             location = "«Impostazioni» nel profilo o /mpl settings > MPlusLogs.",
             instructions = {
+                "Fai clic su Aspetto nell’intestazione del profilo o nelle impostazioni generali di MPlusLogs. Scegli stile e tavolozza, oppure regola caratteri, dimensioni e colonne.",
+                "Le modifiche all’aspetto sono subito visibili nell’anteprima. Fai clic su Save per mantenerle o su Cancel per ripristinare l’aspetto precedente.",
                 "In «percentile principale», scegli Best avg, Median o un indicatore della spedizione attuale del tuo annuncio.",
                 "Scegli «Specializzazione principale»: quella attuale della candidatura/del gruppo o quella della cronologia dei log. Puoi anche attivare «HPS primo per i guaritori» e regolare le descrizioni.",
                 "Scegli «Periodo di validità dei registri»; il valore predefinito è 24 ore. Il caricamento collettivo salta i profili aggiornati. Usa «Aggiorna i log M+» per richiedere un nuovo download.",

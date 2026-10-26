@@ -75,7 +75,7 @@ MPL.RegisterTutorialLocale("ptBR", {
                 "Clique no valor para abrir o perfil completo. Você também pode clicar com o botão direito no candidato > «M+ registros (MPlusLogs)».",
             },
             result = "O perfil do candidato selecionado é aberto; uma candidatura de grupo tem abas para seus integrantes.",
-            pitfall = "Normalmente, esse valor é um percentil; nas configurações você pode exibir o DPS/HPS da masmorra atual. Cinza indica dados antigos; um traço indica que não há dados para a estatística selecionada.",
+            pitfall = "Normalmente, esse valor é um percentil; nas configurações você pode exibir o DPS/HPS da masmorra atual. A dica mostra a idade dos dados; um traço indica que não há dados para a estatística selecionada.",
         },
         {
             id = "profile",
@@ -137,11 +137,13 @@ MPL.RegisterTutorialLocale("ptBR", {
         },
         {
             id = "settings",
-            shortTitle = "Configurações e dados",
-            title = "Escolha as estatísticas e confira a validade",
-            intro = "As configurações determinam quais dados aparecem primeiro e quando o addon sugere atualizá-los.",
+            shortTitle = "Ajustes e aparência",
+            title = "Personalize a janela e as estatísticas",
+            intro = "A aparência altera a janela do perfil; os ajustes gerais controlam as estatísticas e a atualização dos dados.",
             location = "«Configurações» no perfil ou /mpl settings > MPlusLogs.",
             instructions = {
+                "Clique em Aparência no cabeçalho do perfil ou nos ajustes gerais do MPlusLogs. Escolha um estilo e uma paleta, ou ajuste fontes, tamanhos e colunas.",
+                "As alterações de aparência aparecem imediatamente na prévia. Clique em Save para mantê-las ou em Cancel para restaurar a aparência anterior.",
                 "Em «Percentil principal», escolha Best avg, Median ou uma estatística da masmorra atual do anúncio do seu grupo.",
                 "Escolha a «Especialização principal»: «Atual», dos dados da candidatura ou do grupo, ou «Pelos registros», com base no histórico. Se quiser, ative «HPS primeiro para curandeiros» e ajuste as dicas.",
                 "Escolha o «Período de validade dos registros»; o padrão é 24 horas. O carregamento em lote ignora os perfis válidos; use «Atualizar logs de M+» para solicitar outro download.",

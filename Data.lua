@@ -81,7 +81,7 @@ function MPL.PrimaryStatistic(profile,metric,dungeon,stale,compactRate)
     if option=="dungeon_dps" then
         if not amount then return "—" end
         local text=compactRate and formatRate(amount) or string.format("%.0f",amount)
-        return stale and ("|cff888888"..text.."|r") or text
+        return text
     end
     local value=best
     if option=="median" or option=="dungeon_median" then value=median end
@@ -157,8 +157,21 @@ function MPL.GetProfileState(name,realm,spec)
     return state
 end
 
-function MPL.FilterFreshProfiles(players,refresh,displayRefresh)
-    local pending,skipped={},0
+function MPL.ProfileRetryRemaining(name,realm,spec)
+    local state=MPL.GetProfileState(name,realm,spec)
+    -- Only the Companion knows whether login changed. An auth failure must
+    -- remain retryable immediately, including states from older versions.
+    local remaining=state and state.reason=="retry" and state.errorCode~="auth" and state.expires and math.ceil(state.expires-GetServerTime()) or 0
+    return math.max(0,remaining)
+end
+
+function MPL.RetryDelayText(retryAt)
+    local remaining=math.max(0,math.ceil((retryAt or GetServerTime())-GetServerTime()))
+    return string.format(L["Повторная загрузка доступна через %d мин. %d сек."],math.floor(remaining/60),remaining%60)
+end
+
+function MPL.FilterFreshProfiles(players,refresh,displayRefresh,details)
+    local pending,skipped,waiting,retryAt={},0,0,nil
     for _,player in ipairs(players) do
         -- Party tabs outlive their initial spec snapshot. Refresh the profile
         -- currently selected in the UI, without mutating an in-flight batch.
@@ -171,6 +184,9 @@ function MPL.FilterFreshProfiles(players,refresh,displayRefresh)
             -- Known access failures are neither pending nor loaded profiles.
         elseif usable and not (displayRefresh and MPL.ProfileNeedsDisplayRefresh(profile)) and ((not refresh and not MPL.IsProfileStale(profile))
             or (refresh and MPL.ProfileRefreshRemaining(profile)>0)) then skipped=skipped+1
+        elseif MPL.ProfileRetryRemaining(player.name,player.realm,spec)>0 then
+            waiting=waiting+1
+            retryAt=math.min(retryAt or state.expires,state.expires)
         else
             local request={}
             for key,value in pairs(player) do request[key]=value end
@@ -178,6 +194,7 @@ function MPL.FilterFreshProfiles(players,refresh,displayRefresh)
             pending[#pending+1]=request
         end
     end
+    if details then details.waiting=waiting; details.retryAt=retryAt end
     return pending,skipped
 end
 
@@ -477,7 +494,8 @@ end
 
 function MPL.Percent(value, stale)
     if value == nil then return "—" end
-    local color = stale and "888888" or MPL.PercentColor(value)
+    -- Freshness is shown separately; color always describes the result.
+    local color = MPL.PercentColor(value)
     local text = string.format("%.1f", value):gsub("%.0$", "")
     return "|cff" .. color .. text .. "%|r"
 end

@@ -1,4 +1,4 @@
-MPlusLogs 0.5.35
+MPlusLogs 0.6.0
 
 Mythic+ Warcraft Logs DPS/HPS profiles in group finder tooltips and player panels.
 Install this folder in World of Warcraft/_retail_/Interface/AddOns.
@@ -21,3 +21,13 @@ The guide supports all eleven addon languages; enGB shares English and unknown l
 The addon cannot make HTTP requests; fresh data requires the Companion or import.
 Percentiles describe available Warcraft Logs runs, not all runs or tank survival.
 The addon follows the WoW client language; the Companion supports the same languages with a choice in Settings > Language.
+
+Use /mpl appearance to customize the profile window with a live preview.
+Choose a preset or edit colors, background opacity, fonts, grid lines, columns,
+number spacing and dungeon labels. Save keeps changes; Cancel restores the saved design.
+SharedMedia fonts are available when registered by installed media addons;
+the game font remains available without any additional addon.
+Dungeon labels can follow the game language or use English, Russian, abbreviations
+and personal names. These labels do not change Warcraft Logs links or source data.
+Use /mpl appearance reset to restore the Classic preset and recenter the window
+for the current character without deleting other saved themes.

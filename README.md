@@ -11,6 +11,8 @@ player profiles with a separate Windows Companion.
 - Batch loading for applicants, your party, and members of listed groups. When a realm is missing,
   Companion searches Warcraft Logs; ambiguous matches let you choose the realm.
 - Saved profiles, last-loaded dates, stale-data indicators, and configurable healer HPS priority.
+- Live profile appearance editing: themes, fonts, colors, opacity, grid lines,
+  visible columns, number spacing and dungeon labels.
 
 Only runs available to Warcraft Logs are included. Missing logs mean data is unavailable;
 percentiles do not measure survival, interrupts, or mechanics.
@@ -103,6 +105,25 @@ Customize healer HPS priority, Best avg/Median priority, freshness (6/12/24/48 h
 tooltips and stale-log alerts in Settings > AddOns > MPlusLogs, or use `/mpl settings`.
 Changes apply immediately and are saved between sessions.
 Percentiles describe available Warcraft Logs runs. They do not measure tank survival.
+
+Click **Appearance** in the profile window header, use `/mpl appearance`, or open
+the **Appearance** section at the top of Settings > AddOns > MPlusLogs to edit the profile window.
+Choose Classic, Clean, Full table, Compact, Large text or Minimal, then customize
+individual controls. **Sample preview** uses fictional data and sends no log
+requests. Changes are visible immediately; **Save** keeps the editor draft and
+**Cancel**, closing the editor or Escape restores the saved appearance.
+
+SharedMedia font packs are optional; the game interface font remains available
+without them. Dungeon names can follow the client language or use English,
+Russian, short forms, abbreviations and personal labels. Labels do not change
+Warcraft Logs links or the source data. `/mpl appearance reset` restores Classic
+and recenters the profile for the current character without deleting other themes.
+
+Для настройки оформления используйте `/mpl appearance` или кнопку
+**«Оформление»** в шапке профиля или в общих настройках. Цвета, шрифты, прозрачность,
+сетка, колонки и названия данжей меняются сразу. **«Сохранить»** сохраняет
+изменения, **«Отмена»**, закрытие окна и Escape возвращают прежнее оформление.
+Команда `/mpl appearance reset` восстанавливает классическую тему и положение окна.
 
 ## Cache and compatibility
 

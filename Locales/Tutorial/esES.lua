@@ -75,7 +75,7 @@ MPL.RegisterTutorialLocale("esES", {
                 "Pulsa el valor para abrir el perfil completo. También puedes hacer clic derecho en el candidato > «M+ (MPlusLogs)».",
             },
             result = "Se abre el perfil del candidato seleccionado; si la solicitud es de un grupo, habrá pestañas para sus miembros.",
-            pitfall = "Lo habitual es ver un percentil; en los ajustes puedes elegir el DPS/HPS de la mazmorra actual. El gris indica datos antiguos; un guion indica que no hay datos para la estadística seleccionada.",
+            pitfall = "Lo habitual es ver un percentil; en los ajustes puedes elegir el DPS/HPS de la mazmorra actual. La descripción emergente muestra la antigüedad de los datos; un guion indica que no hay datos para la estadística seleccionada.",
         },
         {
             id = "profile",
@@ -137,11 +137,13 @@ MPL.RegisterTutorialLocale("esES", {
         },
         {
             id = "settings",
-            shortTitle = "Ajustes y datos",
-            title = "Elige estadísticas y comprueba su antigüedad",
-            intro = "Los ajustes determinan qué datos ves primero y cuándo el addon sugiere actualizarlos.",
+            shortTitle = "Ajustes y apariencia",
+            title = "Personaliza la ventana y las estadísticas",
+            intro = "La apariencia cambia la ventana del perfil; los ajustes generales controlan las estadísticas y la vigencia de los datos.",
             location = "«Ajustes» en el perfil o /mpl settings > MPlusLogs.",
             instructions = {
+                "Pulsa Apariencia en la cabecera del perfil o en los ajustes generales de MPlusLogs. Elige un estilo y una paleta, o ajusta fuentes, tamaños y columnas.",
+                "Los cambios de apariencia se ven al instante en la vista previa. Pulsa Save para conservarlos o Cancel para recuperar el aspecto anterior.",
                 "En «percentil principal», elige Best avg, Median o una estadística de la mazmorra actual de tu anuncio de grupo.",
                 "Elige la «Especialización principal»: «Actual», según la solicitud o el grupo, o «Según registros», según el historial. Si quieres, activa «HPS primero en curaciones» y ajusta las descripciones.",
                 "Elige el «Período de validez de los registros»; el valor predeterminado es 24 horas. La carga conjunta omite los perfiles vigentes; usa «Actualizar logs de M+» para solicitar otra descarga.",

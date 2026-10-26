@@ -54,8 +54,10 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.layout[len(settings.layout)].template,'MPlusLogsTutorialLinkTemplate')
         self.assertEqual(settings.layout[len(settings.layout)-1].key,'MPLUSLOGS_hideTutorial')
         self.assertFalse(values.MPLUSLOGS_hideTutorial['get']())
-        self.assertEqual(settings.layout[3].template,'MPlusLogsPercentileDescriptionTemplate')
-        self.assertEqual(settings.layout[9].section,'Где ещё показывать логи М+')
+        self.assertEqual(settings.layout[1].section,'Оформление')
+        self.assertEqual(settings.layout[2].template,'MPlusLogsAppearanceLinkTemplate')
+        self.assertEqual(settings.layout[5].template,'MPlusLogsPercentileDescriptionTemplate')
+        self.assertEqual(settings.layout[11].section,'Где ещё показывать логи М+')
         for index,(key,name) in enumerate([
             ('showInRaids','Показывать логи М+ в рейдах'),
             ('showInPvp','Показывать логи М+ в PvP'),
@@ -73,7 +75,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(main['get'](),'current')
         self.assertEqual(main['default'],'current')
         self.assertEqual([(item.key,item.text) for item in main['items'].values()],
-                         [('current','Текущий'),('logs','По логам')])
+                         [('current','Из заявки или группы'),('logs','По истории логов')])
         main['set']('logs')
         self.assertEqual(self.lua.globals().MPlusLogsDB.options.mainSpec,'logs')
         self.assertFalse(self.mpl.SetOption('mainSpec','invalid'))
@@ -129,8 +131,31 @@ class SettingsTests(unittest.TestCase):
         self.lua.execute('MPlusLogsDB.options={hideLogSettings=true}')
         self.mpl.ShowProfile('Alice','Гордунни')
         self.assertFalse(self.mpl.panel.settingsButton.shown)
+        self.assertTrue(self.mpl.panel.appearanceButton.shown)
         self.mpl.SetOption('hideLogSettings',False)
         self.assertTrue(self.mpl.panel.settingsButton.shown)
+
+    def test_appearance_settings_explain_preview_and_save_and_open_editor(self):
+        self.install()
+        self.lua.execute('''
+            appearanceSettingsRow=CreateFrame("Frame")
+            appearanceSettingsRow.Text=appearanceSettingsRow:CreateFontString()
+            appearanceSettingsRow.Text.GetStringHeight=function() return 96 end
+            appearanceSettingsRow.Button=CreateFrame("Button")
+            MPlusLogs.OpenAppearanceSettings=function() appearanceOpened=true end
+            MPlusLogsAppearanceLinkMixin.Init(appearanceSettingsRow)
+        ''')
+        row=self.lua.globals().appearanceSettingsRow
+        self.assertIn('шрифты и столбцы',row.Text.text)
+        self.assertIn('«Оформление» в шапке',row.Text.text)
+        self.assertIn('«Сохранить»',row.Text.text)
+        self.assertIn('«Отмена»',row.Text.text)
+        self.assertEqual(row.height,148)
+        self.assertEqual(row.Button.text,'Настроить оформление окна…')
+        row.Button.scripts.OnClick()
+        self.assertTrue(self.lua.globals().appearanceOpened)
+        self.lua.globals().MPlusLogsAppearanceLinkMixin.Release(row)
+        self.assertIsNone(row.Button.scripts.OnClick)
 
     def test_hps_median_switch_updates_rows_summary_and_tooltips_without_refetch(self):
         self.install(); self.mpl.InstallBatchButton()
@@ -224,6 +249,28 @@ class SettingsTests(unittest.TestCase):
         self.mpl.RefreshSettingsDisplays()
         self.assertEqual(self.cell(1).text.text,'—')
         self.assertIn('—',self.mpl.panel.summary.text)
+
+    def test_stale_applicant_keeps_result_color_and_age_hint(self):
+        self.install(); self.mpl.InstallBatchButton()
+        _,request=self.mpl.SendBatchRequest(self.players())
+        response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,self.fetch)
+        self.mpl.ReceiveReply(response,True)
+        profile=self.mpl.GetProfile('Alice','Гордунни')[0]
+        profile.best=89.3
+        profile.otherBest=89.3
+        profile.updated='2026-10-01 00:00 UTC'
+        self.mpl.RefreshApplicantLogs()
+        cell=self.cell(1)
+        self.assertTrue(cell.stale)
+        self.assertEqual(cell.text.text,'|cffa335ee89.3%|r')
+        self.assertIn('01.10.2026',cell.detail)
+        self.assertIn('Обновите логи',cell.detail)
+        self.mpl.SetOption('percentile','dungeon_dps')
+        profile.dungeons[1].amount=123456
+        profile.dungeons[1].otherAmount=123456
+        self.mpl.ListedDungeon=lambda *args:'Den of Nalorakk'
+        self.mpl.RefreshApplicantLogs()
+        self.assertEqual(self.cell(1).text.text,'123K')
 
     def test_numeric_dungeon_stat_follows_healer_metric(self):
         profile=self.lua.table_from({'metric':'hps','dual':True,'spec':'Restoration',

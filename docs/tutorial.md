@@ -46,3 +46,21 @@ Validate the guide with `python -m unittest discover -s tests -p 'test_tutorial*
 The archive tests also check that every tutorial translation reaches both the
 addon ZIP and the allowlisted public source export. Tests cover structure and
 runtime behavior; they do not replace in-game visual or native-speaker review.
+
+## Customize the profile window
+
+Click **Appearance** in the profile window header, use `/mpl appearance`, or open
+the **Appearance** section at the top of Settings > AddOns > MPlusLogs. General settings
+remain available through `/mpl settings`.
+
+Choose a theme, then adjust colors and opacity, fonts, grid lines, visible columns,
+number spacing and dungeon labels. Use **Sample preview** to see fictional data
+through the real profile renderer without requesting logs. **Current profile**
+shows the existing real profile when one is open. Changes appear immediately.
+
+Click **Save** to keep the changes. **Cancel**, the close button and Escape discard
+the editor draft, including theme management and personal dungeon labels. Existing
+users start with **Classic**; selecting another theme is optional. Use
+`/mpl appearance reset` to restore Classic and recenter the profile for the current
+character without deleting other saved themes. Additional SharedMedia font packs
+are optional; the game interface font is always available.

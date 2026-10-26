@@ -14,6 +14,14 @@ import companion_version
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Only these vendored notices accompany libraries named by the TOC. Library
+# source is already included by the same TOC allowlist as addon Lua modules.
+LIBRARY_NOTICES = {
+    "libs/LibStub/LibStub.lua": (),  # Public-domain dedication is in the source.
+    "libs/CallbackHandler-1.0/CallbackHandler-1.0.lua": ("libs/CallbackHandler-1.0/LICENSE.txt",),
+    "libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua": ("libs/LibSharedMedia-3.0/LICENSE.txt",),
+}
+
 
 def version():
     return re.search(r"^## Version: (\d+\.\d+\.\d+)$", (ROOT / "MPlusLogs.toc").read_text(), re.M)[1]
@@ -35,6 +43,12 @@ def addon(output, release_version, source_root=None):
                 archive.writestr("MPlusLogs/Snapshot.lua", "local _, MPL = ...\nMPL.snapshots = {}\n")
             else:
                 archive.write(path, "MPlusLogs/" + name.replace("\\", "/"))
+        libraries = set(name.replace("\\", "/") for name in files) & LIBRARY_NOTICES.keys()
+        if libraries:
+            archive.write(root / "libs/README.md", "MPlusLogs/libs/README.md")
+            for name in sorted(libraries):
+                for notice in LIBRARY_NOTICES[name]:
+                    archive.write(root / notice, "MPlusLogs/" + notice)
         archive.write(root / "packaging/ADDON-README.txt", "MPlusLogs/README.txt")
         archive.write(root / "LICENSE", "MPlusLogs/LICENSE")
         for path in sorted((root / "assets/dungeons").glob("*.tga")):

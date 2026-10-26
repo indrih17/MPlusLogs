@@ -8,6 +8,15 @@ from development_paths import build_tools_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 
+LIBRARY_FILES = (
+    "libs/LibStub/LibStub.lua",
+    "libs/CallbackHandler-1.0/CallbackHandler-1.0.lua",
+    "libs/CallbackHandler-1.0/LICENSE.txt",
+    "libs/LibSharedMedia-3.0/LibSharedMedia-3.0.lua",
+    "libs/LibSharedMedia-3.0/LICENSE.txt",
+    "libs/README.md",
+)
+
 
 def entries():
     files = list(ROOT.glob("*.lua")) + [ROOT / name for name in ("Settings.xml", "MPlusLogs.toc", "LICENSE", "CODE-SIGNING.md", ".gitignore", "realm-slugs.json", "Start-Companion.vbs", "AGENTS.md", "CHANGELOG.md")]
@@ -18,6 +27,9 @@ def entries():
         for pattern in patterns:
             files.extend((ROOT / directory).glob(pattern))
     files.extend([ROOT / "experiments/wcl-points-and-damage.json"])
+    # Do not recursively glob a library directory: local media packs, caches or
+    # private diagnostic files are not public addon sources.
+    files.extend(ROOT / name for name in LIBRARY_FILES if (ROOT / name).is_file())
     for directory in ("v1", "published-v1"):
         for pattern in ("*.lua", "*.py", "README.md"):
             files.extend((ROOT / "tests/compatibility" / directory).glob(pattern))

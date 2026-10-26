@@ -11,7 +11,7 @@ local function companionError(errorText,code,retryAt)
     errorText=decoded; code=code or wireCode; retryAt=retryAt or wireRetry
     errorText=errorText:match("^%s*(.-)%s*$")
     local personal=errorText:find("Personal API; ",1,true)
-    local reset=retryAt and retryAt>0 and retryAt or tonumber(errorText:match("API reset at (%d+); "))
+    local reset=tonumber(errorText:match("API reset at (%d+); ")) or (retryAt and retryAt>0 and retryAt)
     errorText=errorText:gsub("Personal API; ",""):gsub("Shared API; ","")
     errorText=errorText:gsub("API reset at %d+; ","")
     local lower=string.lower(errorText)
@@ -67,13 +67,13 @@ local function companionError(errorText,code,retryAt)
     elseif lower:find("too many",1,true) or lower:find("queue is too large",1,true) then
         return details(L["\nУменьшите число персонажей в запросе и повторите загрузку."])
     end
-    for _,key in ipairs({"Неверный формат ответа логов","Пустой или незавершённый импорт",
-        "Отсутствует обязательное поле","Некорректное число","Некорректная запись профиля",
-        "Некорректная запись данжа","Некорректное завершение профиля","Некорректный результат загрузки",
-        "Некорректное описание ошибки","Неполная запись DPS/HPS","Неизвестный регион",
-        "Неизвестная метрика","Неизвестная роль","Метрика не соответствует роли",
-        "Дублирующийся профиль","Повторный результат загрузки","Слишком большой импорт (максимум 500 КБ)",
-        "Слишком много профилей","Слишком много данжей","Ошибка импорта","Не удалось обработать ответ"}) do
+    for _,key in ipairs({L["Неверный формат ответа логов"],L["Пустой или незавершённый импорт"],
+        L["Отсутствует обязательное поле"],L["Некорректное число"],L["Некорректная запись профиля"],
+        L["Некорректная запись данжа"],L["Некорректное завершение профиля"],L["Некорректный результат загрузки"],
+        L["Некорректное описание ошибки"],L["Неполная запись DPS/HPS"],L["Неизвестный регион"],
+        L["Неизвестная метрика"],L["Неизвестная роль"],L["Метрика не соответствует роли"],
+        L["Дублирующийся профиль"],L["Повторный результат загрузки"],L["Слишком большой импорт (максимум 500 КБ)"],
+        L["Слишком много профилей"],L["Слишком много данжей"],L["Ошибка импорта"],L["Не удалось обработать ответ"]}) do
         if errorText==L[key] then return details(L["Ошибка чтения данных"]) end
     end
     if errorText:find(L["Неизвестная строка импорта; строка "],1,true) then
@@ -175,7 +175,15 @@ local function window(name, title, width, height)
     f:HookScript("OnShow",bringWindowForward)
     f:HookScript("OnMouseDown",bringWindowForward)
     f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
-    f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart",function(self)
+        if self.mplProfileWindow==true and MPL.AppearanceValue and MPL.AppearanceValue("locked",false) then return end
+        self:StartMoving()
+    end)
+    f:SetScript("OnDragStop",function(self)
+        self:StopMovingOrSizing()
+        if self.mplProfileWindow==true and not self.appearanceSample and MPL.SaveAppearanceWindowPosition then MPL.SaveAppearanceWindowPosition(self) end
+    end)
     f.title=label(f, 20, -16, width-60, title, "GameFontNormalLarge")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -2, -2)
@@ -201,6 +209,7 @@ local function panelFill(parent,x,y,width,height,r,g,b)
     return texture
 end
 local function tablePercent(value,stale)
+    if MPL.FormatAppearancePercent then return MPL.FormatAppearancePercent(value,stale) end
     local text=MPL.Percent(value,stale):gsub("%%|r$","|r")
     return text
 end
@@ -232,6 +241,8 @@ local function renderLevelDigits(row,value,r,g,b)
     for _,digit in ipairs(row.levelDigits) do digit:Hide() end
     row.levelDigitWidth=nil
     cell:Show()
+    -- Use the font's native spacing unless decimal-place alignment was selected.
+    if not MPL.AppearanceValue or MPL.AppearanceValue("levelDigits","natural")~="aligned" then cell:SetAlpha(1); return end
     if not text:match("^%d+$") then cell:SetAlpha(1); return end
     local function digitAt(index)
         local digit=row.levelDigits[index]
@@ -241,6 +252,7 @@ local function renderLevelDigits(row,value,r,g,b)
             digit:SetWordWrap(false); digit:SetNonSpaceWrap(false)
             row.levelDigits[index]=digit
         end
+        if MPL.StyleProfileFont then MPL.StyleProfileFont(digit,"numbers") end
         return digit
     end
     -- Keep the native game font, but give every decimal place the width of
@@ -253,17 +265,17 @@ local function renderLevelDigits(row,value,r,g,b)
         if type(width)=="number" then step=math.max(step,width) end
     end
     local _,fontSize=cell:GetFont()
-    step=math.max(1,math.ceil(step>0 and step or (fontSize or 10)*0.6))
+    step=math.max(1,math.ceil(step>0 and step or (fontSize or 10)*0.6))+(MPL.AppearanceValue and MPL.AppearanceValue("digitGap",0) or 0)
     row.levelDigitWidth=#text*step
     for index=1,#text do
         local digit=digitAt(index)
         digit:SetText(text:sub(index,index)); digit:SetWidth(step)
         digit:ClearAllPoints(); digit:SetPoint("TOPRIGHT",cell,"TOPRIGHT",-(#text-index)*step,0)
-        -- Avoid a second colored stroke on narrow glyphs such as "1".
+        -- Narrow glyphs such as "1" must not acquire a second colored stroke.
         digit:SetTextColor(r,g,b); emphasizeNumber(digit,r,g,b,false); digit:Show()
     end
-    -- Keep the full value for measurement, but hide its glyphs and shadow.
-    -- Only the independently anchored digit slots should draw this number.
+    -- Retain the full value for measurement, but remove both its glyphs and
+    -- shadow. Alpha alone leaves a second text representation below the slots.
     emphasizeNumber(cell,r,g,b,false)
     cell:SetAlpha(0)
     cell:Hide()
@@ -333,20 +345,23 @@ local function specSelector(parent,callback)
     b:SetScript("OnClick",callback)
     b:SetScript("OnEnter",function(self)
         if not self.canSelectSpecs then return end
-        self:SetBackdropColor(0.22,0.15,0.31,1); self:SetBackdropBorderColor(0.86,0.67,1,1)
+        if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(self,true)
+        else self:SetBackdropColor(0.22,0.15,0.31,1); self:SetBackdropBorderColor(0.86,0.67,1,1) end
         GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
         GameTooltip:AddLine(L["Выбрать специализацию логов"],1,1,1)
         GameTooltip:AddLine(L["Основной спек отмечен в списке. Переключение использует сохранённые логи; отсутствующий профиль можно загрузить."],0.85,0.85,0.85,true)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave",function(self)
-        self:SetBackdropColor(0.12,0.09,0.18,1); self:SetBackdropBorderColor(0.64,0.45,0.83,1)
+        if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(self,false)
+        else self:SetBackdropColor(0.12,0.09,0.18,1); self:SetBackdropBorderColor(0.64,0.45,0.83,1) end
         GameTooltip:Hide()
     end)
     return b
 end
 local function buildPanel(frameName)
     local f = window(frameName or "MPlusLogsWindow", "MPlusLogs — Warcraft Logs", 940, 700)
+    f.mplProfileWindow=true
     f:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Buttons/WHITE8X8",edgeSize=1,insets={left=1,right=1,top=1,bottom=1}})
     f:SetBackdropColor(0,0,0,1); f:SetBackdropBorderColor(0.27,0.27,0.27,1)
     f.closeButton:Hide()
@@ -368,25 +383,47 @@ local function buildPanel(frameName)
         settings:SetBackdropColor(0.16,0.10,0.21,1)
         settings:SetBackdropBorderColor(0.40,0.29,0.51,1)
         settings.caption:ClearAllPoints(); settings.caption:SetPoint("CENTER"); settings.caption:SetJustifyH("CENTER")
-        settings:SetScript("OnClick",function() MPL.OpenSettings() end)
+        settings:SetScript("OnClick",function()
+            if MPL.OpenProfileSettingsMenu then MPL.OpenProfileSettingsMenu(settings) else MPL.OpenSettings() end
+        end)
         settings:SetScript("OnEnter",function()
-            settings:SetBackdropBorderColor(0.75,0.55,0.96,1)
+            if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(settings,true)
+            else settings:SetBackdropBorderColor(0.75,0.55,0.96,1) end
             settings.caption:SetTextColor(1,0.82,0)
         end)
         settings:SetScript("OnLeave",function()
-            settings:SetBackdropBorderColor(0.40,0.29,0.51,1)
+            if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(settings,false)
+            else settings:SetBackdropBorderColor(0.40,0.29,0.51,1) end
             settings.caption:SetTextColor(1,1,1)
         end)
         settings:SetShown(not MPL.GetOption("hideLogSettings"))
         f.settingsButton=settings
+        f.appearanceButton=flatButton(f,L["Appearance"],120,22,function()
+            if MPL.OpenAppearanceSettings then MPL.OpenAppearanceSettings() end
+        end)
+        f.appearanceButton:SetPoint("TOPRIGHT",-150,-7)
+        f.appearanceButton:Show()
+        f.appearanceButton:SetScript("OnEnter",function(self)
+            if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(self,true) end
+            if GameTooltip then
+                GameTooltip:SetOwner(self,"ANCHOR_BOTTOM")
+                GameTooltip:SetText(L["Customize window appearance…"])
+                GameTooltip:AddLine(L["Choose styles and colors, adjust fonts and table columns, and preview changes before saving."],1,1,1,true)
+                GameTooltip:Show()
+            end
+        end)
+        f.appearanceButton:SetScript("OnLeave",function(self)
+            if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(self,false) end
+            if GameTooltip then GameTooltip:Hide() end
+        end)
         if MPL.CreateTutorialHelpButton then
             f.tutorialButton=MPL.CreateTutorialHelpButton(f,function()
                 if f.profile then return "profile" end
                 return MPL.NeedsCompanionIntro() and "companion" or "exchange"
             end,"header")
-            f.tutorialButton:SetPoint("TOPRIGHT",-150,-7)
+            f.tutorialButton:SetPoint("TOPRIGHT",-278,-7)
         end
-        f.title:SetWidth(590)
+        f.title:SetWidth(460)
     end
     f.character = label(f,20,-48,400,"","GameFontHighlightLarge")
     f.character:SetWordWrap(false)
@@ -475,7 +512,7 @@ local function buildPanel(frameName)
     f.sortColumn=false; f.sortAscending=false; f.sortRefresh=false
     f.tableHeader=CreateFrame("Frame",nil,f)
     f.tableHeader:SetPoint("TOPLEFT",20,-254); f.tableHeader:SetSize(880,40)
-    f.tableDecor={panelFill(f.tableHeader,0,0,880,40,34/255,34/255,34/255)}
+    f.tableDecor={panelFill(f.tableHeader,0,0,880,40,18/255,18/255,18/255)}
     f.primaryGroup=label(f.tableHeader,414,-5,140,L["Score"]); f.primaryGroup:SetJustifyH("CENTER")
     f.secondaryGroup=label(f.tableHeader,554,-5,326,L["DPS by Level"]); f.secondaryGroup:SetJustifyH("CENTER")
     f.primaryGroup:SetWordWrap(false); f.secondaryGroup:SetWordWrap(false)
@@ -489,6 +526,7 @@ local function buildPanel(frameName)
             if type(f.profile)~="table" then return end
             f.sortAscending=f.sortColumn==column and not f.sortAscending or false
             f.sortColumn=column
+            if MPL.ProfileColumnID then f.sortId=MPL.ProfileColumnID(column) end
             if f.sortRefresh then f.sortRefresh(f) else MPL.RenderProfileStats(f) end
         end)
         local heading=label(sortButton,3,-1,f.widths[i]-8,text)
@@ -505,6 +543,14 @@ local function buildPanel(frameName)
         sortButton.arrow:Hide()
         f.sortButtons[i]=sortButton
         f.headings[i]=heading
+        if MPL.AppearanceValue then
+            sortButton:SetScript("OnEnter",function(self)
+                GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
+                GameTooltip:AddLine(heading:GetText(),1,1,1,true)
+                GameTooltip:Show()
+            end)
+            sortButton:SetScript("OnLeave",function() GameTooltip:Hide() end)
+        end
     end
     local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT",20,-294); scroll:SetPoint("BOTTOMRIGHT",-40,145)
@@ -555,7 +601,7 @@ local function buildPanel(frameName)
         if cooling then
             f.cooldownNotice=true
             local grouped=type(f.groupPlayers)=="table" and #f.groupPlayers>1
-            local key=grouped and "Обновить логи группы можно через %d мин. %d сек." or "Обновить логи можно через %d мин. %d сек."
+            local key=grouped and L["Обновить логи группы можно через %d мин. %d сек."] or L["Обновить логи можно через %d мин. %d сек."]
             f.footer:SetText(string.format(L[key],math.floor(remaining/60),remaining%60))
             return
         end
@@ -578,7 +624,7 @@ local function buildPanel(frameName)
             if f.cooldownNotice then
                 if cooling then
                     local grouped=type(f.groupPlayers)=="table" and #f.groupPlayers>1
-                    local key=grouped and "Обновить логи группы можно через %d мин. %d сек." or "Обновить логи можно через %d мин. %d сек."
+                    local key=grouped and L["Обновить логи группы можно через %d мин. %d сек."] or L["Обновить логи можно через %d мин. %d сек."]
                     f.footer:SetText(string.format(L[key],math.floor(remaining/60),remaining%60))
                 else
                     f.cooldownNotice=false; f.footer:SetText("")
@@ -634,39 +680,45 @@ local function buildPanel(frameName)
             MPlusLogsWindow={FrameReference=f,NonDraggable=true},
         }})
     end
+    if MPL.RegisterAppearanceView then MPL.RegisterAppearanceView(f) end
+    if not frameName and MPL.RestoreAppearanceWindowPosition then MPL.RestoreAppearanceWindowPosition(f) end
     return f
 end
 
 -- The walkthrough uses the real layout in an isolated window. It replaces all
 -- request/navigation handlers before showing it; MPL.panel remains untouched.
-function MPL.CreateTutorialProfileFrame()
-    return buildPanel("MPlusLogsTutorialProfile")
+function MPL.CreateTutorialProfileFrame(frameName)
+    return buildPanel(frameName or "MPlusLogsTutorialProfile")
 end
 
+local function loadButtonFont(f,muted)
+    if MPL.StyleAppearanceButton then MPL.StyleAppearanceButton(f.loadButton,muted)
+    else f.loadButton:SetNormalFontObject(muted and "GameFontDisableSmall" or "GameFontHighlightSmall") end
+end
 function MPL.UpdateProfileLoadButton()
     local f=MPL.panel
     if not f then return false end
     if missingMetric(f.profile,f.viewMetric) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
-        f.loadButton:SetNormalFontObject("GameFontHighlightSmall")
+        loadButtonFont(f,false)
         f.loadButton:SetText(f.viewMetric=="hps" and L["Load HPS"] or L["Load DPS"])
         return false,0
     end
     f.loadButton:SetText(f.profile and L["Обновить M+ логи"] or L["Загрузить M+ логи"])
     if MPL.ProfileNeedsDisplayRefresh(f.profile) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
-        f.loadButton:SetNormalFontObject("GameFontHighlightSmall")
+        loadButtonFont(f,false)
         return false,0
     end
     if type(f.searchMember)=="table" and (not f.searchMember.loaded
         or MPL.SearchGroupHasPendingProfiles(f.searchMember.searchResultID)) then
         f.loadButton:Show(); f.loadButton:SetAlpha(1)
-        f.loadButton:SetNormalFontObject("GameFontHighlightSmall")
+        loadButtonFont(f,false)
         return false,0
     end
     local state=MPL.GetProfileState(f.name,f.realm,f.selectedSpec)
     f.loadButton:SetShown(not (state and state.reason=="hidden"))
-    local remaining=math.ceil(MPL.ProfileRefreshRemaining(f.profile or nil))
+    local remaining=math.max(math.ceil(MPL.ProfileRefreshRemaining(f.profile or nil)),MPL.ProfileRetryRemaining(f.name,f.realm,f.selectedSpec))
     local cooling=remaining>0
     if type(f.groupPlayers)=="table" and #f.groupPlayers>1 then
         local pending=MPL.FilterFreshProfiles(f.groupPlayers,true)
@@ -678,7 +730,7 @@ function MPL.UpdateProfileLoadButton()
                 local playerState=MPL.GetProfileState(player.name,player.realm,spec)
                 if not playerState or playerState.reason~="hidden" then
                     local profile=MPL.GetProfile(player.name,player.realm,spec,player.role)
-                    remaining=math.min(remaining,math.ceil(MPL.ProfileRefreshRemaining(profile)))
+                    remaining=math.min(remaining,math.max(math.ceil(MPL.ProfileRefreshRemaining(profile)),MPL.ProfileRetryRemaining(player.name,player.realm,spec)))
                 end
             end
             if remaining==math.huge then remaining=0 end
@@ -686,7 +738,7 @@ function MPL.UpdateProfileLoadButton()
     end
     -- Keep mouse clicks so the muted button can explain the cooldown.
     f.loadButton:SetAlpha(cooling and 0.5 or 1)
-    f.loadButton:SetNormalFontObject(cooling and "GameFontDisableSmall" or "GameFontHighlightSmall")
+    loadButtonFont(f,cooling)
     return cooling,remaining
 end
 
@@ -747,6 +799,7 @@ local function layoutSpecRanks(f,total)
     end
 end
 local function layoutProfileTable(f)
+    if MPL.LayoutAppearanceTable then return MPL.LayoutAppearanceTable(f) end
     local style=profileTableLayout
     local widths={220,40,40,40,58,40,92,60,60}
     for i,heading in ipairs(f.headings) do
@@ -831,12 +884,14 @@ local function sortedDungeons(f,profile,metric)
     local entries={}
     for index,dungeon in ipairs(profile.dungeons) do
         local level,amount,best,median=MPL.MetricValues(profile,dungeon,metric)
-        local first,second=MPL.OrderPercentiles(best,median)
+        local first,second=(MPL.OrderAppearancePercentiles or MPL.OrderPercentiles)(best,median)
         local primary=profile.metric==metric
-        local values={dungeon.name,level,primary and durationSeconds(dungeon.time) or nil,
+        local values={MPL.DungeonDisplayName and MPL.DungeonDisplayName(dungeon.name) or dungeon.name,level,primary and durationSeconds(dungeon.time) or nil,
             dungeon.runs,primary and dungeon.points or nil,primary and dungeon.rank or nil,
             amount,first,second}
-        entries[#entries+1]={dungeon=dungeon,index=index,value=values[f.sortColumn]}
+        local sortColumn=f.sortColumn
+        if f.sortId and MPL.ProfileColumnIndex then sortColumn=MPL.ProfileColumnIndex(f.sortId) or sortColumn end
+        entries[#entries+1]={dungeon=dungeon,index=index,value=values[sortColumn]}
     end
     table.sort(entries,function(a,b)
         if a.value==b.value then return a.index<b.index end
@@ -851,12 +906,14 @@ local function sortedDungeons(f,profile,metric)
     return result
 end
 local function layoutProfileBanner(f,profile)
-    local style=profileTableLayout
+    local style=MPL.ProfileAppearanceStyle and MPL.ProfileAppearanceStyle() or profileTableLayout
     local messages={}
     local showStale=profile~=nil and f.stale==true
     if showStale then
         local _,lastDate=MPL.ProfileDate(profile)
-        messages[#messages+1]="|cffffc440"..L["Данные устарели"].."|r    "..L["Последняя загрузка: "]..lastDate
+        if MPL.AppearanceValue and MPL.AppearanceValue("compactAge",false) then
+            messages[#messages+1]=L["Данные устарели"].." — "..lastDate
+        else messages[#messages+1]="|cffffc440"..L["Данные устарели"].."|r    "..L["Последняя загрузка: "]..lastDate end
     end
     local warning=MPL.ProfileDisplayWarning(profile)
     if warning then messages[#messages+1]=warning end
@@ -869,6 +926,7 @@ local function layoutProfileBanner(f,profile)
     local footerHeight=f.footer:GetStringHeight()
     local extra=type(footerHeight)=="number" and math.max(0,math.ceil(footerHeight)-20) or 0
     local drawer=layoutProfileActions(f)
+    if MPL.LayoutAppearanceBanner then return MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer) end
     f:SetHeight((profile and 656 or 700)+offset+extra+drawer)
     f.tableHeader:ClearAllPoints(); f.tableHeader:SetPoint("TOPLEFT",20,-254-offset)
     f.scroll:ClearAllPoints()
@@ -880,7 +938,10 @@ end
 function MPL.RenderProfileStats(f)
     local profile=type(f.profile)=="table" and f.profile or nil
     local metric=f.viewMetric or "dps"
-    local style=profileTableLayout
+    local style=MPL.ProfileAppearanceStyle and MPL.ProfileAppearanceStyle() or profileTableLayout
+    if MPL.ApplyProfileFonts then MPL.ApplyProfileFonts(f) end
+    if f.sortColumn and type(f.sortId)=="string" and MPL.ProfileColumnIndex then f.sortColumn=MPL.ProfileColumnIndex(f.sortId) or f.sortColumn end
+    f.headings[1]:SetText(L["Подземелье"]); f.headings[2]:SetText(L["Уровень"]); f.headings[3]:SetText(L["Время"])
     for _,heading in ipairs(f.headings) do heading:SetShown(profile~=nil) end
     for i,sortButton in ipairs(f.sortButtons) do
         local selected=f.sortColumn==i
@@ -908,12 +969,16 @@ function MPL.RenderProfileStats(f)
     f.headings[6]:SetText(L["Rank"])
     f.primaryGroup:SetText(L["Score"])
     f.metricHeading:SetText(metric=="hps" and L["Best HPS"] or L["Best DPS"])
-    local firstHeading,secondHeading=MPL.OrderPercentiles(L["Best %"],L["Median %"])
+    local firstHeading,secondHeading=(MPL.OrderAppearancePercentiles or MPL.OrderPercentiles)(L["Best %"],L["Median %"])
     f.headings[8]:SetText(firstHeading); f.headings[9]:SetText(secondHeading)
     f.secondaryGroup:SetText(metric=="hps" and L["HPS by Level"] or L["DPS by Level"])
     f.specRanks:SetText(""); f.specRanks:Hide()
     for _,entry in ipairs(f.specRankEntries) do entry:Hide() end
-    if not profile then layoutProfileTable(f); layoutProfileBanner(f,profile); return end
+    if not profile then
+        layoutProfileTable(f); layoutProfileBanner(f,profile)
+        f.content:SetHeight(1); f.scroll:SetVerticalScroll(0); MPL.UpdatePanelScroll(f)
+        return
+    end
     for index,rank in ipairs(profile.specRanks or {}) do
         local entry=f.specRankEntries[index]
         if not entry then
@@ -961,15 +1026,29 @@ function MPL.RenderProfileStats(f)
             row.background=panelFill(row,0,0,880,26,row.shade,row.shade,row.shade)
             row:EnableMouse(true)
             row:SetScript("OnEnter",function(self)
-                self.background:SetColorTexture(0.055,0.055,0.055,1)
-                if self.url then
+                if MPL.ColorAppearanceRow then MPL.ColorAppearanceRow(self,true)
+                else self.background:SetColorTexture(0.055,0.055,0.055,1) end
+                if self.url or (MPL.DungeonDisplayName and self.dungeonName) then
                     GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
-                    GameTooltip:AddLine(L["Ссылка WCL"].." — "..self.dungeonName,1,1,1)
+                    local displayName=MPL.DungeonDisplayName and MPL.DungeonDisplayName(self.dungeonName) or self.dungeonName
+                    GameTooltip:AddLine((self.url and (L["Ссылка WCL"].." — ") or "")..displayName,1,1,1)
+                    if MPL.DungeonTooltipNames then
+                        local full,canonical=MPL.DungeonTooltipNames(self.dungeonName)
+                        if full~=displayName then GameTooltip:AddLine(full,1,1,1) end
+                        if canonical~=displayName and canonical~=full then GameTooltip:AddLine(canonical,.8,.8,.8) end
+                    end
+                    for i,cell in ipairs(self.cells) do
+                        local width=cell:GetUnboundedStringWidth()
+                        if i>1 and cell:IsShown() and type(width)=="number" and width>cell:GetWidth() then
+                            GameTooltip:AddDoubleLine(f.headings[i]:GetText(),cell:GetText(),1,1,1,1,1,1)
+                        end
+                    end
                     GameTooltip:Show()
                 end
             end)
             row:SetScript("OnLeave",function(self)
-                self.background:SetColorTexture(self.shade,self.shade,self.shade,1)
+                if MPL.ColorAppearanceRow then MPL.ColorAppearanceRow(self,false)
+                else self.background:SetColorTexture(self.shade,self.shade,self.shade,1) end
                 GameTooltip:Hide()
             end)
             local function copyDungeonURL(_,mouseButton)
@@ -981,7 +1060,7 @@ function MPL.RenderProfileStats(f)
             row:SetScript("OnMouseUp",copyDungeonURL)
             row.cells={}; row.columnLines={}
             for i=1,9 do
-                row.cells[i]=label(row,f.columns[i]+6,-3,f.widths[i]-12)
+                row.cells[i]=label(row,f.columns[i]+6,-3,math.max(1,f.widths[i]-12))
                 if i==1 then dungeonNameFont(row.cells[i]) end
                 -- Keep the text box explicit and centered inside each row.
                 row.cells[i]:SetHeight(20); row.cells[i]:SetJustifyV("MIDDLE")
@@ -1009,6 +1088,7 @@ function MPL.RenderProfileStats(f)
         end
         row.dungeonName=dungeon.name
         row.url=MPL.DungeonURL(f.name,f.realm,profile,dungeon.name,metric)
+        if f.appearanceSample==true then row.url=nil end
         local icon=dungeonIcons[dungeon.name]
         row.icon:SetTexture(icon and ("Interface\\AddOns\\MPlusLogs\\assets\\dungeons\\"..icon..".tga") or "Interface\\Icons\\INV_Misc_Map_01")
         local level,amount,best,median=MPL.MetricValues(profile,dungeon,metric)
@@ -1016,21 +1096,24 @@ function MPL.RenderProfileStats(f)
             or (profile.metric~=metric and dungeon.otherFlagged)
         local bestText=tablePercent(best)
         if best~=nil and lowParses then bestText=bestText:gsub("|r$","*|r") end
-        local first,second=MPL.OrderPercentiles(bestText,tablePercent(median))
+        local first,second=(MPL.OrderAppearancePercentiles or MPL.OrderPercentiles)(bestText,tablePercent(median))
         local metadata=profile.metric==metric
         local scoreSpec=metadata and dungeon.points and (dungeon.scoreSpec or (profile.spec~="All specs" and profile.spec))
         local scoreTexture=specTexture(scoreSpec,f.class)
         row.scoreSpecIcon.spec=scoreSpec
         row.scoreSpecIcon.texture:SetTexture(scoreTexture)
+        row.hasScoreIcon=scoreTexture~=nil
         row.scoreSpecIcon:SetShown(scoreTexture~=nil)
         row.scoreSpecIcon:SetAlpha(1)
-        row.cells[5]:SetWidth(f.widths[5]-(scoreTexture and 30 or 12))
+        row.cells[5]:SetWidth(math.max(1,f.widths[5]-(scoreTexture and 30 or 12)))
         local time=metadata and dungeon.time or nil
-        local values={dungeon.name,level or "—",time and time~="" and time or "—",dungeon.runs or "—",
+        local values={MPL.DungeonDisplayName and MPL.DungeonDisplayName(dungeon.name) or dungeon.name,level or "—",time and time~="" and time or "—",dungeon.runs or "—",
             metadata and dungeon.points and string.format("%.0f",math.floor(dungeon.points)) or "—",
             metadata and dungeon.rank or "—",amount and string.format("%.2fK",amount/1000) or "—",first,second}
         for i,value in ipairs(values) do
+            if MPL.FormatAppearanceCell then value=MPL.FormatAppearanceCell(i,value,dungeon,profile,metric) end
             row.cells[i]:SetText(value)
+            if MPL.StyleProfileFont then MPL.StyleProfileFont(row.cells[i],i==1 and "dungeon" or "numbers") end
             local r,g,b=225/255,242/255,245/255
             if i==1 then r,g,b=0.72,0.78,1 end
             if i==5 then r,g,b=226/255,104/255,168/255 end
@@ -1039,7 +1122,7 @@ function MPL.RenderProfileStats(f)
             row.cells[i]:SetTextColor(r,g,b)
             local sr,sg,sb=r,g,b
             if i==8 or i==9 then
-                local firstValue,secondValue=MPL.OrderPercentiles(best,median)
+                local firstValue,secondValue=(MPL.OrderAppearancePercentiles or MPL.OrderPercentiles)(best,median)
                 sr,sg,sb=percentileRGB(i==8 and firstValue or secondValue)
             end
             -- Keep dungeon names regular; a colored stroke adds unwanted weight.
@@ -1051,7 +1134,7 @@ function MPL.RenderProfileStats(f)
     layoutProfileTable(f)
     layoutProfileBanner(f,profile)
     f.content:SetHeight(math.max(1,#profile.dungeons*style.rowHeight))
-    f.scroll:SetVerticalScroll(0)
+    if f.appearancePreserveScroll~=true then f.scroll:SetVerticalScroll(0) end
     MPL.UpdatePanelScroll(f)
 end
 
@@ -1061,7 +1144,7 @@ function MPL.RenderPlayerTabs(f)
     local players=type(f.searchPlayers)=="table" and f.searchPlayers or
         (type(f.groupPlayers)=="table" and f.groupPlayers or {})
     if #players<2 then return end
-    local width=(f.tableWidth or 880)/#players
+    local width=(type(f.viewportWidth)=="number" and f.viewportWidth or f.tableWidth or 880)/#players
     for i,player in ipairs(players) do
         local tab=f.playerTabs[i]
         if not tab then
@@ -1072,6 +1155,7 @@ function MPL.RenderPlayerTabs(f)
             caption:SetPoint("LEFT",10,0); caption:SetPoint("RIGHT",-10,0)
             caption:SetJustifyH("CENTER"); caption:SetWordWrap(false)
             tab:SetFontString(caption)
+            tab.caption=caption
             -- Cover the panel border beneath the active tab to join it to the window.
             tab.join=tab:CreateTexture(nil,"OVERLAY")
             tab.join:SetColorTexture(0,0,0,1)
@@ -1091,7 +1175,8 @@ function MPL.RenderPlayerTabs(f)
                 MPL.ShowProfile(p.name,p.realm,p.applicantID and p or nil,true,true)
             end)
             tab:SetScript("OnEnter",function(self)
-                if not self.selected then self:SetBackdropColor(0.40,0.07,0.07,1) end
+                if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(self,true,self.selected)
+                elseif not self.selected then self:SetBackdropColor(0.40,0.07,0.07,1) end
                 GameTooltip:SetOwner(self,"ANCHOR_TOP")
                 GameTooltip:AddLine(self.player.name..(self.player.realm and "-"..self.player.realm or ""))
                 if self.player.error then GameTooltip:AddLine(self.player.error,1,.3,.2,true) end
@@ -1099,7 +1184,8 @@ function MPL.RenderPlayerTabs(f)
                 GameTooltip:Show()
             end)
             tab:SetScript("OnLeave",function(self)
-                if not self.selected then self:SetBackdropColor(0.27,0.035,0.035,1) end
+                if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(self,false,self.selected)
+                elseif not self.selected then self:SetBackdropColor(0.27,0.035,0.035,1) end
                 GameTooltip:Hide()
             end)
             f.playerTabs[i]=tab
@@ -1119,6 +1205,9 @@ function MPL.RenderPlayerTabs(f)
         end
         tab.join:SetShown(selected)
         tab:SetText((selected and "|cffffd100" or "|cffffffff")..player.name.."|r")
+        if MPL.StyleAppearanceButton then MPL.StyleAppearanceButton(tab,false) end
+        if MPL.StyleProfileFont then tab:SetHeight(math.max(selected and 32 or 26,tab.caption.mplAppliedFontSize+10)) end
+        if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(tab,false,selected) end
         tab:Show()
     end
 end
@@ -1174,9 +1263,19 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
     if not keepGroup and not suppressNotice then f.partyTracked=false end
     f.applicant=type(context)=="table" and MPL.Key(context.name,context.realm)==MPL.Key(name,server) and context or false
     f.inviteSent=false
-    if MPL.staleWindow then MPL.staleWindow:Hide() end
     local stale,lastDate=false,nil
     if profile then stale,lastDate=MPL.IsProfileStale(profile) end
+    local notice=MPL.staleWindow
+    if notice then
+        -- Inspect/spec events redraw the same profile. Keep its open notice
+        -- until dismissal, navigation, or replacement of the displayed logs.
+        local sameNotice=stale and profile and notice.profile and notice.name
+            and MPL.Key(notice.name,notice.realm)==stateKey
+            and notice.profile.updated==profile.updated and notice.profile.spec==profile.spec
+        if sameNotice and MPL.GetOption("stalePopup") then
+            notice.profile=profile; notice.applicant=f.applicant
+        else notice:Hide() end
+    end
     local primary=profile and MPL.PrimaryMetric(profile,name,server) or "dps"
     local secondary=primary=="hps" and "dps" or "hps"
     f.cooldownNotice=false
@@ -1192,10 +1291,12 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
         end
     end
     local displayed=profile and profile.spec or f.selectedSpec
-    local stateText=state and (state.reason=="hidden" and L["Логи скрыты в Warcraft Logs."]
+    local stateText=state and (state.error and companionError(state.error,state.errorCode,state.expires)
+        or state.reason=="hidden" and L["Логи скрыты в Warcraft Logs."]
         or state.reason=="missing" and L["Персонаж не найден"]
         or state.reason=="retry" and L["Повторный запрос логов отложен. Его можно отправить позже."]
         or L["Для этого персонажа нет доступных логов M+."])
+    if stateText and state and state.error and state.errorCode~="auth" and state.expires then stateText=stateText.."\n"..MPL.RetryDelayText(state.expires) end
     f.specButton:SetText(MPL.SpecLabel(displayed,f.class))
     local savedSpecs=MPL.ProfileSpecs(name,server)
     f.specButton.detail:SetText(not profile and L["Профиль не загружен"] or L["Выбрать специализацию логов"])
@@ -1254,6 +1355,7 @@ function MPL.ShowProfile(fullName, realm,context,suppressNotice,keepGroup,unreso
             f.loadButton:SetText(L["Обновить M+ логи"])
             f.footer:SetText("")
             f.specButton.detail:SetText(hidden and L["Логи скрыты"]
+                or state.errorCode=="auth" and L["Профиль не загружен"]
                 or state.reason=="retry" and L["Повторный запрос отложен"] or L["Нет доступных логов"])
         end
         f.content:SetHeight(1)
@@ -1352,11 +1454,14 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     -- A fresh party needs no exchange. Check before clearing a pending reply or
     -- opening an empty 0/N window; clicking a player must keep existing work.
     if type(batch)=="table" and #batch>0 and not importTest then
-        local pending=MPL.FilterFreshProfiles(batch,refresh,displayRefresh)
-        if #pending==0 then return end
+        local details={}
+        local pending=MPL.FilterFreshProfiles(batch,refresh,displayRefresh,details)
+        if #pending==0 and (details.waiting or 0)==0 then return end
     elseif batch==true then
         local players,err=MPL.CollectApplicants()
-        if not err and #players>0 and #MPL.FilterFreshProfiles(players,refresh,displayRefresh)==0 then
+        local details={}
+        local pending=not err and MPL.FilterFreshProfiles(players,refresh,displayRefresh,details)
+        if pending and #players>0 and #pending==0 and (details.waiting or 0)==0 then
             -- Keep the existing all-fresh message, but never offer a request
             -- when the only missing profiles are known to be hidden.
             for _,player in ipairs(players) do
@@ -1462,8 +1567,8 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
             f.quotaError=nil
             if type(f.importTest)=="table" and f.importTest.replay then
                 f.phase="waiting"; f.request=""
-                f.steps:SetText(MPL.locale=="ruRU" and "Повторная вставка — без запросов WCL" or "Replay paste — no WCL requests")
-                f.setStatus(MPL.locale=="ruRU" and "В Companion нажмите «Скопировать последний ответ».\nВернитесь сюда и нажмите Ctrl+V.\nМожно повторять тот же ответ без Ctrl+C и без загрузки данных."
+                f.steps:SetText(MPL.locale=="ruRU" and L["Повторная вставка — без запросов WCL"] or "Replay paste — no WCL requests")
+                f.setStatus(MPL.locale=="ruRU" and L["В Companion нажмите «Скопировать последний ответ».\nВернитесь сюда и нажмите Ctrl+V.\nМожно повторять тот же ответ без Ctrl+C и без загрузки данных."]
                     or "In Companion, copy the last reply.\nReturn here and press Ctrl+V.\nRepeat the same reply without Ctrl+C or loading data.")
                 setText(""); return
             end
@@ -1482,10 +1587,14 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                 if type(f.batch)=="table" then players=f.batch else players,err=MPL.CollectApplicants() end
                 if err then f.setStatus(err,true); return end
                 total=#players
-                if f.importTest then skipped=0 else players,skipped=MPL.FilterFreshProfiles(players,f.refresh,f.displayRefresh) end
+                local details={}
+                if f.importTest then skipped=0 else players,skipped=MPL.FilterFreshProfiles(players,f.refresh,f.displayRefresh,details) end
                 if total>0 and #players==0 then
                     f.character:SetText(L["Нужно загрузить: "].."0 / "..total)
-                    f.status:SetText(L["Все кандидаты уже имеют актуальные логи."])
+                    if (details.waiting or 0)>0 then
+                        f.waitingRetryAt=details.retryAt
+                        f.setStatus(L["Все оставшиеся запросы временно отложены."].."\n"..MPL.RetryDelayText(details.retryAt),true)
+                    else f.status:SetText(L["Все кандидаты уже имеют актуальные логи."]) end
                     if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
                     return
                 end
@@ -1503,16 +1612,19 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
         end
         edit:SetScript("OnEscapePressed",function() f:Hide() end)
         f:SetScript("OnHide",function()
-            edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil
+            edit:ClearFocus(); f.revision=f.revision+1; f.quotaError=nil; f.waitingRetryAt=false
             f.charBuffer=false; f.capturedReply=false; f.capturePaste=false
             f.previewCompanionIntro=false
         end)
         f:SetScript("OnUpdate",function(_,elapsed)
-            if not f.quotaError then return end
+            if not f.quotaError and not f.waitingRetryAt then return end
             f.quotaElapsed=(f.quotaElapsed or 0)+elapsed
             if f.quotaElapsed>=1 then
                 f.quotaElapsed=0
-                f.setStatus(companionError(f.quotaError),true)
+                if f.waitingRetryAt then
+                    if f.waitingRetryAt<=GetServerTime() then f.waitingRetryAt=false; f.begin()
+                    else f.setStatus(L["Все оставшиеся запросы временно отложены."].."\n"..MPL.RetryDelayText(f.waitingRetryAt),true) end
+                else f.setStatus(companionError(f.quotaError),true) end
             end
         end)
         local function copied(key)
@@ -1562,6 +1674,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                     return
                 end
                 local count,err
+                local wasBatch=MPL.pendingReply and MPL.pendingReply.batch
                 if type(f.importTest)=="table" and f.importTest.replay then
                     local prepared
                     prepared,err=MPL.PrepareImportTestReplay(f,text)
@@ -1576,7 +1689,10 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                     if f.requestedMetric and panel and panel.name==f.name and panel.realm==f.realm and panel.profile then
                         panel.viewMetric=f.requestedMetric; MPL.RenderProfileStats(panel); MPL.UpdateProfileLoadButton()
                     end
-                    f.phase="done"; f.status:SetText(L["Логи получены."])
+                    f.phase="done"
+                    local result=wasBatch and MPL.lastBatchResult
+                    if result then f.status:SetText(L["Загружено: "]..result.loaded..L[" из "]..#result.players..L[". Ошибки обновления: "]..result.errorCount)
+                    else f.status:SetText(count>0 and L["Логи получены."] or L["Логи не загружены"]) end
                     f.programmatic=true; edit:SetText(""); f.programmatic=false
                     f:Hide()
                 else
@@ -1619,6 +1735,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
     f.revision=f.revision+1
     f.name=name; f.realm=server; f.profile=profile or false; f.phase="idle"; f.request=""
     f.batch=batch or false
+    f.waitingRetryAt=false
     f.importTest=importTest or false; f.importTestPaste=false
     f.capturedReply=false; f.charBuffer=false; f.capturePaste=false
     f.searchResultID=searchResultID or false
@@ -1660,13 +1777,22 @@ function MPL.ShowBatchDownload()
 end
 
 function MPL.ShowBatchResults(players,profiles,failures,count,open)
-    local errorCount=0
-    for _,player in ipairs(players) do if failures[MPL.Key(player.name,player.realm)] then errorCount=errorCount+1 end end
+    local errorCount,loaded,retryAt=0,0
+    for _,player in ipairs(players) do
+        local key=MPL.Key(player.name,player.realm)
+        local failure=failures[key]
+        if failure then
+            errorCount=errorCount+1
+            if failure.errorCode~="auth" and failure.retryAt and failure.retryAt>GetServerTime() then retryAt=math.min(retryAt or failure.retryAt,failure.retryAt) end
+        elseif profiles[key] then loaded=loaded+1 end
+    end
     if not open then
-        MPL.lastBatchResult={players=players,profiles=profiles,failures=failures,count=count}
+        MPL.lastBatchResult={players=players,profiles=profiles,failures=failures,count=count,loaded=loaded,errorCount=errorCount}
         if MPL.batchResultsWindow then MPL.batchResultsWindow:Hide() end
         if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
-        return
+        -- A valid response may contain no loaded profiles. Show the failures
+        -- instead of silently dismissing them as a completed clipboard exchange.
+        if errorCount==0 then return end
     end
     if not MPL.batchResultsWindow then
         local f=window("MPlusLogsBatchResults",L["Логи кандидатов"],660,420)
@@ -1675,13 +1801,29 @@ function MPL.ShowBatchResults(players,profiles,failures,count,open)
         f.scroll:SetPoint("TOPLEFT",24,-94); f.scroll:SetPoint("BOTTOMRIGHT",-42,58)
         f.content=CreateFrame("Frame",nil,f.scroll); f.content:SetSize(590,1)
         f.scroll:SetScrollChild(f.content); f.rows={}
+        f.retryElapsed=0
+        f:SetScript("OnUpdate",function(_,elapsed)
+            f.retryElapsed=(f.retryElapsed or 0)+elapsed
+            if f.retryElapsed>=1 then
+                f.retryElapsed=0
+                local nextRetry
+                for _,failure in pairs(f.resultFailures) do
+                    if failure.errorCode~="auth" and failure.retryAt and failure.retryAt>GetServerTime() then nextRetry=math.min(nextRetry or failure.retryAt,failure.retryAt) end
+                end
+                f.retryAt=nextRetry or false
+                f.summary:SetText(f.resultSummary..(f.retryAt and f.retryAt>GetServerTime() and ("\n"..MPL.RetryDelayText(f.retryAt)) or ""))
+            end
+        end)
         f.scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
         button(f,L["Закрыть"],24,20,140,function() f:Hide() end)
         MPL.batchResultsWindow=f
     end
     local f=MPL.batchResultsWindow
     for _,row in ipairs(f.rows) do row:Hide() end
-    f.summary:SetText(L["Загружено: "]..count..L[" из "]..#players..L[". Ошибки обновления: "]..errorCount)
+    f.retryAt=retryAt or false
+    f.resultFailures=failures
+    f.resultSummary=L["Загружено: "]..loaded..L[" из "]..#players..L[". Ошибки обновления: "]..errorCount
+    f.summary:SetText(f.resultSummary..(retryAt and ("\n"..MPL.RetryDelayText(retryAt)) or ""))
     local rowOffset=0
     for index,player in ipairs(players) do
         local key=MPL.Key(player.name,player.realm)
@@ -1732,7 +1874,6 @@ function MPL.InstallApplicantLogColumn(viewer)
         GameTooltip:SetOwner(f,"ANCHOR_TOP"); GameTooltip:ClearLines()
         GameTooltip:AddLine("M+ "..MPL.PrimaryPercentileLabel()..L[" по уровню ключа"])
         GameTooltip:AddLine(L["DPS/HPS: в соответствии с настройками."],1,1,1)
-        GameTooltip:AddLine(L["Серый процент: данные устарели."],0.7,0.7,0.7)
         GameTooltip:Show()
     end)
     f:SetScript("OnLeave",function() GameTooltip:Hide() end)

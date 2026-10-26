@@ -247,7 +247,7 @@ class ApplicantUITests(unittest.TestCase):
         profile.updated = "2026-10-01 00:00 UTC"
         self.mpl.UpdateBatchButton()
         self.assertIn("Обновите логи",row.detail)
-        self.assertIn("ff888888",row.text.text)
+        self.assertEqual(row.text.text,"|cff0070ff62%|r")
 
     def test_recycled_native_row_does_not_keep_previous_character_percent(self):
         self.mpl.InstallBatchButton()
