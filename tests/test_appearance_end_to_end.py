@@ -302,13 +302,9 @@ class AppearanceEndToEndTests(unittest.TestCase):
                     if y==other_y:
                         self.assertLessEqual(other_x,x-button.width-8)
 
-    def test_real_header_menu_opens_editor_and_general_settings_route(self):
-        self.click(self.panel.settingsButton)
-        menu=self.mpl.appearanceSettingsMenu
-        self.assertTrue(menu.shown)
-        self.click(menu.appearance)
+    def test_real_header_buttons_open_appearance_and_settings_directly(self):
+        self.click(self.panel.appearanceButton)
         self.assertTrue(self.mpl.appearanceEditor.shown)
-        self.assertFalse(menu.shown)
         self.click(self.mpl.appearanceEditor.cancel)
         self.lua.execute('''
             Settings={VarType={Boolean="boolean",String="string",Number="number"}}
@@ -324,7 +320,6 @@ class AppearanceEndToEndTests(unittest.TestCase):
             function CreateSettingsListSectionHeaderInitializer() return {} end
         ''')
         self.click(self.panel.settingsButton)
-        self.click(menu.general)
         self.assertEqual(self.lua.globals().openedCategory,97)
 
     def test_target_menu_opens_cached_accented_character_with_party_tabs(self):

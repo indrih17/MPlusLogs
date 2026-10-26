@@ -669,19 +669,6 @@ class AppearanceEditorTests(unittest.TestCase):
         self.click(row.control)
         self.assertEqual(editor.choices.options[1].value,'inherit')
 
-    def test_settings_menu_keeps_general_and_appearance_routes_separate(self):
-        self.lua.execute('local MPL=...; MPL.OpenSettings=function() generalOpened=true end',self.mpl)
-        anchor=self.lua.globals().CreateFrame('Button')
-        self.mpl.OpenProfileSettingsMenu(anchor)
-        menu=self.mpl.appearanceSettingsMenu
-        self.assertTrue(menu.shown)
-        self.click(menu.general)
-        self.assertTrue(self.lua.globals().generalOpened)
-        self.assertFalse(menu.shown)
-        self.mpl.OpenProfileSettingsMenu(anchor)
-        self.click(menu.appearance)
-        self.assertTrue(self.mpl.appearanceEditor.shown)
-
     def test_import_is_previewed_and_cancel_does_not_persist(self):
         editor=self.open()
         self.mpl.SetAppearanceValue('fontSize',14)

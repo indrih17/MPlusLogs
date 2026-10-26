@@ -334,6 +334,7 @@ function MPL.LayoutAppearanceTable(f)
     f:SetWidth(viewport+outer)
     f.titleFill:SetWidth(viewport+outer-2); f.contextFill:SetWidth(viewport)
     createHeaderViewport(f)
+    f.headerViewport:SetShown(type(f.profile)=="table")
     f.tableHeader:SetSize(total,style.headerHeight); f.tableDecor[1]:SetSize(total,style.headerHeight)
     f.content:SetWidth(total); f.scroll:SetWidth(viewport)
     f.staleBanner:SetWidth(viewport); f.staleBanner.message:SetWidth(math.max(1,viewport-52))
@@ -376,7 +377,7 @@ function MPL.LayoutAppearanceTable(f)
         if not line then line=f.tableHeader:CreateTexture(nil,"ARTWORK"); f.appearanceHeaderLines[i]=line end
         line:Hide(); fill(line,"gridColor",{.2,.2,.2,1})
     end
-    if grid=="full" or grid=="horizontal" or grid=="vertical" then
+    if type(f.profile)=="table" and (grid=="full" or grid=="horizontal" or grid=="vertical") then
         for slot,offset in ipairs({0,style.headerHeight-thickness,style.headerBand}) do
             local line=f.appearanceHeaderLines[9+slot]
             line:ClearAllPoints(); line:SetPoint("TOPLEFT",0,-offset); line:SetSize(total,thickness)
@@ -437,9 +438,10 @@ function MPL.LayoutAppearanceTable(f)
         row.rightLine:SetSize(thickness,style.rowHeight); row.rightLine:SetShown(vertical)
         fill(row.rightLine,"gridColor",{.2,.2,.2,1})
     end
-    f.horizontalBar:SetMinMaxValues(0,math.max(0,total-viewport))
-    f.horizontalBar:SetValue(math.min(f.appearanceHorizontalOffset or 0,math.max(0,total-viewport)))
-    f.horizontalBar:SetShown(total>viewport+1)
+    local horizontalRange=type(f.profile)=="table" and math.max(0,total-viewport) or 0
+    f.horizontalBar:SetMinMaxValues(0,horizontalRange)
+    f.horizontalBar:SetValue(math.min(f.appearanceHorizontalOffset or 0,horizontalRange))
+    f.horizontalBar:SetShown(horizontalRange>1)
     if type(f.playerTabs)=="table" then MPL.RenderPlayerTabs(f) end
 end
 
@@ -698,7 +700,7 @@ end
 
 -- Disjoint background tiles keep a 50% surface at 50%, instead of painting
 -- a second 50% table/header layer over a full-window background (75%).
-local function backdropTiles(f,tableTop,tableBottom,seasonY)
+local function backdropTiles(f,tableTop,tableBottom,seasonY,hasProfile)
     f.appearanceBackdropParts=f.appearanceBackdropParts or {}
     local left=windowPadding
     local right=left+20
@@ -710,6 +712,10 @@ local function backdropTiles(f,tableTop,tableBottom,seasonY)
         {1,tableTop,left-1,tableBottom-tableTop},{f:GetWidth()-right,tableTop,right-1,tableBottom-tableTop},
         {1,tableBottom,f:GetWidth()-2,math.max(0,f:GetHeight()-tableBottom-1)}}
     if not option("showSeason",true) then rectangles[2]={1,seasonY,f:GetWidth()-2,seasonHeight}; rectangles[3]={0,0,0,0} end
+    if not hasProfile then
+        rectangles[5]={1,tableTop,f:GetWidth()-2,tableBottom-tableTop}
+        rectangles[6]={0,0,0,0}
+    end
     f:SetBackdropColor(0,0,0,0)
     for i,rect in ipairs(rectangles) do
         local texture=f.appearanceBackdropParts[i]
@@ -728,7 +734,7 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     local count=profile and #profile.dungeons or 8
     local rows=legacyLayout() and 8 or math.max(1,math.min(count,8))
     local scrollHeight=rows*style.rowHeight+(legacyLayout() and not profile and 44 or 0)
-    local horizontal=(f.tableWidth or total)>total+1 and 16 or 0
+    local horizontal=profile and (f.tableWidth or total)>total+1 and 16 or 0
     local buttonHeight=math.max(26,f.loadButton:GetHeight(),f.wclButton:GetHeight(),f.searchButton:GetHeight())
     local compactActions=f.appearanceCompact and buttonHeight+10 or (type(f.applicant)=="table" and 36 or 0)
     local secondaryLine=math.max(20,option("size_secondary",0)+6,option("fontSize",10)+6)
@@ -775,11 +781,11 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     f.lookup:ClearAllPoints(); f.lookup:SetPoint("BOTTOMLEFT",left,20)
     f.lookupButton:ClearAllPoints(); f.lookupButton:SetPoint("BOTTOMRIGHT",-right,20)
     f.inviteButton:ClearAllPoints(); f.inviteButton:SetPoint("BOTTOMRIGHT",-right,20)
-    backdropTiles(f,top+offset,bodyBottom,f.appearanceSeasonY)
+    backdropTiles(f,top+offset,bodyBottom,f.appearanceSeasonY,profile~=nil)
     if not f.appearanceEmptyFill then f.appearanceEmptyFill=f.scroll:CreateTexture(nil,"BACKGROUND") end
     local blank=math.max(0,f.scroll:GetHeight()-count*style.rowHeight)
     f.appearanceEmptyFill:ClearAllPoints(); f.appearanceEmptyFill:SetPoint("BOTTOMLEFT",0,0); f.appearanceEmptyFill:SetSize(total,blank)
-    f.appearanceEmptyFill:SetShown(blank>0); fill(f.appearanceEmptyFill,"backgroundColor",{0,0,0,1},option("surfaceOpacity",1))
+    f.appearanceEmptyFill:SetShown(profile~=nil and blank>0); fill(f.appearanceEmptyFill,"backgroundColor",{0,0,0,1},option("surfaceOpacity",1))
     MPL.ApplyAppearancePalette(f)
 end
 

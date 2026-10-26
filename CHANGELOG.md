@@ -1,5 +1,10 @@
 # Changelog
 
+## MPlusLogs 0.6.1
+
+- Fix missing background and stale table decorations when no logs are loaded.
+- Open general settings directly from the Settings button.
+
 ## MPlusLogs 0.6.0 / Companion 1.0.32
 
 - Add live appearance editing with reusable profiles, independent styles and palettes, SharedMedia fonts, table controls, dungeon labels and import/export.

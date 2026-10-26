@@ -383,9 +383,6 @@ local function buildPanel(frameName)
         settings:SetBackdropColor(0.16,0.10,0.21,1)
         settings:SetBackdropBorderColor(0.40,0.29,0.51,1)
         settings.caption:ClearAllPoints(); settings.caption:SetPoint("CENTER"); settings.caption:SetJustifyH("CENTER")
-        settings:SetScript("OnClick",function()
-            if MPL.OpenProfileSettingsMenu then MPL.OpenProfileSettingsMenu(settings) else MPL.OpenSettings() end
-        end)
         settings:SetScript("OnEnter",function()
             if MPL.ColorAppearanceControl then MPL.ColorAppearanceControl(settings,true)
             else settings:SetBackdropBorderColor(0.75,0.55,0.96,1) end

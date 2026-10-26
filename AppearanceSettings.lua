@@ -1376,25 +1376,3 @@ function MPL.OpenAppearanceSettings()
     return f
 end
 
-function MPL.OpenProfileSettingsMenu(anchor)
-    if MenuUtil and MenuUtil.CreateContextMenu then
-        MenuUtil.CreateContextMenu(anchor,function(_,root)
-            root:CreateButton(L["Appearance…"],function() MPL.OpenAppearanceSettings() end)
-            root:CreateButton(L["General settings…"],function() MPL.OpenSettings() end)
-        end)
-        return
-    end
-    local menu=MPL.appearanceSettingsMenu
-    if not menu then
-        menu=CreateFrame("Frame",nil,UIParent,"BackdropTemplate")
-        menu:SetSize(230,82); menu:SetFrameStrata("DIALOG"); menu:SetFrameLevel(400)
-        menu:SetClampedToScreen(true)
-        menu:SetBackdrop({bgFile="Interface/Buttons/WHITE8X8",edgeFile="Interface/Tooltips/UI-Tooltip-Border",edgeSize=16})
-        menu:SetBackdropColor(0.035,0.035,0.05,1); menu:EnableMouse(true)
-        menu.appearance=button(menu,L["Appearance…"],12,-12,206,function() menu:Hide(); MPL.OpenAppearanceSettings() end)
-        menu.general=button(menu,L["General settings…"],12,-44,206,function() menu:Hide(); MPL.OpenSettings() end)
-        MPL.appearanceSettingsMenu=menu
-    end
-    if menu:IsShown() then menu:Hide(); return end
-    menu:ClearAllPoints(); menu:SetPoint("TOPRIGHT",anchor,"BOTTOMRIGHT",0,-2); menu:Show()
-end
