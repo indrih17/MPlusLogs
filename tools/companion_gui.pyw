@@ -1,5 +1,6 @@
 """Browser sign-in, automatic clipboard processing, Windows tray. No client secret."""
 from pathlib import Path
+from http.client import HTTPException
 import json
 import os
 import queue
@@ -25,6 +26,9 @@ import personal_api
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = local_settings.PATH.parent if getattr(sys, "frozen", False) else ROOT
+UPDATE_CHECK_INTERVAL = 60 * 60 * 1000
+UPDATE_RETRY_INTERVAL = 5 * 60 * 1000
+UPDATE_REMINDER_INTERVAL = 6 * 60 * 60
 
 
 class App:
@@ -162,39 +166,82 @@ class App:
             root.after(400, self.hide)
         if "--login" in sys.argv:
             root.after(500, self.sign_in)
-        if getattr(sys, "frozen", False) and (not self.preview or updates.portable_build()):
-            root.after(1500, self.scheduled_update_check)
+        self.automatic_updates = getattr(sys, "frozen", False) and (not self.preview or updates.portable_build())
+        if self.automatic_updates:
+            self.schedule_update_check(1500)
+
+    def schedule_update_check(self, delay=UPDATE_CHECK_INTERVAL):
+        if getattr(self,"exiting",False) or not getattr(self,"automatic_updates",True):
+            return
+        timer=getattr(self,"update_check_after",None)
+        if timer is not None:
+            self.root.after_cancel(timer)
+        self.update_check_after=self.root.after(delay,self.scheduled_update_check)
 
     def scheduled_update_check(self):
+        self.update_check_after=None
+        if getattr(self,"exiting",False): return
         self.check_updates()
-        self.root.after(24 * 60 * 60 * 1000, self.scheduled_update_check)
+        self.schedule_update_check()
+
+    def notify_update(self, data, ready=False, force=False):
+        now=time.monotonic()
+        previous=getattr(self,"last_update_notice",None)
+        if not force and previous and previous[0]==data["version"] and now-previous[1]<UPDATE_REMINDER_INTERVAL:
+            return
+        message=("Companion update is ready. Click to install and restart." if ready else
+                 "A new Companion version is available. Open Companion for details.")
+        if self.show_notification("MPlusLogs Companion "+data["version"],i18n.tr(message),
+                                  required=True,on_click=self.install_update if ready else self.show):
+            self.last_update_notice=(data["version"],now)
 
     def check_updates(self, manual=False):
         if getattr(self,"preview",False) and not updates.portable_build() and not manual: return
         if self.installing_update or (self.update_worker and self.update_worker.is_alive()):
             return
-        if self.available_update and self.update_installer:
-            self.update_status.set("Companion update is ready.")
-            self.set_update_check_state("ready")
-            return
+        if self.update_installer:
+            try:
+                present=Path(self.update_installer).is_file()
+            except OSError:
+                present=False
+            if not present:
+                self.update_installer=None
+                self.update_button.pack_forget()
+        ready_version=self.available_update["version"] if self.available_update and self.update_installer else None
         if manual:
             self.update_status.set("Checking Companion updates…")
         self.set_update_check_state("checking")
         def run():
+            updates.record_check("checking")
             try:
                 data = updates.check()
                 if data:
+                    updates.record_check("available",version=data["version"])
+                    if data["version"]==ready_version:
+                        updates.record_check("ready",version=data["version"])
+                        self.messages.put(("update_reminder", data))
+                        return
+                    self.messages.put(("update_available", data))
                     if not manual and data["version"] == self.failed_update_version:
                         self.messages.put(("update_check_idle", None))
                         return
                     self.messages.put(("update_downloading", None))
-                    target = updates.download(data)
+                    try:
+                        target = updates.download(data)
+                    except (ValueError, OSError, KeyError, TypeError, HTTPException) as error:
+                        updates.record_check("download_error",version=data["version"],error=error)
+                        self.messages.put(("update_download_error", None))
+                        return
+                    updates.record_check("ready",version=data["version"])
                     self.messages.put(("update_ready", (data, target)))
                 elif manual:
+                    updates.record_check("current")
                     self.messages.put(("update_current", None))
                 else:
+                    updates.record_check("current")
                     self.messages.put(("update_check_idle", None))
-            except (ValueError, OSError, KeyError, TypeError):
+            except (ValueError, OSError, KeyError, TypeError, HTTPException) as error:
+                updates.record_check("check_error",error=error)
                 self.messages.put(("update_error", manual))
         self.update_worker = threading.Thread(target=run, daemon=True)
         self.update_worker.start()
@@ -637,6 +684,17 @@ class App:
                 self.settings_window.lift()
                 self.settings_window.focus_force()
                 self.check_updates(manual=True)
+            elif kind == "update_available":
+                self.available_update=value
+                self.update_installer=None
+                self.update_button.pack_forget()
+                self.update_status.set("A new Companion version is available. Open Companion for details.")
+                self.notify_update(value)
+            elif kind == "update_reminder":
+                self.update_status.set("Companion update is ready.")
+                self.set_update_check_state("ready")
+                self.notify_update(value,ready=True)
+                self.schedule_update_check()
             elif kind == "update_downloading":
                 self.update_status.set("Downloading Companion update…")
                 self.set_update_check_state("downloading")
@@ -645,18 +703,23 @@ class App:
                 self.update_status.set("Companion update is ready.")
                 self.set_update_check_state("ready")
                 self.update_button.pack(anchor="w", pady=(6, 0))
-                self.show_notification("MPlusLogs Companion " + value[0]["version"],
-                    i18n.tr("Companion update is ready. Click to install and restart."),
-                    required=True,on_click=self.install_update)
+                self.notify_update(value[0],ready=True,force=True)
+                self.schedule_update_check()
             elif kind == "update_current":
                 self.update_status.set("Companion is up to date.")
                 self.set_update_check_state("current")
+                self.schedule_update_check()
             elif kind == "update_check_idle":
                 self.set_update_check_state("idle")
+                self.schedule_update_check()
             elif kind == "update_error":
-                self.set_update_check_state("error" if value else "idle")
-                if value:
-                    self.update_status.set("Could not check updates. Try again later.")
+                self.set_update_check_state("error")
+                self.update_status.set("Could not check updates. Try again later.")
+                self.schedule_update_check(UPDATE_RETRY_INTERVAL)
+            elif kind == "update_download_error":
+                self.set_update_check_state("error")
+                self.update_status.set("Could not download the update. Retrying in 5 minutes.")
+                self.schedule_update_check(UPDATE_RETRY_INTERVAL)
             elif kind == "exit":
                 self.exit()
                 return
@@ -811,6 +874,10 @@ class App:
 
     def exit(self):
         self.exiting = True
+        timer=getattr(self,"update_check_after",None)
+        if timer is not None:
+            self.root.after_cancel(timer)
+            self.update_check_after=None
         self.popup.close()
         self.want_running = False
         self.stop.set()

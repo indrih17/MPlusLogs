@@ -9,7 +9,9 @@ gui=ready.gui
 
 
 class UpdateButtonTests(unittest.TestCase):
-    setUp=ready.ReadyNotificationTests.setUp
+    def setUp(self):
+        ready.ReadyNotificationTests.setUp(self)
+        self.enterContext(patch.object(gui.updates,'record_check'))
 
     def prepare_button(self):
         app=self.app

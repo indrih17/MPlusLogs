@@ -1,6 +1,7 @@
 """Bounded HTTPS update checks and verified installer downloads. No WCL credentials."""
 import base64
 import ctypes
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -16,6 +17,55 @@ import portable_update
 CHANNEL = "https://github.com/indrih17/MPlusLogs/releases/download/companion-channel/companion-update.json"
 MAX_INSTALLER = 250 * 1024 * 1024
 BUILD = Path(__file__).with_name("companion-build.json")
+CHECK_HISTORY_LIMIT = 16384
+
+
+def record_check(status, version=None, error=None):
+    """Best-effort update diagnostics, without URLs, credentials or error text."""
+    if status not in {"checking", "current", "available", "ready", "downloading",
+                      "check_error", "download_error"}:
+        return
+    path = local_settings.PATH.parent / "update-check.json"
+    try:
+        previous = {}
+        try:
+            with path.open("rb") as source:
+                content = source.read(CHECK_HISTORY_LIMIT + 1)
+            if len(content) <= CHECK_HISTORY_LIMIT:
+                loaded = json.loads(content.decode("utf-8-sig"))
+                if isinstance(loaded, dict):
+                    previous = loaded
+        except (OSError, ValueError, UnicodeError):
+            pass
+        # Do not carry unknown fields or previous error messages into diagnostics.
+        data = {key: previous[key] for key in ("last_attempt", "last_success")
+                if isinstance(previous.get(key), str) and len(previous[key]) <= 64}
+        known_version = previous.get("available_version")
+        try:
+            version_tuple(known_version)
+            data["available_version"] = known_version
+        except (ValueError, TypeError):
+            pass
+        now = datetime.now(timezone.utc).isoformat()
+        data["status"] = status
+        if status == "checking":
+            data["last_attempt"] = now
+        if status in {"current", "available", "ready"}:
+            data["last_success"] = now
+        if status == "current":
+            data.pop("available_version", None)
+        elif status in {"available", "ready"} and version is not None:
+            version_tuple(version)
+            data["available_version"] = version
+        if error is not None:
+            data["error_type"] = type(error).__name__[:128]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+        temporary.replace(path)
+    except (OSError, ValueError, TypeError, UnicodeError):
+        # A read-only or unavailable settings folder must not block an update.
+        pass
 
 
 def last_result():

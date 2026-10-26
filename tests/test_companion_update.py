@@ -161,7 +161,7 @@ class UpdateTests(unittest.TestCase):
         app.failed_update_version = "1.2.3"
         app.messages = queue.Queue()
         app.update_status = Mock()
-        with patch.object(updates, "check", return_value=manifest()), patch.object(updates, "download", return_value="test-installer") as download:
+        with patch.object(updates, "record_check"), patch.object(updates, "check", return_value=manifest()), patch.object(updates, "download", return_value="test-installer") as download:
             app.check_updates()
             app.update_worker.join(timeout=5)
             self.assertFalse(app.update_worker.is_alive())
