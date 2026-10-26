@@ -1061,6 +1061,52 @@ class ProfileAppearanceTests(unittest.TestCase):
         self.assertFalse(self.panel.summary.shown)
         self.assertGreater(self.panel.height,0)
 
+    def test_unresolved_group_member_uses_current_layout_after_theme_changes(self):
+        self.lua.execute('return assert(loadstring(...))',
+                         (ROOT/'SearchGroup.lua').read_text(encoding='utf-8'))('MPlusLogs',self.mpl)
+        self.mpl.ShowProfile=self.show_profile
+        self.mpl.searchGroupWindow=self.lua.table_from({
+            'resultID':42,'selected':1,'players':[{'name':'Mihihi','class':'MAGE','loaded':False}],
+        },recursive=True)
+        for theme,vertical in (('compact',False),('minimal',True),('classic',False),('original',False)):
+            with self.subTest(theme=theme,vertical=vertical):
+                self.mpl.SelectAppearanceTheme(theme)
+                self.set('verticalLayout',vertical)
+                self.mpl.OpenSearchGroupProfile(1)
+                for redraw in (False,True):
+                    if redraw:
+                        self.mpl.ApplyAppearanceToViews()
+                    panel=self.mpl.panel
+                    self.assertFalse(panel.currentSpec.shown)
+                    self.assertFalse(panel.specButton.shown)
+                    self.assertFalse(panel.extraLogsButton.shown)
+                    self.assertIsNotNone(panel.loadButton.points.BOTTOMRIGHT)
+                    self.assertIsNone(panel.loadButton.points.BOTTOMLEFT)
+                    self.assertEqual(panel.emptyMessage.width,panel.viewportWidth)
+                    self.assertEqual(panel.emptyMessage.points.TOPLEFT[1],20)
+                    self.assertEqual(panel.loadButton.text,self.mpl.L['Load group logs'])
+                self.mpl.searchGroupWindow.players[1].candidates=self.lua.table_from([
+                    {'name':'Mihihi','realm':'Silvermoon'},
+                    {'name':'Mihihi','realm':'Draenor'},
+                ],recursive=True)
+                self.mpl.OpenSearchGroupProfile(1)
+                self.mpl.ApplyAppearanceToViews()
+                previous_bottom=-panel.emptyMessage.points.TOPLEFT[2]+panel.emptyMessage.height
+                for button in panel.searchChoices.values():
+                    self.assertEqual(button.width,panel.viewportWidth)
+                    self.assertEqual(button.points.TOPLEFT[1],20)
+                    self.assertGreaterEqual(-button.points.TOPLEFT[2],previous_bottom)
+                    previous_bottom=-button.points.TOPLEFT[2]+button.height
+                self.assertLess(previous_bottom,panel.height-60)
+                self.mpl.searchGroupWindow.players[1].candidates=None
+        self.show_profile('Киндрих','Гордунни',None,True)
+        self.mpl.SelectAppearanceTheme('compact')
+        self.assertTrue(panel.profile)
+        self.assertTrue(panel.currentSpec.shown)
+        self.assertTrue(panel.extraLogsButton.shown)
+        self.assertFalse(panel.emptyMessage.shown)
+        self.assertTrue(all(not button.shown for button in panel.searchChoices.values()))
+
     def test_other_specialization_arrow_toggles_themed_menu_without_requests(self):
         panel=self.panel
         self.capture_specialization_menu()

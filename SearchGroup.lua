@@ -235,14 +235,15 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
         panel.character:SetText(p.name.." — "..(p.realm or L["Realm unknown"]))
         panel.lookup:SetText(p.realm and p.name.."-"..p.realm:gsub(" ","") or p.name)
         panel.scroll:Hide(); panel.emptyMessage:Show()
-        panel.emptyMessage:ClearAllPoints(); panel.emptyMessage:SetPoint("TOPLEFT",80,-200)
+        panel.emptyMessage:ClearAllPoints(); panel.emptyMessage:SetPoint("TOPLEFT",20,-200)
+        panel.emptyMessage:SetWidth(panel:GetWidth()-60)
         panel.emptyMessage:SetText(p.error or (p.candidates and L["Choose the character's realm"] or L["Load logs to identify this character"]))
         panel.emptyMessage:SetHeight(100)
         panel.source:SetText(""); panel.note:SetText(""); panel.footer:SetText("")
         panel.specButton:Hide(); panel.currentSpec:Hide()
-        panel.loadButton:ClearAllPoints(); panel.loadButton:SetPoint("BOTTOMLEFT",730,53)
+        panel.centerLoadButton=false
+        panel.loadButton:ClearAllPoints(); panel.loadButton:SetPoint("BOTTOMRIGHT",-40,20)
         panel.loadButton:SetSize(170,24); panel.loadButton:SetText(L["Load group logs"])
-        MPL.RenderProfileStats(panel)
     end
     if cached and p.error then MPL.SetProfileFooter(panel,p.error) end
     panel.searchChoices=type(panel.searchChoices)=="table" and panel.searchChoices or {}
@@ -250,7 +251,7 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
     for i,c in ipairs(p.candidates or {}) do
         local b=panel.searchChoices[i]
         if not b then
-            b=button(panel,100,-255-(i-1)*56,720,"")
+            b=button(panel,20,-255-(i-1)*56,panel:GetWidth()-60,"")
             panel.searchChoices[i]=b
         end
         -- Rebind the member when reusing a choice button for another tab.
@@ -258,7 +259,7 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
             p.realm=c.realm; p.candidates=nil; p.error=nil
             MPL.ShowSearchGroupLogs(f.resultID)
         end)
-        b:ClearAllPoints(); b:SetPoint("TOPLEFT",100,-255-(i-1)*56); b:SetSize(720,52)
+        b:ClearAllPoints(); b:SetPoint("TOPLEFT",20,-255-(i-1)*56); b:SetSize(panel:GetWidth()-60,52)
         local label=c.name.." — "..c.realm
         if c.scores then
             local function value(v) return v and string.format("%.0f",v) or "—" end
@@ -275,6 +276,7 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
         end
         b:SetText(label); b:Show()
     end
+    if not p.loaded and not cached then MPL.RenderProfileStats(panel) end
     MPL.panel.groupPlayers=resolved; MPL.panel.searchPlayers=members
     MPL.RenderPlayerTabs(MPL.panel)
     if metric then

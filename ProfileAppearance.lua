@@ -1128,13 +1128,34 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     local left=windowPadding
     local right=left+20
     local top=layoutHeader(f,profile~=nil)
+    local unresolved=not profile and type(f.searchMember)=="table"
+    if unresolved then
+        f.currentSpec:Hide(); f.specButton:Hide()
+        if f.extraLogsButton then f.extraLogsButton:Hide() end
+    end
     local count=profile and #profile.dungeons or 8
     local rows=legacyLayout() and 8 or math.max(1,math.min(count,8))
     local scrollHeight=rows*style.rowHeight+(legacyLayout() and not profile and 44 or 0)
+    local choices=unresolved and f.searchMember.candidates or {}
+    local secondaryLine=math.max(20,option("size_secondary",0)+6,option("fontSize",10)+6)
+    local messageLine=math.max(22,(f.emptyMessage.mplAppliedFontSize or 16)+6)
+    local messageHeight=math.max(72,math.ceil(widthOf(f.emptyMessage)/total)*messageLine)
+    local choiceHeight=52
+    if unresolved then
+        for _,button in ipairs(f.searchChoices or {}) do
+            if button:IsShown() then
+                local caption=button.caption or button:GetFontString()
+                if caption then
+                    caption:SetWidth(math.max(1,total-20)); caption:SetWordWrap(true)
+                    choiceHeight=math.max(choiceHeight,caption:GetStringHeight()+12)
+                end
+            end
+        end
+        scrollHeight=math.max(scrollHeight,messageHeight+#choices*(choiceHeight+4)+16)
+    end
     local horizontal=profile and (f.tableWidth or total)>total+1 and 16 or 0
     local buttonHeight=math.max(26,f.loadButton:GetHeight(),f.wclButton:GetHeight(),f.searchButton:GetHeight())
     local compactActions=f.appearanceCompact and buttonHeight+10 or (type(f.applicant)=="table" and 36 or 0)
-    local secondaryLine=math.max(20,option("size_secondary",0)+6,option("fontSize",10)+6)
     local fields={}
     local function appendField(field,enabled)
         local shown=enabled and (field:GetText() or ""):find("%S")~=nil
@@ -1195,7 +1216,9 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     local screenHeight=UIParent:GetHeight()
     if type(screenHeight)=="number" and screenHeight>500 and f:GetHeight()*scale>screenHeight-60 then
         local reduction=f:GetHeight()-(screenHeight-60)/scale
-        local available=math.max(style.rowHeight,scrollHeight-reduction)
+        local minimumBody=profile and style.rowHeight
+            or messageHeight+#choices*(choiceHeight+4)+(f.centerLoadButton and buttonHeight+12 or 16)
+        local available=math.max(minimumBody,scrollHeight-reduction)
         f:SetHeight(f:GetHeight()-(scrollHeight-available)); f.scroll:SetHeight(available)
         bodyBottom=top+offset+style.headerHeight+available
         f.horizontalBar:ClearAllPoints(); f.horizontalBar:SetPoint("TOPLEFT",left,-bodyBottom-2)
@@ -1210,6 +1233,27 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     f.lookup:ClearAllPoints(); f.lookup:SetPoint("BOTTOMLEFT",left,20)
     f.lookupButton:ClearAllPoints(); f.lookupButton:SetPoint("BOTTOMRIGHT",-right,20)
     f.inviteButton:ClearAllPoints(); f.inviteButton:SetPoint("BOTTOMRIGHT",-right,20)
+    if not profile then
+        -- Empty states share the same viewport as the table, including group
+        -- members whose realm has not been identified yet.
+        local bodyTop=top+offset+style.headerHeight
+        local contentHeight=messageHeight+#choices*(choiceHeight+4)
+        local messageY=bodyTop+math.max(0,(bodyBottom-bodyTop-contentHeight)/2)
+        positioned(f.emptyMessage,left,messageY,total)
+        f.emptyMessage:SetHeight(messageHeight)
+        f.emptyMessage:SetWordWrap(true); f.emptyMessage:SetNonSpaceWrap(true)
+        if f.centerLoadButton then
+            f.loadButton:ClearAllPoints()
+            f.loadButton:SetPoint("TOP",f.emptyMessage,"BOTTOM",0,-12)
+            f.loadButton:SetWidth(math.min(260,total))
+        end
+        for i,button in ipairs(f.searchChoices or {}) do
+            if unresolved and choices[i] then
+                positioned(button,left,messageY+messageHeight+4+(i-1)*(choiceHeight+4),total)
+                button:SetHeight(choiceHeight)
+            end
+        end
+    end
     backdropTiles(f,top+offset,bodyBottom,profile~=nil)
     if not f.appearanceEmptyFill then f.appearanceEmptyFill=f.scroll:CreateTexture(nil,"BACKGROUND") end
     local blank=math.max(0,f.scroll:GetHeight()-count*style.rowHeight)
