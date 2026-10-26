@@ -36,15 +36,11 @@ class QuotaOptimizationTests(unittest.TestCase):
             self.assertEqual(calls,[None])
             self.assertEqual(set(self.mpl.ProfileSpecs('Киндрих','Гордунни').values()),{'Guardian','Feral'})
             self.assertIsNone(self.mpl.GetProfile('Киндрих','Гордунни','Feral')[0])
-            self.lua.execute('''
-                MenuUtil={CreateContextMenu=function(_,build)
-                    specRadios={}
-                    build(nil,{CreateTitle=function() end,CreateDivider=function() end,CreateButton=function() end,
-                        CreateRadio=function(_,text,selected,callback) specRadios[#specRadios+1]=callback end})
-                end}
-            ''')
             self.mpl.panel.specButton.scripts.OnClick()
-            self.lua.globals().specRadios[2]()  # All specs, Feral, Guardian.
+            panel=self.mpl.panel
+            choice=next(entry for entry in panel.specMenu.entries.values()
+                        if entry.kind=='radio' and self.mpl.SpecLabel('Feral',panel['class']) in entry.text)
+            choice.button.scripts.OnClick(choice.button)
             self.assertEqual(self.mpl.pendingReply.spec,'Feral')
             self.assertFalse(self.mpl.pendingReply.batch)
             request = self.mpl.downloadWindow.request

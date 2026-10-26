@@ -2,6 +2,7 @@
 import copy
 import sys
 import unittest
+from unittest.mock import patch
 import tempfile
 from pathlib import Path
 from urllib.parse import quote
@@ -16,7 +17,12 @@ import clipboard_protocol
 
 
 class SpecProfileTests(unittest.TestCase):
-    setUp = test_addon.AddonTests.setUp
+    def setUp(self):
+        # Optional frame data is nil in WoW; only unknown API methods are no-ops.
+        mock=test_addon.MOCK.replace('return methods[k] or function() end end',
+            'return methods[k] or (type(k)=="string" and k:match("^[A-Z]") and function() end or nil) end')
+        with patch.object(test_addon,'MOCK',mock):
+            test_addon.AddonTests.setUp(self)
 
     def export(self, spec="Guardian", role=None, best=62, date="2026-10-12 04:00 UTC"):
         raw = api_fixture()
@@ -25,6 +31,15 @@ class SpecProfileTests(unittest.TestCase):
         profile = wcl.normalize(raw, args)
         profile.update(best=best, updated=date)
         return wcl.export(profile)
+
+    def selector_choices(self):
+        menu=self.mpl.panel.specMenu
+        self.assertTrue(menu.IsShown(menu))
+        return {entry.text:entry for entry in menu.entries.values() if entry.kind=='radio'}
+
+    def select_menu_entry(self, entry):
+        entry.button.scripts.OnClick(entry.button)
+        self.assertFalse(self.mpl.panel.specMenu.IsShown(self.mpl.panel.specMenu))
 
     def transport(self):
         self.lua.execute("return assert(loadstring(...))", (ROOT / "Transport.lua").read_text(encoding="utf-8"))("MPlusLogs", self.mpl)
@@ -414,33 +429,24 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.snapshots=None
         self.mpl.Import(self.export()); self.mpl.Import(self.export("Feral"))
         self.mpl.RecordApplicant("Киндрих-Гордунни", "DAMAGER", 103, "DRUID")
-        self.lua.execute('''
-            MenuUtil={CreateContextMenu=function(_,builder)
-                radioOptions={}
-                local root={CreateTitle=function() end,CreateDivider=function() end,CreateButton=function() end,CreateRadio=function(_,label,checked,select)
-                    radioOptions[label]={checked=checked,select=select}
-                end}
-                builder(nil,root)
-            end}
-        ''')
         self.mpl.ShowProfile("Киндрих", "Гордунни")
         self.mpl.panel.specButton.scripts.OnClick()
-        choices=self.lua.globals().radioOptions
-        self.assertFalse(choices["Feral — основной — загружено"].checked())
+        choices=self.selector_choices()
+        self.assertFalse(choices["Feral — основной — загружено"].selected())
         self.assertIsNotNone(choices["Guardian — загружено"])  # Saved logs from other roles remain selectable.
-        self.assertIsNone(choices.Balance)  # No Balance logs have been loaded.
-        self.assertTrue(choices["Все специализации"].checked())
-        choices["Guardian — загружено"].select()
+        self.assertNotIn('Balance',choices)  # No Balance logs have been loaded.
+        self.assertTrue(choices["Все специализации — не загружено"].selected())
+        self.select_menu_entry(choices["Guardian — загружено"])
         self.assertEqual(self.mpl.panel.profile.spec, "Guardian")
         self.assertEqual(self.profile("Feral").best, 62)
         self.mpl.panel.specButton.scripts.OnClick()
-        choices=self.lua.globals().radioOptions
-        self.assertTrue(choices["Guardian — загружено"].checked())
-        choices["Feral — основной — загружено"].select()
+        choices=self.selector_choices()
+        self.assertTrue(choices["Guardian — загружено"].selected())
+        self.select_menu_entry(choices["Feral — основной — загружено"])
         self.assertEqual(self.mpl.panel.profile.spec, "Feral")
         self.mpl.panel.specButton.scripts.OnClick()
-        choices=self.lua.globals().radioOptions
-        choices["Все специализации"].select()
+        choices=self.selector_choices()
+        self.select_menu_entry(choices["Все специализации — не загружено"])
         self.assertEqual(self.mpl.panel.selectedSpec, "All specs")
         self.assertFalse(self.mpl.panel.profile)
         self.assertTrue(self.mpl.panel.specButton.canSelectSpecs)
@@ -491,19 +497,11 @@ class SpecProfileTests(unittest.TestCase):
         self.mpl.ShowProfile("Киндрих","Гордунни")
         self.assertEqual(self.mpl.panel.specButton.text,"Feral")
         self.assertEqual(self.mpl.panel.profile.spec,"Feral")
-        self.lua.execute('''
-            MenuUtil={CreateContextMenu=function(_,builder)
-                radioOptions={}
-                builder(nil,{CreateTitle=function() end,CreateDivider=function() end,CreateButton=function() end,CreateRadio=function(_,text,checked,select)
-                    radioOptions[text]={checked=checked,select=select}
-                end})
-            end}
-        ''')
         self.mpl.panel.specButton.scripts.OnClick()
-        choices=self.lua.globals().radioOptions
-        self.assertIsNone(choices["Автоматически"])
-        self.assertTrue(choices["Feral — основной — загружено"].checked())
-        choices["Balance — загружено"].select()
+        choices=self.selector_choices()
+        self.assertNotIn("Автоматически",choices)
+        self.assertTrue(choices["Feral — основной — загружено"].selected())
+        self.select_menu_entry(choices["Balance — загружено"])
         self.assertEqual(self.mpl.panel.specButton.text,"Balance")
         self.assertEqual(self.mpl.panel.profile.spec,"Balance")
 

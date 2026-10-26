@@ -82,9 +82,9 @@ MPL.RegisterTutorialLocale("esES", {
             shortTitle = "Perfil",
             title = "Comprueba la especialización y el resumen",
             intro = "El resumen muestra la puntuación de WCL y el número de recorridos registrados disponibles. El DPS/HPS y los percentiles describen el daño o la sanación.",
-            location = "La parte superior del perfil: especialización actual, selector de especialización de los registros, pestañas DPS/HPS y resumen.",
+            location = "La especialización actual, DPS/HPS y el resumen están sobre la tabla. El botón con flecha junto a la especialización actual abre la selección de registros.",
             instructions = {
-                "Compara «Especialización actual» con la especialización de los registros. Usa el menú de especializaciones para elegir registros guardados o cargar otra especialización.",
+                "Compara la especialización actual con los registros mostrados sobre la tabla. Pulsa la flecha junto a la especialización actual; su descripción es «Registros de otras especializaciones». En la lista desplegada, elige un perfil guardado o carga otra especialización por separado.",
                 "Alterna entre DPS y HPS. Si falta esa métrica, pulsa «Cargar DPS» o «Cargar HPS».",
                 "Best avg es la media del mejor percentil de cada mazmorra; Median es la media de las medianas de las mazmorras. Los percentiles comparan la misma especialización y el mismo nivel de llave.",
                 "Un perfil abierto desde una solicitud tiene el botón «Invitar». «Invitar al grupo (N)» invita a todos los miembros de una solicitud conjunta.",

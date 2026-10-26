@@ -58,7 +58,7 @@ local sections={
     {id="colors",label="Colors and opacity"}, {id="names",label="Dungeon names and labels"},
     {id="profiles",label="Appearance profiles"},
 }
-local quick={scale=true,font=true,fontSize=true,surfaceOpacity=true,
+local quick={scale=true,font=true,fontSize=true,surfaceOpacity=true,headerLayout=true,
     gridMode=true,dungeonLanguage=true,dungeonFormat=true,levelDigits=true,backgroundColor=true}
 -- Expose the overall palette, rather than a separate picker for every piece
 -- of text and control state. Keep the full schema for existing/imported styles.
@@ -1015,6 +1015,8 @@ refresh=function(f,preserveScroll)
         for _,section in ipairs(sections) do if section.id==field.section then sectionLabel=section.label; break end end
         local searchable=normalize(translated(field.label).." "..field.key.." "..translated(sectionLabel))
         local matched=query~="" and searchable:find(query,1,true)
+        local exact=query~="" and (query==normalize(field.key) or query==normalize(field.label)
+            or query==normalize(translated(field.label)))
         local selected=query=="" and (field.section==f.section or f.section=="quick" and inQuick)
         local combinedVisibility=query=="" and field.key:match("^column_.*_visible$")
         local hiddenSpacing=field.key=="cellPadding" or field.key:match("^column_.*_padding$")
@@ -1022,7 +1024,10 @@ refresh=function(f,preserveScroll)
         local hiddenHeading=field.key=="headerHeight" or field.key:match("^column_.*_label$")
         local hiddenAlignment=field.key:match("^column_.*_align$")
         local hiddenDigitGap=field.key=="digitGap" and value("levelDigits")~="aligned"
-        if not hiddenDigitGap and not hiddenAlignment and not hiddenHeading and not hiddenColor and not hiddenSpacing and not combinedVisibility and field.key~="rowHeight" and field.kind~="order" and (matched or selected) then
+        -- Exact names provide access to imported/advanced values without
+        -- bringing every specialty control back into broad search results.
+        local hidden=hiddenDigitGap or hiddenAlignment or hiddenHeading or hiddenColor or hiddenSpacing or field.key=="rowHeight"
+        if (exact or not hidden) and not combinedVisibility and field.kind~="order" and (matched or selected or exact) then
             local row=fieldRow(f,field); updateRow(f,row); layoutFieldRow(row); y=place(row,y)
         end
     end

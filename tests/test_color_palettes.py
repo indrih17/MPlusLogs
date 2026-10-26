@@ -1,7 +1,7 @@
 """Palette transactions, readable solid surfaces and real editor callbacks.
 
-Contrast measurements exclude player opacity, game rendering and WCL's own
-semantic percentile colors, which the palette does not change.
+Contrast measurements here exclude player opacity and game rendering.
+Semantic swatches are covered separately in test_percentile_palette.
 """
 import unittest
 

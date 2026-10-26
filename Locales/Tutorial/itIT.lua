@@ -82,9 +82,9 @@ MPL.RegisterTutorialLocale("itIT", {
             shortTitle = "Profilo",
             title = "Controlla specializzazione e riepilogo",
             intro = "Il riepilogo mostra il punteggio WCL e il numero di completamenti disponibili nei log. DPS/HPS e percentili descrivono danni o cure.",
-            location = "La parte superiore del profilo: specializzazione attuale, scelta della specializzazione dei log, schede DPS/HPS e riepilogo.",
+            location = "La specializzazione attuale, DPS/HPS e il riepilogo sono sopra la tabella. Il pulsante con la freccia accanto alla specializzazione attuale apre la scelta dei registri.",
             instructions = {
-                "Confronta «Specializzazione attuale» con quella dei log. Dal menu delle specializzazioni puoi scegliere log salvati o caricare un'altra specializzazione.",
+                "Confronta la specializzazione attuale con i registri visualizzati sopra la tabella. Premi la freccia accanto alla specializzazione attuale; il suggerimento indica «Registri di altre specializzazioni». Nell’elenco aperto, scegli un profilo salvato o carica separatamente un’altra specializzazione.",
                 "Passa da DPS a HPS. Se mancano i dati, usa «Carica DPS» o «Carica HPS».",
                 "Best avg è la media dei migliori percentili delle spedizioni; Median è la media delle mediane delle spedizioni. I percentili confrontano la stessa specializzazione e lo stesso livello di chiave.",
                 "Un profilo aperto da una candidatura ha il pulsante «Invita». «Invita gruppo (N)» invita tutti i membri di una candidatura di gruppo.",

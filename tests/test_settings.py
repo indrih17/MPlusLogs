@@ -113,6 +113,10 @@ class SettingsTests(unittest.TestCase):
         button=panel.settingsButton
         self.assertTrue(button.shown)
         self.assertEqual(button.caption.text,'Настройки')
+        self.lua.execute('''
+            local MPL=...
+            MPL.OpenProfileSettingsMenu=function() error("Settings must open directly") end
+        ''',self.mpl)
         button.scripts.OnClick()
         self.assertEqual(self.lua.globals().openedCategory,97)
         setting=self.lua.globals().Settings['values'].MPLUSLOGS_hideLogSettings

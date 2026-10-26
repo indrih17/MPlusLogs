@@ -85,9 +85,9 @@ local copies = {
                 shortTitle = "Профиль",
                 title = "Проверьте специализацию и сводку",
                 intro = "Сводка показывает рейтинг WCL и число прохождений, доступных в логах. DPS/HPS и процентили описывают урон или лечение.",
-                location = "Верхняя часть профиля: текущая специализация, выбор специализации логов, вкладки DPS/HPS и сводка.",
+                location = "Над таблицей — текущая специализация, DPS/HPS и сводка. Рядом с текущей специализацией — кнопка со стрелкой для выбора логов.",
                 instructions = {
-                    "Сопоставьте «Текущую специализацию» со специализацией логов. Через список специализаций можно выбрать сохранённую или загрузить другую.",
+                    "Сопоставьте текущую специализацию с подписью открытых логов над таблицей. Нажмите стрелку рядом с текущей специализацией: подсказка «Логи других специализаций» поможет найти кнопку. В раскрывшемся списке выберите сохранённый профиль или загрузите другую специализацию отдельно.",
                     "Переключите DPS/HPS. Если нужной метрики нет, используйте «Загрузить DPS» или «Загрузить HPS».",
                     "Best avg — среднее лучших процентилей по данжам, Median — среднее медианных. Сравнение идёт с той же специализацией и уровнем ключа.",
                     "В профиле из заявки можно нажать «Пригласить». Для совместной заявки кнопка «Пригласить группу (N)» приглашает всех её участников.",
@@ -240,9 +240,9 @@ local copies = {
                 shortTitle = "Profile",
                 title = "Check specialization and the summary",
                 intro = "The summary shows WCL's rating and the number of available logged runs. DPS/HPS and percentiles describe damage or healing.",
-                location = "The top of the profile: current specialization, log specialization selector, DPS/HPS tabs and summary.",
+                location = "Current specialization, DPS/HPS and the summary are above the table. The arrow button beside Current specialization opens log selection.",
                 instructions = {
-                    "Compare Current specialization with the log specialization. Use the specialization menu to select saved logs or load another specialization.",
+                    "Compare Current specialization with the displayed logs above the table. Click the arrow beside Current specialization; its tooltip is Other specialization logs. In the expanded list, select a saved profile or load another specialization separately.",
                     "Switch between DPS and HPS. If that metric is missing, use Load DPS or Load HPS.",
                     "Best avg averages each dungeon's best percentile; Median averages dungeon medians. Percentiles compare the same specialization and key level.",
                     "A profile opened from an application has an Invite button. Invite group (N) invites every member of a shared application.",

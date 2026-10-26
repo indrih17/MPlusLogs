@@ -83,6 +83,23 @@ class AppearanceEndToEndTests(unittest.TestCase):
                 self.assertEqual(row.slider.value,sample.fontSize,role)
                 self.assertEqual(float(row.control.text),sample.fontSize,role)
 
+    def test_metric_captions_stay_centered_when_button_fonts_change(self):
+        for size in (10,24,40):
+            self.mpl.SetAppearanceValue('size_button',size)
+            for metric in ('dps','hps'):
+                button=self.panel.metricTabs[metric]
+                self.assertIsNone(button.caption.points.TOPLEFT)
+                self.assertEqual(list(button.caption.points.LEFT.values()),[8,0])
+                self.assertEqual(list(button.caption.points.RIGHT.values()),[-8,0])
+                self.assertGreaterEqual(button.height,button.caption.height)
+
+    def test_character_name_font_override_applies_to_the_visible_title(self):
+        self.mpl.SetAppearanceValue('size_character',24)
+        self.assertEqual(self.panel.title.fontSize,24)
+        self.assertFalse(self.panel.character.shown)
+        self.mpl.SetAppearanceValue('size_character',0)
+        self.assertEqual(self.panel.title.fontSize,self.mpl.GetAppearanceFontSize('title',self.panel.title.mplNativeFont.size))
+
     def test_editor_geometry_and_fonts_stay_fixed_while_profile_sizes_change(self):
         editor=self.mpl.OpenAppearanceSettings()
         self.click(editor.sectionButtons.fonts)
@@ -206,7 +223,7 @@ class AppearanceEndToEndTests(unittest.TestCase):
         picker.options.swatchFunc()
         color=self.panel.rows[1].background.fillColor
         self.assertAlmostEqual(color[1],.2)
-        self.assertAlmostEqual(color[4],.5)
+        self.assertAlmostEqual(color[4],.5*.9)
         self.mpl.SetAppearanceValue('fontSize',14)
         picker.options.cancelFunc()
         self.assertEqual(self.panel.rows[1].background.fillColor[1],0)
@@ -302,10 +319,7 @@ class AppearanceEndToEndTests(unittest.TestCase):
                     if y==other_y:
                         self.assertLessEqual(other_x,x-button.width-8)
 
-    def test_real_header_buttons_open_appearance_and_settings_directly(self):
-        self.click(self.panel.appearanceButton)
-        self.assertTrue(self.mpl.appearanceEditor.shown)
-        self.click(self.mpl.appearanceEditor.cancel)
+    def test_header_settings_opens_general_settings_directly(self):
         self.lua.execute('''
             Settings={VarType={Boolean="boolean",String="string",Number="number"}}
             function Settings.RegisterVerticalLayoutCategory()
@@ -320,6 +334,7 @@ class AppearanceEndToEndTests(unittest.TestCase):
             function CreateSettingsListSectionHeaderInitializer() return {} end
         ''')
         self.click(self.panel.settingsButton)
+        self.assertIsNone(self.mpl.appearanceSettingsMenu)
         self.assertEqual(self.lua.globals().openedCategory,97)
 
     def test_target_menu_opens_cached_accented_character_with_party_tabs(self):

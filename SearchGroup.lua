@@ -244,7 +244,7 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
         panel.loadButton:SetSize(170,24); panel.loadButton:SetText(L["Load group logs"])
         MPL.RenderProfileStats(panel)
     end
-    if cached and p.error then panel.footer:SetText(p.error) end
+    if cached and p.error then MPL.SetProfileFooter(panel,p.error) end
     panel.searchChoices=type(panel.searchChoices)=="table" and panel.searchChoices or {}
     for _,b in ipairs(panel.searchChoices) do b:Hide() end
     for i,c in ipairs(p.candidates or {}) do
@@ -324,9 +324,9 @@ function MPL.BeginSearchGroupRequest(forceSearch)
         ..(forceSearch and ",rescan" or "")
         ..(MPL.CompanionSupports("errorcodes") and ",errorcodes" or "")
         ..(MPL.CompanionSupports("lazyspecs") and ",lazyspecs" or "")
-        ..(MPL.CompanionSupports("rankcolors") and ",rankcolors" or "")
+        ..(MPL.RequestRankColors() and ",rankcolors" or "")
         ..(MPL.CompanionSupports("primarymetric") and ",primarymetric" or "").."\nMPLQ2\n"..table.concat(rows,"\n").."\n"
-    f.rankColors=MPL.CompanionSupports("rankcolors")==true
+    f.rankColors=MPL.RequestRankColors()
     return id,f.request
 end
 
@@ -461,7 +461,7 @@ end
 
 function MPL.ShowSearchGroupLogs(resultID,forceSearch,displayRefresh)
     if forceSearch and not MPL.CompanionSupports("rescan") then
-        if MPL.panel then MPL.panel.footer:SetText(L["Update Companion to search realms again."]) end
+        if MPL.panel then MPL.SetProfileFooter(MPL.panel,L["Update Companion to search realms again."]) end
         return
     end
     local players=MPL.CollectSearchGroup(resultID)

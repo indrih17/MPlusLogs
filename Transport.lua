@@ -15,8 +15,9 @@ local function envelope(id, body,includeSpecs,refresh)
     add("specdetails")
     if MPL.CompanionSupports("lazyspecs") then add("lazyspecs") end
     if MPL.CompanionSupports("primarymetric") then add("primarymetric") end
-    -- Cosmetic metadata must not prevent an older helper from loading logs.
-    if MPL.CompanionSupports("rankcolors") then add("rankcolors") end
+    -- Request display fields on the first exchange too; discovery must not
+    -- turn a fresh profile into one that immediately needs another load.
+    if MPL.RequestRankColors() then add("rankcolors") end
     -- Optional extension: never require it from an unrecognized/older helper.
     if MPL.CompanionSupports("errorcodes") then add("errorcodes") end
     for _,value in ipairs(MPL.requiredCompanionCapabilities or {}) do add(value) end
@@ -29,6 +30,10 @@ end
 function MPL.CompanionSupports(capability)
     if not MPL.companionInfo then return nil end
     return MPL.companionInfo.capabilities[capability] or false
+end
+
+function MPL.RequestRankColors()
+    return MPL.CompanionSupports("rankcolors")~=false
 end
 
 function MPL.CompanionHasReplied()
@@ -71,10 +76,10 @@ function MPL.SendRequest(name,realm,metric,spec,context,includeSpecs,refresh)
     end
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
-    if includeSpecs and spec~="" then role=MPL.ProfileRole({spec=spec}) end
+    if spec~="" then role=MPL.ProfileRole({spec=spec}) or role end
     local request=envelope(id,MPL.ExportCharacterRequest(name,realm,metric,spec,role),includeSpecs,refresh)
     MPL.pendingReply={id=id,name=name,realm=realm,metric=metric,spec=spec,role=role,context=context,includeSpecs=includeSpecs,refresh=refresh,
-        rankColors=MPL.CompanionSupports("rankcolors")==true}
+        rankColors=MPL.RequestRankColors()}
     return id,request
 end
 
@@ -114,7 +119,7 @@ function MPL.SendBatchRequest(players,refresh)
     sequence=sequence+1
     local id=tostring(GetServerTime()).."-"..sequence
     MPL.pendingReply={id=id,batch=true,expected=expected,players=players,refresh=refresh,
-        rankColors=MPL.CompanionSupports("rankcolors")==true}
+        rankColors=MPL.RequestRankColors()}
     return id,envelope(id,"MPLQ2\n"..table.concat(rows),false,refresh)
 end
 
@@ -267,6 +272,9 @@ function MPL.ReceiveReply(text, strict)
         MPL.SetProfileDisplayMetadata(profiles,pendingReply.rankColors,replySupportsRankColors)
         local count,importError=MPL.StoreProfiles(profiles)
         if count then
+            if count>0 and pendingReply.includeSpecs and pendingReply.spec=="" then
+                MPL.RecordSpecDiscovery(pendingReply.name,pendingReply.realm,profiles[expected],pendingReply.metric)
+            end
             companionReplied()
             if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(replyVersion) end
             if MPL.profileStates then MPL.profileStates[expected]=nil end

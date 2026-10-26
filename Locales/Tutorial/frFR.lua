@@ -82,9 +82,9 @@ MPL.RegisterTutorialLocale("frFR", {
             shortTitle = "Profil",
             title = "Vérifier la spécialisation et le résumé",
             intro = "Le résumé indique la cote WCL et le nombre de parcours disponibles dans les logs. DPS/HPS et percentiles décrivent les dégâts ou les soins.",
-            location = "Le haut du profil : spécialisation actuelle, choix de la spécialisation des logs, onglets DPS/HPS et résumé.",
+            location = "La spécialisation actuelle, DPS/HPS et le résumé sont au-dessus du tableau. Le bouton fléché à côté de la spécialisation actuelle ouvre le choix des journaux.",
             instructions = {
-                "Comparez « Spécialisation actuelle » et celle des logs. Le menu de spécialisation permet de choisir des logs enregistrés ou de charger une autre spécialisation.",
+                "Comparez la spécialisation actuelle aux journaux affichés au-dessus du tableau. Cliquez sur la flèche à côté de la spécialisation actuelle ; son infobulle indique « Journaux d’autres spécialisations ». Dans la liste ouverte, choisissez un profil enregistré ou chargez séparément une autre spécialisation.",
                 "Passez de DPS à HPS. Si l'indicateur manque, utilisez « Charger DPS » ou « Charger HPS ».",
                 "Best avg est la moyenne des meilleurs percentiles par donjon ; Median est la moyenne des médianes des donjons. Les percentiles comparent la même spécialisation et le même niveau de clé.",
                 "Un profil ouvert depuis une candidature propose « Inviter ». « Inviter le groupe (N) » invite tous les membres d'une candidature groupée.",

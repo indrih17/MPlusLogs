@@ -320,15 +320,15 @@ class AppearanceEditorTests(unittest.TestCase):
             self.assertNotIn('(0',row.label.text)
             self.assertEqual(self.mpl.AppearanceValue('size_'+role),0)
         self.mpl.SetAppearanceValue('fontSize',14)
-        self.assertEqual(editor.rows.size_rating.slider.value,34)
+        self.assertEqual(editor.rows.size_rating.slider.value,20)
         self.assertEqual(editor.rows.size_summary.slider.value,14)
         rating=editor.rows.size_rating
         rating.slider.scripts.OnValueChanged(rating.slider,35)
         self.assertEqual(self.mpl.AppearanceValue('size_rating'),35)
         self.click(rating.reset)
         self.assertEqual(self.mpl.AppearanceValue('size_rating'),0)
-        self.assertEqual(rating.slider.value,34)
-        self.assertEqual(float(rating.control.text),34)
+        self.assertEqual(rating.slider.value,20)
+        self.assertEqual(float(rating.control.text),20)
 
     def test_font_slider_drag_does_not_hide_its_row_between_steps(self):
         editor=self.open()
@@ -434,7 +434,7 @@ class AppearanceEditorTests(unittest.TestCase):
         self.assertEqual(self.lua.globals().MPlusLogsDB.appearance.activeTheme,'classic')
         self.click(editor.cancel)
         self.assertFalse(editor.shown)
-        self.assertEqual(self.mpl.AppearanceValue('surfaceOpacity'),1)
+        self.assertEqual(self.mpl.AppearanceValue('surfaceOpacity'),0.9)
         self.assertFalse(self.mpl.IsAppearanceEditing())
 
     def test_combined_columns_follow_reordering_and_cancel_restores_visibility(self):
@@ -483,17 +483,19 @@ class AppearanceEditorTests(unittest.TestCase):
         self.assertTrue(editor.status.text)
         self.assertEqual(self.mpl.AppearanceValue('fontSize'),10)
 
-    def test_removed_layout_controls_are_absent_from_sections_and_search(self):
+    def test_advanced_layout_controls_require_exact_search(self):
         editor=self.open()
         self.select_section('table')
-        keys=['cellPadding','column_best_padding','column_median_padding','headerHeight']
+        keys=['cellPadding','column_best_padding','column_median_padding','headerHeight','rowHeight']
         keys.extend('column_'+column+'_label' for column in self.mpl.AppearanceColumns.values())
         keys.extend('column_'+column+'_align' for column in self.mpl.AppearanceColumns.values())
         for key in keys:
             self.assertIsNone(editor.rows[key])
             editor.search.SetText(editor.search,key)
-            self.assertIsNone(editor.rows[key])
-            self.assertTrue(editor.empty.shown)
+            self.assertTrue(editor.rows[key].shown)
+            self.assertFalse(editor.empty.shown)
+            editor.search.SetText(editor.search,'')
+            self.assertFalse(editor.rows[key].shown)
 
     def test_digit_spacing_only_appears_for_aligned_digits_and_keeps_value(self):
         self.mpl.SelectAppearanceTheme('clean')
@@ -510,12 +512,51 @@ class AppearanceEditorTests(unittest.TestCase):
         self.assertFalse(editor.rows.digitGap.shown)
         self.assertEqual(self.mpl.AppearanceValue('digitGap'),3)
         editor.search.SetText(editor.search,'digitGap')
-        self.assertTrue(editor.empty.shown)
+        self.assertTrue(editor.rows.digitGap.shown)
+        self.assertFalse(editor.empty.shown)
+        self.assertEqual(self.mpl.AppearanceValue('levelDigits'),'natural')
         editor.search.SetText(editor.search,'')
         self.click(editor.rows.levelDigits.control)
         self.click(editor.choices.buttons[2])
         self.assertTrue(editor.rows.digitGap.shown)
         self.assertEqual(editor.rows.digitGap.control.text,'3')
+
+    def test_exact_search_accepts_translated_and_english_labels_without_broad_matches(self):
+        editor=self.open()
+        for query in ('padding','alignment','height','Table and columns'):
+            editor.search.SetText(editor.search,query)
+            for key in ('cellPadding','column_best_padding','column_best_align','headerHeight','rowHeight'):
+                self.assertFalse(bool(editor.rows[key] and editor.rows[key].shown),(query,key))
+        for query in ('CELLPADDING','Cell padding',self.mpl.L['Cell padding']):
+            with self.subTest(query=query):
+                editor.search.SetText(editor.search,query)
+                self.assertTrue(editor.rows.cellPadding.shown)
+                self.assertFalse(editor.empty.shown)
+        editor.search.SetText(editor.search,self.mpl.L['Dungeon alignment'])
+        self.assertTrue(editor.rows.column_dungeon_align.shown)
+        editor.search.SetText(editor.search,'')
+        self.assertFalse(editor.rows.cellPadding.shown)
+        self.assertFalse(editor.rows.column_dungeon_align.shown)
+
+    def test_exact_search_hidden_value_can_be_saved_and_cancelled(self):
+        editor=self.open()
+        original=self.mpl.AppearanceValue('cellPadding')
+        editor.search.SetText(editor.search,'cellPadding')
+        field=editor.rows.cellPadding.control
+        field.SetText(field,'12'); field.SetFocus(field)
+        self.click(editor.save)
+        self.assertFalse(editor.shown)
+        self.assertEqual(self.mpl.AppearanceValue('cellPadding'),12)
+        self.assertNotEqual(original,12)
+        editor=self.open()
+        editor.search.SetText(editor.search,self.mpl.L['Cell padding'])
+        row=editor.rows.cellPadding
+        self.assertEqual(row.control.text,'12')
+        row.slider.scripts.OnValueChanged(row.slider,16)
+        self.assertEqual(self.mpl.AppearanceValue('cellPadding'),16)
+        self.click(editor.cancel)
+        self.assertFalse(editor.shown)
+        self.assertEqual(self.mpl.AppearanceValue('cellPadding'),12)
 
     def test_search_finds_advanced_fields_and_reuses_created_controls(self):
         editor=self.open()
@@ -547,7 +588,7 @@ class AppearanceEditorTests(unittest.TestCase):
         self.assertFalse(editor.scroll.mouseWheelEnabled)
         self.assertEqual(editor.scroll.scrollOffset,0)
 
-    def test_color_section_and_search_only_offer_overall_palette(self):
+    def test_color_section_and_broad_search_only_offer_overall_palette(self):
         editor=self.open()
         self.select_section('colors')
         expected={'backgroundColor','titleBackgroundColor','headerColor','textColor',
@@ -556,7 +597,7 @@ class AppearanceEditorTests(unittest.TestCase):
         self.assertEqual(visible,expected)
         for key in ('numberColor','missingColor','warningColor','disabledColor','selectedColor'):
             editor.search.SetText(editor.search,key)
-            self.assertTrue(editor.empty.shown,key)
+            self.assertTrue(editor.rows[key].shown,key)
         editor.search.SetText(editor.search,'Color')
         visible={key for key,row in editor.rows.items() if row.shown and row.field.kind=='color'}
         self.assertEqual(visible,expected)

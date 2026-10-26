@@ -82,9 +82,9 @@ MPL.RegisterTutorialLocale("deDE", {
             shortTitle = "Profil",
             title = "Spezialisierung und Übersicht prüfen",
             intro = "Die Übersicht zeigt die WCL-Wertung und die Anzahl verfügbarer protokollierter Durchläufe. DPS/HPS und Perzentile beschreiben Schaden oder Heilung.",
-            location = "Der obere Profilbereich: aktuelle Spezialisierung, Auswahl der Logspezialisierung, DPS/HPS-Reiter und Übersicht.",
+            location = "Aktuelle Spezialisierung, DPS/HPS und Übersicht stehen über der Tabelle. Die Pfeilschaltfläche neben der aktuellen Spezialisierung öffnet die Logauswahl.",
             instructions = {
-                "Vergleiche „Aktuelle Spezialisierung“ mit der Spezialisierung der Logs. Im Spezialisierungsmenü kannst du gespeicherte Logs auswählen oder eine andere Spezialisierung laden.",
+                "Vergleiche die aktuelle Spezialisierung mit den über der Tabelle angezeigten Logs. Klicke auf den Pfeil neben der aktuellen Spezialisierung; der Tooltip lautet „Logs anderer Spezialisierungen“. Wähle in der geöffneten Liste ein gespeichertes Profil oder lade eine andere Spezialisierung separat.",
                 "Wechsle zwischen DPS und HPS. Fehlt eine Kennzahl, klicke auf „DPS laden“ oder „HPS laden“.",
                 "Best avg ist der Durchschnitt der besten Dungeon-Perzentile; Median der Durchschnitt der Dungeon-Mediane. Perzentile vergleichen dieselbe Spezialisierung und Schlüsselsteinstufe.",
                 "Ein aus der Bewerberliste geöffnetes Profil hat die Schaltfläche „Einladen“. „Gruppe einladen (N)“ lädt alle Mitglieder einer gemeinsamen Bewerbung ein.",

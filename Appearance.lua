@@ -32,6 +32,7 @@ defaults.maxRows=8
 add("locked","Lock window position","window","boolean",false)
 add("compactSummary","Compact summary","window","boolean",true)
 add("verticalLayout","Vertical layout","window","boolean",false)
+add("headerLayout","Profile header layout","window","select","modern",nil,nil,opts("modern","Modern header","original","Original header"))
 add("showRealm","Show character realm","window","boolean",true,nil,nil,nil,true)
 add("compactAge","Compact data age warning","window","boolean",false,nil,nil,nil,true)
 for _,entry in ipairs({{"showRating","Show Mythic+ rating"},{"showSummary","Show summary"},{"showSpecRanks","Show specialization ranks"},{"showSeason","Show season"},{"showNotes","Show explanations"},{"showSource","Show source and update date"}}) do
@@ -47,7 +48,7 @@ add("showScoreIcons","Show specialization icons","table","boolean",true)
 add("showGroupHeaders","Show grouped headings","table","boolean",true)
 add("showHover","Highlight hovered row","table","boolean",true)
 add("striped","Alternate row backgrounds","table","boolean",true)
-add("gridMode","Grid lines","table","select","legacy",nil,nil,opts("legacy","Classic alternating grid","none","None","horizontal","Horizontal","vertical","Vertical","full","All table dividers"))
+add("gridMode","Grid lines","table","select","full",nil,nil,opts("legacy","Classic alternating grid","none","None","horizontal","Horizontal","vertical","Vertical","full","All table dividers"))
 add("gridThickness","Grid thickness","table","number",1,1,3,nil,true)
 add("tableBorder","Outer table border","table","boolean",false,nil,nil,nil,true)
 add("font","Font","fonts","select","native",nil,nil,opts("native","Game interface font"))
@@ -70,7 +71,7 @@ add("showPercentSign","Show percent sign in table","fonts","boolean",false,nil,n
 add("thousandsSeparator","Thousands separator","fonts","select","none",nil,nil,opts("none","None","space","Space","comma","Comma"),true)
 add("decimalSeparator","Decimal separator","fonts","select","dot",nil,nil,opts("dot","Dot","comma","Comma","locale","Game language"),true)
 add("timeFormat","Duration format","fonts","select","clock",nil,nil,opts("clock","29:26","words","29m 26s"),true)
-add("surfaceOpacity","Background opacity","colors","number",1,0,1).step=0.05
+add("surfaceOpacity","Background opacity","colors","number",0.9,0,1).step=0.05
 add("borderThickness","Window border thickness","colors","number",1,0,3,nil,true)
 add("semanticColors","Use Warcraft Logs percentile colors","colors","boolean",true)
 local colorDefs={
@@ -80,6 +81,9 @@ local colorDefs={
     {"gridColor","Grid color",0.20,0.20,0.20,1},{"borderColor","Window border",0.27,0.27,0.27,1},
     {"textColor","Primary text",225/255,242/255,245/255,1},{"mutedColor","Secondary text",225/255,242/255,245/255,1},
     {"dungeonColor","Dungeon names",0.72,0.78,1,1},{"numberColor","Numbers",225/255,242/255,245/255,1},
+    {"semanticLowColor","Percentiles below 25",102/255,102/255,102/255,1},
+    {"semanticRareColor","Percentiles from 50 to 74",0,112/255,1,1},
+    {"semanticEpicColor","Percentiles from 75 to 94",163/255,53/255,238/255,1},
     {"rateColor","DPS / HPS values",0.82,0.96,0.65,1},{"accentColor","Accent",0.64,0.45,0.83,1},
     {"buttonColor","Button background",0.12,0.10,0.16,1},{"buttonTextColor","Button text",1,1,1,1},
     {"warningColor","Data age warning background",0.12,0.075,0.015,1},{"warningTextColor","Data age warning text",1,196/255,64/255,1},
@@ -99,17 +103,18 @@ for _,id in ipairs(columns) do
 end
 -- Player-facing explanations are presentation metadata, never saved settings.
 local help={
+    headerLayout="Use the original profile header with the addon title, character name, specialization selector and large rating, or the compact modern header.",
     scale="Scales the entire log window, including text. 1 is normal size; 1.5 is 150%.",
     locked="Prevents dragging the log window. Turn this off to move it again.",
-    compactSummary="Packs the rating, summary and specialization places closely together above the table. Whole blocks wrap when space is limited.",
-    verticalLayout="Places the character information and summary blocks one below another, allowing a narrower window.",
+    compactSummary="Uses shorter summary wording. Results and specialization ranks sit below the table in the modern header and above it in the original header. Blocks wrap when space is limited.",
+    verticalLayout="In the modern header, places specialization, Mythic+ rating and DPS/HPS controls on separate rows, and stacks each summary block below the table.",
     showRealm="Shows the realm next to the character name. This only changes the display, not which character is loaded.",
     compactAge="Shortens the wording of the outdated logs warning. The warning and last update date remain visible.",
     showRating="Shows the Mythic+ rating above the table.",
-    showSummary="Shows the summary of log results above the dungeon table.",
-    showSpecRanks="Shows leaderboard places for the character's specializations when those data are available.",
-    showSeason="Shows the season name in the upper part of the window.",
-    showNotes="Shows the explanations below the table, including how to interpret the results.",
+    showSummary="Shows log summaries. In the modern header this controls the whole block below the table, including logged runs and specialization ranks. Best and Median follow the table column order, including hidden columns.",
+    showSpecRanks="Shows specialization ranks when available. In the modern header they belong to the results summary and are hidden together with it.",
+    showSeason="Shows the season below the table in the modern header or above the table in the original header.",
+    showNotes="Shows an explanation of Best and Median percentiles below the table. This explanation can remain visible when the results summary is hidden.",
     showSource="Shows where the logs came from and when they were last loaded.",
     rowHeight="Minimum row height in interface units. Rows grow automatically if larger text or icons need more space.",
     headerHeight="Minimum height of the two-level table headings, in interface units. Hiding column group headings halves this height. Large text can increase it.",
@@ -141,6 +146,9 @@ local help={
     surfaceOpacity="0 makes background surfaces transparent; 1 makes them fully opaque. Text remains visible. Each color can also have its own opacity.",
     borderThickness="Window border thickness in interface units. Zero hides the border.",
     semanticColors="Uses the Warcraft Logs result color scale instead of the chosen text colors for those results.",
+    semanticLowColor="RGB color for percentiles below 25 when percentile colors are enabled. Contrast depends on the background and its transparency.",
+    semanticRareColor="RGB color for percentiles from 50 to 74 when percentile colors are enabled. Contrast depends on the background and its transparency.",
+    semanticEpicColor="RGB color for percentiles from 75 to 94 when percentile colors are enabled. Contrast depends on the background and its transparency.",
     dungeonLanguage="Chooses the language for dungeon names. If a translation is unavailable, the original name is used.",
     dungeonFormat="Choose full names, short names, abbreviations, or your own names. Enter your own names in the fields below; leave a field blank to use the normal name.",
     font_role="Uses the main font unless you choose a separate font for this element.",
@@ -343,6 +351,18 @@ function MPL.AppearanceValue(key,fallback)
     local value=MPL.GetAppearance()[key]
     if value==nil then return fallback end
     return value
+end
+function MPL.AppearancePercentColor(value)
+    if type(value)~="number" or value~=value then return nil end
+    local key
+    if not MPL.AppearanceValue("semanticColors",true) then key="numberColor"
+    elseif value<25 then key="semanticLowColor"
+    elseif value>=50 and value<75 then key="semanticRareColor"
+    elseif value>=75 and value<95 then key="semanticEpicColor"
+    else return MPL.PercentColor(value) end
+    local color=MPL.AppearanceValue(key,defaults[key])
+    -- FontString color escapes carry RGB only; saved swatches retain alpha.
+    return string.format("%02x%02x%02x",math.floor(color[1]*255+.5),math.floor(color[2]*255+.5),math.floor(color[3]*255+.5))
 end
 function MPL.RequestAppearanceRefresh()
     if requested then return end
@@ -800,8 +820,15 @@ end
 function MPL.GetAppearanceFontSize(role,nativeSize)
     local theme=MPL.GetAppearance()
     local size=theme["size_"..tostring(role)]
-    local bases={title=16,character=16,summary=10,rating=30,header=10,dungeon=12,numbers=10,secondary=10,button=10,warning=12}
-    if not size or size==0 then size=(nativeSize or bases[role] or 10)+theme.fontSize-10 end
+    local bases={title=16,character=16,summary=10,rating=22,header=10,dungeon=12,numbers=10,secondary=10,button=10,warning=12}
+    if not size or size==0 then
+        local base=nativeSize or bases[role] or 10
+        if role=="rating" then
+            if theme.headerLayout=="original" then base=30
+            elseif not theme.verticalLayout then base=16 end
+        end
+        size=base+theme.fontSize-10
+    end
     return math.max(8,size)
 end
 function MPL.ResolveAppearanceFont(role)

@@ -108,8 +108,9 @@ Percentiles describe available Warcraft Logs runs. They do not measure tank surv
 
 Click **Appearance** in the profile window header, use `/mpl appearance`, or open
 the **Appearance** section at the top of Settings > AddOns > MPlusLogs to edit the profile window.
-Choose Classic, Clean, Full table, Compact, Large text or Minimal, then customize
-individual controls. **Sample preview** uses fictional data and sends no log
+Choose Classic, Clean, Full table, Compact, Large text, Minimal or Original layout,
+then customize individual controls. **Original layout** restores the previous
+profile header; it does not change your color palette. **Sample preview** uses fictional data and sends no log
 requests. Changes are visible immediately; **Save** keeps the editor draft and
 **Cancel**, closing the editor or Escape restores the saved appearance.
 

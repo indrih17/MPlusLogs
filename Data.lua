@@ -233,6 +233,36 @@ function MPL.Key(name, realm, region)
     return (region or MPL.Region()) .. ":" .. MPL.Normalize(realm) .. ":" .. MPL.Normalize(name) .. ":" .. MPL.zone
 end
 
+-- A checked list and a loaded specialization profile are separate facts.
+-- Keep the check outside profiles so selecting/loading a variant preserves it.
+function MPL.RecordSpecDiscovery(name,realm,profile,metric)
+    local key=MPL.Key(name,realm)
+    metric=metric or "dps"
+    if (metric~="dps" and metric~="hps") or type(profile)~="table" or profile.spec~="All specs"
+        or MPL.Key(profile.name,profile.realm,profile.region)~=key then return false end
+    MPlusLogsDB=MPlusLogsDB or {}
+    if type(MPlusLogsDB.specDiscoveries)~="table" then MPlusLogsDB.specDiscoveries={} end
+    local records=MPlusLogsDB.specDiscoveries[key]
+    if type(records)~="table" then records={}; MPlusLogsDB.specDiscoveries[key]=records end
+    records[metric]={checkedAt=GetServerTime(),updated=profile.updated}
+    return true
+end
+
+function MPL.SpecDiscoveryState(name,realm,metric)
+    local key=MPL.Key(name,realm)
+    metric=metric or "dps"
+    local pending=MPL.pendingReply
+    if type(pending)=="table" and not pending.batch and pending.includeSpecs
+        and pending.spec=="" and (pending.metric or "dps")==metric
+        and MPL.Key(pending.name,pending.realm)==key then return "pending" end
+    local discovery=MPlusLogsDB and type(MPlusLogsDB.specDiscoveries)=="table" and MPlusLogsDB.specDiscoveries[key]
+    local record=type(discovery)=="table" and discovery[metric]
+    if type(record)~="table" or type(record.checkedAt)~="number" or record.checkedAt~=record.checkedAt then return end
+    local age=GetServerTime()-record.checkedAt
+    if age<0 then return "stale" end
+    return age<MPL.GetOption("freshHours")*3600 and "complete" or "stale"
+end
+
 -- WCL uses English specialization slugs regardless of the WoW client locale.
 MPL.specInfo={
     [250]={"Blood","TANK","DEATHKNIGHT"},[251]={"Frost","DAMAGER","DEATHKNIGHT"},[252]={"Unholy","DAMAGER","DEATHKNIGHT"},

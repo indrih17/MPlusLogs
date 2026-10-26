@@ -1,5 +1,6 @@
 local _, MPL = ...
--- Keep the final 0.5.X layout (0.5.35) with current appearance defaults.
+-- Classic keeps the historical typography and density with the modern header,
+-- footer and full grid. Original retains the older header and alternating grid.
 local classic=MPL.CopyAppearanceValue(MPL.AppearanceDefaults)
 for key,value in pairs({compactSummary=false,levelDigits="natural",legacyLayout=true,legacyCenteredHeadings=true}) do
     classic[key]=value
@@ -9,9 +10,10 @@ local function preset(name,overrides)
     for key,value in pairs(overrides or {}) do values[key]=value end
     return {name=name,values=MPL.NormalizeAppearance(values)}
 end
-MPL.AppearancePresetOrder={"classic","clean","table","compact","large","minimal"}
+MPL.AppearancePresetOrder={"classic","clean","table","compact","large","minimal","original"}
 MPL.AppearancePresets={
     classic=preset("Classic"),
+    original=preset("Original layout",{headerLayout="original",gridMode="legacy"}),
     clean=preset("Clean",{gridMode="horizontal"}),
     ["table"]=preset("Full table",{gridMode="full",tableBorder=true}),
     compact=preset("Compact",{rowHeight=22,iconSize=16,cellPadding=4,compactSummary=true}),
@@ -51,5 +53,11 @@ MPL.AppearanceColorPresets={
     amethyst=darkPalette("Amethyst",{"000000","151217","201C24","241F29","B5A8C4","E1F2F5","C5BFCC","4D4456","0B090D","312A38"}),
     contrast=darkPalette("High contrast",{"000000","111213","202224","26292C","C4CCD3","FFFFFF","D8DCDF","8A8F94","090A0B","363B40"}),
 }
+-- Preserve WCL tier hues while making dim results readable on solid surfaces.
+-- These remain ordinary palette swatches so copies and exports retain them.
+local contrast=MPL.AppearanceColorPresets.contrast.colors
+contrast.semanticLowColor=hexColor("B8BCC4")
+contrast.semanticRareColor=hexColor("71A7FF")
+contrast.semanticEpicColor=hexColor("C68EFF")
 -- Stronger separators remain visible without competing with the text.
 MPL.AppearanceColorPresets.contrast.colors.gridColor=hexColor("5A5E63")

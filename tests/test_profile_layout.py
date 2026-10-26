@@ -183,9 +183,9 @@ class ProfileLayoutTests(unittest.TestCase):
         panel = mpl.panel
         self.assertEqual(panel.tableHeader.height, 40)
         self.assertEqual(panel.content.height, 8 * 26)
-        self.assertGreater(panel.widths[1] / panel.tableWidth, 0.38)
-        self.assertLess(panel.widths[1] / panel.tableWidth, 0.5)
-        self.assertEqual(panel.tableWidth, 880)
+        self.assertGreater(panel.widths[1] / panel.tableWidth, 0.30)
+        self.assertLess(panel.widths[1] / panel.tableWidth, 0.4)
+        self.assertEqual(panel.tableWidth, 780)
         for i in range(1, 10):
             heading, button = panel.headings[i], panel.sortButtons[i]
             center = button.points.TOPLEFT[1] + heading.points.TOPLEFT[1] + heading.width / 2

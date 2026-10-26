@@ -315,17 +315,11 @@ class GroupProfileTests(unittest.TestCase):
         self.assertEqual(set(self.mpl.ProfileSpecs('Member2', 'Гордунни').values()), {'Subtlety'})
         self.assertTrue(f.specButton.canSelectSpecs)
         self.assertTrue(f.specButton.arrow.shown)
-        self.lua.execute('''
-            MenuUtil={CreateContextMenu=function(_,build)
-                specActions={}
-                build(nil,{CreateTitle=function() end,CreateRadio=function() end,CreateDivider=function() end,
-                    CreateButton=function(_,text,callback) specActions[text]=callback end})
-            end}
-        ''')
         f.specButton.scripts.OnClick()
-        self.lua.globals().specActions['Загрузить другие специализации']()
+        action=next(entry for entry in f.specMenu.entries.values() if entry.kind=='button')
+        action.button.scripts.OnClick(action.button)
         self.assertFalse(self.mpl.pendingReply.batch)
-        self.assertFalse(self.mpl.pendingReply.includeSpecs)
+        self.assertTrue(self.mpl.pendingReply.includeSpecs)
         calls.clear()
         response = clipboard_protocol.reply(self.mpl.downloadWindow.request, realm_resolver.load_mappings(), self.cache, fetch)
         count, error = self.mpl.ReceiveReply(response, True)

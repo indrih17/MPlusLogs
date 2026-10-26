@@ -49,6 +49,9 @@ runtime behavior; they do not replace in-game visual or native-speaker review.
 
 ## Customize the profile window
 
+Choose **Original layout** in Appearance style to use the previous profile header.
+The modern header remains the default. Header layout can also be changed separately.
+
 Click **Appearance** in the profile window header, use `/mpl appearance`, or open
 the **Appearance** section at the top of Settings > AddOns > MPlusLogs. General settings
 remain available through `/mpl settings`.

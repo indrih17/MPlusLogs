@@ -21,6 +21,8 @@ class OptionalDisplayMetadataTests(unittest.TestCase):
     supports = rank_protocol.RankPercentProtocolTests.supports
 
     def receive(self, old=False, batch=False):
+        if old:
+            self.supports(False)
         if batch:
             _, request = self.mpl.SendBatchRequest(self.lua.table_from([
                 dict(name='Киндрих', realm='Гордунни', role='TANK')], recursive=True))
@@ -51,7 +53,7 @@ class OptionalDisplayMetadataTests(unittest.TestCase):
                               panel.staleBanner.message.text)
 
     def test_discovery_allows_immediate_cached_refresh_then_removes_warning(self):
-        self.supports(None)
+        self.supports(False)
         profile = self.receive()
         self.assertEqual(profile.displayMetadata, 'refresh')
         self.lua.execute('GetServerTime=function() return MPlusLogs.ProfileDate(MPlusLogs.panel.profile) end')
@@ -144,12 +146,16 @@ class SearchDisplayMetadataTests(unittest.TestCase):
     def test_cached_metadata_refresh_keeps_search_context_and_all_member_tabs(self):
         self.mpl.BeginSearchGroupRequest()
         first = self.mpl.searchGroupWindow.request
-        self.assertNotIn('rankcolors', first)
+        self.assertIn('rankcolors', first)
         client = test_name_search.Client()
         reply = clipboard_protocol.reply(first, realm_resolver.load_mappings(), self.cache, client)
         self.assertEqual(self.mpl.ReceiveSearchGroupReply(reply), 2)
         before = self.mpl.panel.searchMember
-        self.assertEqual(self.mpl.panel.profile.displayMetadata, 'refresh')
+        self.assertEqual(self.mpl.panel.profile.displayMetadata, 'complete')
+        self.assertFalse(self.mpl.panel.staleBanner.shown)
+        # Exercise migration of a previously loaded limited profile as well.
+        for player in self.mpl.searchGroupWindow.players.values():
+            self.mpl.GetProfile(player.name,player.realm)[0].displayMetadata = 'refresh'
         self.mpl.panel.loadButton.scripts.OnClick()
         request = self.mpl.downloadWindow.request
         self.assertIn('rankcolors', request)

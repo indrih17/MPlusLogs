@@ -19,6 +19,7 @@ class AppearanceTests(unittest.TestCase):
 
     def test_builtin_styles_change_only_their_named_classic_features(self):
         expected={
+            'original': {'headerLayout':'original','gridMode':'legacy'},
             'clean': {'gridMode':'horizontal'},
             'table': {'gridMode':'full','tableBorder':True},
             'compact': {'rowHeight':22,'iconSize':16,'cellPadding':4,'compactSummary':True},
@@ -49,7 +50,7 @@ class AppearanceTests(unittest.TestCase):
         self.assertEqual(self.mpl.AppearanceDefaults.maxRows, 8)
         self.assertEqual(self.mpl.GetAppearance().maxRows, 8)
         self.assertEqual(self.mpl.GetAppearanceThemeID(), 'classic')
-        self.assertEqual(self.mpl.GetAppearance().gridMode, 'legacy')
+        self.assertEqual(self.mpl.GetAppearance().gridMode, 'full')
         self.assertEqual(self.mpl.GetAppearance().levelDigits, 'natural')
         db = self.lua.globals().MPlusLogsDB
         self.assertFalse(db.options.tooltips)
@@ -62,6 +63,23 @@ class AppearanceTests(unittest.TestCase):
         for language in ('client', 'enUS'):
             normalized = self.mpl.NormalizeAppearance(self.table({'dungeonLanguage': language}))
             self.assertEqual(normalized.dungeonLanguage, language)
+
+    def test_full_grid_default_preserves_each_saved_explicit_choice(self):
+        for mode in ('legacy','none','horizontal','vertical','full'):
+            with self.subTest(mode=mode):
+                self.lua.globals().MPlusLogsDB.appearance=self.table({
+                    'schemaVersion':2,'activeTheme':'custom','themes':{
+                        'custom':{'name':'Personal grid','values':{'gridMode':mode,'fontSize':17}}}})
+                self.assertEqual(self.mpl.GetAppearance().gridMode,mode)
+                self.assertEqual(self.mpl.GetAppearance().fontSize,17)
+        self.assertEqual(self.mpl.NormalizeAppearance(self.table({})).gridMode,'full')
+
+    def test_grid_default_and_explicit_style_variants_are_independent(self):
+        expected={'classic':'full','compact':'full','large':'full','minimal':'full',
+                  'clean':'horizontal','table':'full','original':'legacy'}
+        for style,mode in expected.items():
+            with self.subTest(style=style):
+                self.assertEqual(self.mpl.AppearancePresets[style]['values'].gridMode,mode)
 
     def test_legacy_row_limit_is_fixed_to_eight_without_changing_other_settings(self):
         self.lua.execute('MPlusLogsDB.appearance={schemaVersion=2,activeTheme="custom",themes={custom={name="Indrih",values={maxRows=12,fontSize=17}}}}')
@@ -105,23 +123,23 @@ class AppearanceTests(unittest.TestCase):
         self.assertEqual(theme.rowHeight, 48)
         self.assertEqual(theme.fontSize, 9)
         self.assertEqual(theme.scale, 1)
-        self.assertEqual(theme.gridMode, 'legacy')
+        self.assertEqual(theme.gridMode, 'full')
         self.assertIsNone(theme.unknown)
         self.assertEqual([theme.gridColor[i] for i in range(1, 5)], [0, 1, 0.3, 0.5])
 
     def test_future_schema_is_retained_and_safe_defaults_used(self):
         self.lua.execute('MPlusLogsDB.appearance={schemaVersion=99,novel="preserve"}')
-        self.assertEqual(self.mpl.GetAppearance().gridMode, 'legacy')
+        self.assertEqual(self.mpl.GetAppearance().gridMode, 'full')
         self.assertEqual(self.lua.globals().MPlusLogsDB.appearanceFuture.novel, 'preserve')
 
     def test_draft_changes_do_not_write_saved_state(self):
         self.mpl.BeginAppearanceEdit()
-        self.mpl.SetAppearanceValue('gridMode', 'full')
-        self.assertEqual(self.mpl.GetAppearance().gridMode, 'full')
+        self.mpl.SetAppearanceValue('gridMode', 'none')
+        self.assertEqual(self.mpl.GetAppearance().gridMode, 'none')
         self.assertEqual(self.lua.globals().MPlusLogsDB.appearance.activeTheme, 'classic')
         self.assertEqual(len(self.lua.globals().MPlusLogsDB.appearance.themes), 0)
         self.mpl.CancelAppearanceEdit()
-        self.assertEqual(self.mpl.GetAppearance().gridMode, 'legacy')
+        self.assertEqual(self.mpl.GetAppearance().gridMode, 'full')
 
     def test_save_builtin_creates_personal_copy_without_mutating_preset(self):
         self.mpl.SetAppearanceValue('rowHeight', 31)
@@ -149,7 +167,7 @@ class AppearanceTests(unittest.TestCase):
         self.assertEqual(self.mpl.GetAppearanceThemeID(), 'classic')
         self.assertEqual(self.mpl.GetAppearanceCharacterBinding(), 'account')
         self.assertIsNone(self.mpl.GetDungeonAlias(249))
-        self.assertEqual(len(self.mpl.GetAppearanceThemes()), 6)
+        self.assertEqual(len(self.mpl.GetAppearanceThemes()), 7)
 
     def test_theme_delete_clears_bindings_but_can_be_undone(self):
         theme_id = self.mpl.CreateAppearanceTheme('Personal')
@@ -170,7 +188,7 @@ class AppearanceTests(unittest.TestCase):
         self.assertEqual(self.mpl.GetAppearanceState().themes[theme_id]['values'].rowHeight, 30)
 
     def test_character_reset_closes_editor_before_discarding_draft(self):
-        self.mpl.SetAppearanceValue('gridMode', 'full')
+        self.mpl.SetAppearanceValue('gridMode', 'none')
         self.lua.execute('''
             local MPL=...
             MPL.appearanceEditor={shown=true}
@@ -185,7 +203,7 @@ class AppearanceTests(unittest.TestCase):
         self.assertTrue(self.mpl.appearanceEditor.closedWhileEditing)
         self.assertFalse(self.mpl.appearanceEditor.shown)
         self.assertFalse(self.mpl.IsAppearanceEditing())
-        self.assertEqual(self.mpl.GetAppearance().gridMode, 'legacy')
+        self.assertEqual(self.mpl.GetAppearance().gridMode, 'full')
 
     def test_coalesced_refresh_does_not_invoke_profile_navigation(self):
         self.lua.execute('pending={}; C_Timer={After=function(_,fn) pending[#pending+1]=fn end}')
@@ -205,7 +223,7 @@ class AppearanceTests(unittest.TestCase):
             self.mpl.SetAppearanceValue('surfaceOpacity', value)
         self.mpl.EndAppearanceAction()
         self.mpl.UndoAppearanceEdit()
-        self.assertEqual(self.mpl.GetAppearance().surfaceOpacity, 1)
+        self.assertEqual(self.mpl.GetAppearance().surfaceOpacity, 0.9)
 
     def test_column_order_has_no_duplicates_or_unknown_ids(self):
         self.mpl.SetAppearanceValue('columnOrder', self.table(['best', 'best', 'garbage', 'dungeon']))

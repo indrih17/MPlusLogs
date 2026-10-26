@@ -65,7 +65,7 @@ function MPL.ProfileColumnIndex(id)
     for i=1,9 do if MPL.ProfileColumnID(i)==id then return i end end
 end
 
-local baseSizes={title=16,character=16,summary=10,rating=30,header=10,dungeon=12,numbers=10,secondary=10,button=10,warning=12}
+local baseSizes={title=16,character=16,summary=10,rating=22,header=10,dungeon=12,numbers=10,secondary=10,button=10,warning=12}
 function MPL.StyleProfileFont(field,role)
     if not field then return end
     local native=field.mplNativeFont
@@ -119,10 +119,16 @@ end
 function MPL.ApplyProfileFonts(f)
     local fields={title={f.title},character={f.character},summary={f.summary,f.medianSummary,f.runSummary},
         rating={f.scoreValue},header={f.primaryGroup,f.secondaryGroup,f.scoreLabel},
-        secondary={f.context,f.source,f.note,f.footer,f.specRanks,f.inviteInfo,f.specButton.detail,f.currentSpec.caption},
-        button={f.specButton.caption},warning={f.staleBanner.message,f.currentSpec.name}}
+        secondary={f.context,f.source,f.note,f.footer,f.specRanks,f.inviteInfo,f.specButton.detail,f.currentSpec.caption,f.currentSpec.name,f.logSpec},
+        button={f.specButton.caption},warning={f.staleBanner.message}}
     for role,list in pairs(fields) do for _,field in ipairs(list) do MPL.StyleProfileFont(field,role) end end
+    -- Keep explicit character-name formatting after moving the name into the title.
+    if option("headerLayout","modern")~="original" and (option("size_character",0)>0 or option("font_character","inherit")~="inherit") then
+        MPL.StyleProfileFont(f.title,"character")
+    end
     for _,heading in ipairs(f.headings) do MPL.StyleProfileFont(heading,"header") end
+    for _,field in ipairs(f.summaryLabels or {}) do MPL.StyleProfileFont(field,"secondary") end
+    if f.extraLogsButton then MPL.StyleAppearanceButton(f.extraLogsButton,false); f.extraLogsButton:SetHeight(math.max(26,f.extraLogsButton.caption.mplAppliedFontSize+10)) end
     for _,entry in ipairs(f.specRankEntries) do MPL.StyleProfileFont(entry.number,"numbers"); MPL.StyleProfileFont(entry.specLabel,"secondary") end
     for _,button in ipairs({f.closeButton,f.settingsButton or f.closeButton,f.appearanceButton or f.closeButton,f.wclButton,f.loadButton,f.searchButton,f.lookupButton,f.inviteButton}) do
         if button.caption then
@@ -169,7 +175,8 @@ function MPL.FormatAppearancePercent(value,stale)
     local rounded=math.floor(value*factor+.5)/factor
     if value<100 then rounded=math.min(rounded,100-1/factor) end
     local text=numberText(rounded,precision,false):gsub("[.,]0$","")..(option("showPercentSign",false) and "%" or "")
-    local hex=option("semanticColors",true) and MPL.PercentColor(value) or nil
+    local hex=MPL.AppearancePercentColor and MPL.AppearancePercentColor(value)
+        or (option("semanticColors",true) and MPL.PercentColor(value) or nil)
     if not hex then
         local r,g,b=color("numberColor",{225/255,242/255,245/255,1})
         hex=string.format("%02x%02x%02x",math.floor(r*255+.5),math.floor(g*255+.5),math.floor(b*255+.5))
@@ -223,6 +230,15 @@ local function columnOrder()
         else result[#result+1]=id end
     end
     return result
+end
+-- Summary values and captions follow the same semantic order as the table.
+-- Use the complete order so hiding a column cannot swap the remaining summary.
+function MPL.OrderSummaryPercentiles(best,median)
+    for _,id in ipairs(columnOrder()) do
+        if id=="best" then return best,median end
+        if id=="median" then return median,best end
+    end
+    return best,median
 end
 local function groupLabels(f,visible)
     f.appearanceGroups=f.appearanceGroups or {f.primaryGroup,f.secondaryGroup}
@@ -318,7 +334,7 @@ function MPL.LayoutAppearanceTable(f)
             hiddenWidth=hiddenWidth+(widthById[id] or 0)
         end
     end
-    local minimum=vertical and 460 or math.max(620,(legacyLayout() and 880 or 820)-hiddenWidth)
+    local minimum=vertical and 460 or math.max(620,(legacyLayout() and 780 or 720)-hiddenWidth)
     widthById.dungeon=widthById.dungeon+math.max(0,minimum-total)
     total=0
     for _,id in ipairs(visible) do
@@ -360,19 +376,22 @@ function MPL.LayoutAppearanceTable(f)
             sortButton.arrow:ClearAllPoints(); sortButton.arrow:SetPoint("TOPLEFT",widths[i]-11,-math.floor((style.headerHeight-style.headerBand-6)/2))
         end
     end
+    local grid=option("gridMode","full")
+    local centeredGroups=grid=="full" or grid=="horizontal"
     for _,segment in ipairs(segments) do
         if segment.label then
             local start=MPL.ProfileColumnIndex(segment.ids[1])
             local sum=0; for _,id in ipairs(segment.ids) do sum=sum+widthById[id] end
-            segment.label:ClearAllPoints(); segment.label:SetPoint("TOPLEFT",f.columns[start]+4,-style.titleY)
+            segment.label:ClearAllPoints(); segment.label:SetPoint("TOPLEFT",f.columns[start]+4,centeredGroups and 0 or -style.titleY)
             segment.label:SetWidth(math.max(1,sum-8))
+            if centeredGroups then segment.label:SetHeight(style.headerBand) end
+            segment.label:SetJustifyV("MIDDLE")
             segment.label:SetShown(type(f.profile)=="table" and option("showGroupHeaders",true) and #segment.ids>1)
         end
     end
-    local grid=option("gridMode","legacy")
     local thickness=option("gridThickness",1)
     f.appearanceHeaderLines=f.appearanceHeaderLines or {}
-    for i=1,12 do
+    for i=1,13 do
         local line=f.appearanceHeaderLines[i]
         if not line then line=f.tableHeader:CreateTexture(nil,"ARTWORK"); f.appearanceHeaderLines[i]=line end
         line:Hide(); fill(line,"gridColor",{.2,.2,.2,1})
@@ -387,9 +406,13 @@ function MPL.LayoutAppearanceTable(f)
             for _,id in ipairs(visible) do
                 local i=MPL.ProfileColumnIndex(id)
                 local line=f.appearanceHeaderLines[i]
-                line:ClearAllPoints(); line:SetPoint("TOPLEFT",f.columns[i],-style.headerBand)
-                line:SetSize(thickness,style.headerHeight-style.headerBand); line:Show()
+                local top=f.columns[i]==0 and 0 or style.headerBand
+                line:ClearAllPoints(); line:SetPoint("TOPLEFT",f.columns[i],-top)
+                line:SetSize(thickness,style.headerHeight-top); line:Show()
             end
+            local right=f.appearanceHeaderLines[13]
+            right:ClearAllPoints(); right:SetPoint("TOPLEFT",total-thickness,0)
+            right:SetSize(thickness,style.headerHeight); right:Show()
         end
     end
     for index,row in ipairs(f.rows) do
@@ -404,7 +427,7 @@ function MPL.LayoutAppearanceTable(f)
         row.bottomLine:ClearAllPoints(); row.bottomLine:SetPoint("TOPLEFT",0,thickness-style.rowHeight)
         row.bottomLine:SetSize(total,thickness); row.bottomLine:SetShown(horizontal)
         fill(row.bottomLine,"gridColor",{.2,.2,.2,1})
-        row.icon:ClearAllPoints(); row.icon:SetPoint("TOPLEFT",6,-(style.rowHeight-style.iconSize)/2)
+        row.icon:ClearAllPoints(); row.icon:SetPoint("TOPLEFT",f.columns[1]+6,-(style.rowHeight-style.iconSize)/2)
         row.icon:SetSize(style.iconSize,style.iconSize); row.icon:SetShown(option("showDungeonIcons",true))
         row.scoreSpecIcon:SetSize(style.scoreIconSize,style.scoreIconSize)
         row.scoreSpecIcon:SetShown(widths[5]>0 and row.hasScoreIcon==true and option("showScoreIcons",true))
@@ -461,13 +484,17 @@ end
 local function visible(field,key,hasProfile)
     field:SetShown(hasProfile and option(key,true))
 end
-local function compactSummaryText(f)
+local function compactSummaryText(f,includeRuns)
     local profile=f.profile
     local metric=f.viewMetric or "dps"
     local _,_,best,median=MPL.MetricValues(profile,nil,metric)
-    local first,second=MPL.OrderPercentiles(best,median)
-    local result=metric:upper().." "..MPL.PercentileCaption()..": "..MPL.FormatAppearancePercent(first).." / "..MPL.FormatAppearancePercent(second)
-    if MPL.UsesDungeonMetric() then result=f.summary:GetText() end
+    local first,second=MPL.OrderSummaryPercentiles(best,median)
+    local firstLabel,secondLabel=MPL.OrderSummaryPercentiles("Best","Median")
+    local result=metric:upper().." "..firstLabel.." / "..secondLabel..": "..MPL.FormatAppearancePercent(first).." / "..MPL.FormatAppearancePercent(second)
+    if MPL.UsesDungeonMetric() then
+        result=MPL.PrimaryPercentileLabel(metric)..": "..MPL.PrimaryStatistic(profile,metric)
+    end
+    if includeRuns==false then return result end
     return result.."    "..L["Runs"]..": "..(profile.runs or "—")
 end
 -- Pack whole information groups onto a shared row, wrapping only when the
@@ -486,7 +513,7 @@ local function layoutCompactRow(f,left,total,y,gap,ranksWidth)
     if f.summary:IsShown() then
         local width=math.min(total,widthOf(f.summary)+2)
         f.summary:SetWidth(width); f.summary:SetWordWrap(true); f.summary:SetNonSpaceWrap(true)
-        local line=math.max(22,(f.summary.mplAppliedFontSize or 10)+6)
+        local line=math.max(20,(f.summary.mplAppliedFontSize or 10)+4)
         local height=math.max(line,math.ceil(widthOf(f.summary)/width)*line,f.summary:GetStringHeight()+4)
         f.summary:SetHeight(height)
         groups[#groups+1]={width=width,height=height,place=function(x,top,rowHeight)
@@ -494,20 +521,41 @@ local function layoutCompactRow(f,left,total,y,gap,ranksWidth)
         end}
     end
     if f.specRanks:IsShown() then
-        local ranksHeight=math.max(18,f.specRanks:GetHeight())
+        local width=math.min(total,ranksWidth)
+        local captionWidth=math.min(width,widthOf(f.specRanks))
+        local captionLine=math.max(20,(f.specRanks.mplAppliedFontSize or 10)+4)
+        f.specRanks:SetWidth(captionWidth); f.specRanks:SetWordWrap(true)
+        f.specRanks:SetHeight(math.max(captionLine,math.ceil(widthOf(f.specRanks)/math.max(1,captionWidth))*captionLine))
+        local rows={{items={},width=0,height=0}}
+        local items={{field=f.specRanks,width=captionWidth}}
         for _,entry in ipairs(f.specRankEntries) do
             if entry:IsShown() then
                 entry:SetHeight(math.max(18,entry.number:GetHeight(),entry.hasIcon and 18 or entry.specLabel:GetHeight()))
-                ranksHeight=math.max(ranksHeight,entry:GetHeight())
+                items[#items+1]={field=entry,width=entry:GetWidth()}
             end
         end
-        groups[#groups+1]={width=ranksWidth,height=ranksHeight,place=function(x,top,height)
-            local rankY=top+(height-18)/2
-            positioned(f.specRanks,x,top+(height-f.specRanks:GetHeight())/2,widthOf(f.specRanks)); x=x+widthOf(f.specRanks)
-            for _,entry in ipairs(f.specRankEntries) do
-                if entry:IsShown() then positioned(entry,x+8,top+(height-entry:GetHeight())/2); x=x+8+entry:GetWidth() end
+        for _,item in ipairs(items) do
+            local row=rows[#rows]
+            if #row.items>0 and row.width+8+item.width>width then
+                row={items={},width=0,height=0}; rows[#rows+1]=row
             end
-            f.appearanceRanksY=rankY
+            item.x=row.width+(#row.items>0 and 8 or 0)
+            row.items[#row.items+1]=item; row.width=item.x+item.width
+            row.height=math.max(row.height,item.field:GetHeight())
+        end
+        local ranksHeight=0
+        for _,row in ipairs(rows) do ranksHeight=ranksHeight+row.height+4 end
+        ranksHeight=ranksHeight-4
+        groups[#groups+1]={width=width,height=ranksHeight,place=function(x,top,height)
+            local y=top+(height-ranksHeight)/2
+            for _,row in ipairs(rows) do
+                for _,item in ipairs(row.items) do
+                    local itemY=y+(row.height-item.field:GetHeight())/2
+                    positioned(item.field,x+item.x,itemY,item.width)
+                    if item.field==f.specRanks then f.appearanceRanksY=itemY end
+                end
+                y=y+row.height+4
+            end
         end}
     end
     local row,width,height={},0,0
@@ -524,7 +572,19 @@ local function layoutCompactRow(f,left,total,y,gap,ranksWidth)
     if #row>0 then flush() end
     return y
 end
-local function layoutHeader(f,hasProfile)
+local function layoutOriginalHeader(f,hasProfile)
+    if f.logSpec then f.logSpec:Hide() end
+    f.title:SetText(f.profileWindowTitle or "MPlusLogs — Warcraft Logs"); f.title:Show()
+    f.character:Show(); f.specButton:Show()
+    if f.logScope then f.logScope:Hide() end
+    if f.extraLogsButton then f.extraLogsButton:Hide() end
+    if f.ratingGroup then f.ratingGroup:Hide() end
+    for _,field in ipairs(f.summaryLabels or {}) do field:Hide() end
+    f.currentSpec.caption:SetText(L["Текущая специализация"])
+    f.currentSpec.icon:ClearAllPoints(); f.currentSpec.icon:SetPoint("TOPLEFT",5,-4); f.currentSpec.icon:SetSize(24,24)
+    f.currentSpec.caption:SetWordWrap(false); f.currentSpec.name:SetWordWrap(false)
+    f.scoreLabel:SetJustifyH("CENTER"); f.scoreValue:SetJustifyH("CENTER")
+    for _,field in ipairs({f.summary,f.medianSummary,f.runSummary}) do field:SetJustifyH("LEFT") end
     local total=f.viewportWidth
     local compact=f.appearanceCompact
     local left=windowPadding
@@ -545,7 +605,7 @@ local function layoutHeader(f,hasProfile)
         end
     end
     -- Narrow windows keep the title on its own row and wrap header actions.
-    local wrapped=controlsWidth>total-216
+    local wrapped=#controls>0 and (controlsWidth>total-216 or widthOf(f.title)+controlsWidth+84>total)
     local rowY=wrapped and math.max(36,titleSize+20) or 7
     local rowWidth,rowHeight=0,0
     for _,button in ipairs(controls) do
@@ -562,14 +622,16 @@ local function layoutHeader(f,hasProfile)
     local specY=compact and characterY+characterHeight+4 or titleBand+3
     f.appearanceTitleBand=titleBand
     f.titleFill:SetHeight(titleBand)
-    f.title:SetWidth(math.max(80,total-(wrapped and 0 or controlsWidth)-76))
-    local character=f.character:GetText()
+    positioned(f.title,left,8,math.max(80,total-(wrapped and 0 or controlsWidth)-76))
+    f.title:SetHeight(math.max(20,titleSize+4)); f.title:SetWordWrap(false)
+    local character=f.character:GetText() or ""
     if not f.appearanceCharacterOriginal or f.appearanceCharacterLast~=character then f.appearanceCharacterOriginal=character end
-    local display=option("showRealm",true) and f.appearanceCharacterOriginal or f.appearanceCharacterOriginal:match("^(.-) — ") or f.appearanceCharacterOriginal
+    local display=(option("showRealm",true) or f.appearanceSample==true) and f.appearanceCharacterOriginal or f.appearanceCharacterOriginal:match("^(.-) — ") or f.appearanceCharacterOriginal
     f.character:SetText(display); f.appearanceCharacterLast=display
+    f.character:SetWordWrap(false); f.character:SetHeight(characterHeight)
     positioned(f.character,left,characterY,compact and total or math.max(100,total-480))
     local captionHeight=math.max(12,option("size_secondary",0)>0 and option("size_secondary",0)+2 or option("fontSize",10)+2)
-    local specNameHeight=math.max(14,option("size_warning",0)>0 and option("size_warning",0)+2 or option("fontSize",10)+4)
+    local specNameHeight=math.max(14,(f.currentSpec.name.mplAppliedFontSize or 12)+4)
     local specHeight=captionHeight+specNameHeight+6
     local specWidth=math.min(460,math.max(100,total-160))
     positioned(f.currentSpec.caption,37,3); f.currentSpec.caption:SetHeight(captionHeight)
@@ -595,6 +657,7 @@ local function layoutHeader(f,hasProfile)
     f.contextFill:ClearAllPoints(); f.contextFill:SetPoint("TOPLEFT",left,-seasonY)
     f.contextFill:SetHeight(seasonHeight)
     f.contextFill:SetShown(option("showSeason",true)); f.context:SetShown(option("showSeason",true))
+    f.context:SetJustifyH("LEFT"); f.context:SetWordWrap(false); f.context:SetHeight(seasonHeight-7)
     local summaryLine=math.max(22,(f.summary.mplAppliedFontSize or 10)+6)
     local ratingHeight=math.max(36,option("size_rating",0)+6,option("fontSize",10)+26)
     local ratingLabelHeight=math.max(24,(f.scoreLabel.mplAppliedFontSize or 12)+4)
@@ -638,7 +701,7 @@ local function layoutHeader(f,hasProfile)
         if hasProfile and option("showSpecRanks",true) and #(f.profile.specRanks or {})>0 then cursor=cursor+24 end
         tableTop=cursor+gap
     else
-        local selectorY=titleBand+36
+        local selectorY=math.max(titleBand+36,specY+specHeight+2)
         f.specButton:ClearAllPoints(); f.specButton:SetPoint("TOPRIGHT",-right,-selectorY); f.specButton:SetWidth(310)
         f.specButton.caption:SetWidth(232); f.specButton.detail:SetWidth(232)
         local metricY=seasonY+(option("showSeason",true) and seasonHeight+6 or 2)
@@ -698,24 +761,358 @@ local function layoutHeader(f,hasProfile)
     return tableTop
 end
 
+local function layoutHeader(f,hasProfile)
+    for _,help in ipairs(f.summaryHelp or {}) do help:Hide() end
+    for _,separator in ipairs(f.summarySeparators or {}) do separator:Hide() end
+    if option("headerLayout","modern")=="original" then return layoutOriginalHeader(f,hasProfile) end
+    local total=f.viewportWidth
+    local compact=f.appearanceCompact
+    local left=windowPadding
+    local right=left+20
+    local gap=blockSpacing
+    local titleSize=f.title.mplAppliedFontSize or 16
+    local character=f.character:GetText() or ""
+    if not f.appearanceCharacterOriginal or f.appearanceCharacterLast~=character then f.appearanceCharacterOriginal=character end
+    local display=(option("showRealm",true) or f.appearanceSample==true) and f.appearanceCharacterOriginal
+        or f.appearanceCharacterOriginal:match("^(.-) — ") or f.appearanceCharacterOriginal
+    f.character:SetText(display); f.appearanceCharacterLast=display
+    f.character:Hide(); f.title:SetText(display); f.title:Show()
+    local controls={}
+    local controlsWidth=0
+    for _,key in ipairs({"settingsButton","appearanceButton","tutorialButton"}) do
+        local button=f[key]
+        if button and button:IsShown() then
+            local minimum=key=="settingsButton" and 104 or (key=="appearanceButton" and 120 or 160)
+            local width=math.min(total,math.max(minimum,button.caption and widthOf(button.caption)+20 or minimum))
+            button:SetWidth(width)
+            controls[#controls+1]=button
+            controlsWidth=controlsWidth+width+8
+        end
+    end
+    -- Narrow windows keep the title on its own row and wrap header actions.
+    local wrapped=#controls>0 and (controlsWidth>total-216 or widthOf(f.title)+controlsWidth+84>total)
+    local titleWidth=math.max(80,total-(wrapped and 0 or controlsWidth)-76)
+    local titleLine=math.max(20,titleSize+4)
+    local titleHeight=math.max(titleLine,math.ceil(widthOf(f.title)/titleWidth)*titleLine)
+    local rowY=wrapped and math.max(36,titleHeight+16) or 7
+    local rowWidth,rowHeight=0,0
+    for _,button in ipairs(controls) do
+        if rowWidth>0 and rowWidth+button:GetWidth()>total then
+            rowY=rowY+rowHeight+8; rowWidth=0; rowHeight=0
+        end
+        button:ClearAllPoints(); button:SetPoint("TOPRIGHT",-38-rowWidth,-rowY)
+        rowWidth=rowWidth+button:GetWidth()+8
+        rowHeight=math.max(rowHeight,button:GetHeight())
+    end
+    local titleBand=math.max(36,titleHeight+16,rowY+rowHeight+7)
+    f.appearanceTitleBand=titleBand
+    f.titleFill:SetHeight(titleBand)
+    positioned(f.title,left,8,titleWidth); f.title:SetHeight(titleHeight)
+    f.title:SetWordWrap(true); f.title:SetNonSpaceWrap(true)
+    f.currentSpec.caption:SetText(L["Текущая специализация"]..":")
+    local metricHeight,metricWidth=0,0
+    for _,metric in ipairs({"dps","hps"}) do
+        local tab=f.metricTabs[metric]
+        tab:SetWidth(math.max(72,widthOf(tab.caption)+28))
+        if hasProfile then
+            metricWidth=metricWidth+tab:GetWidth()+(metric=="hps" and gap or 0)
+            metricHeight=math.max(metricHeight,tab:GetHeight())
+        end
+    end
+    local ratingShown=hasProfile and option("showRating",true)
+    local ratingContent=compact and math.max(widthOf(f.scoreLabel),widthOf(f.scoreValue))
+        or widthOf(f.scoreLabel)+widthOf(f.scoreValue)+12
+    local ratingWidth=ratingShown and math.min(total,ratingContent+16) or 0
+    local specNatural=widthOf(f.currentSpec.caption)+widthOf(f.currentSpec.name)+72
+    local metricInline=hasProfile and not compact and total>=specNatural+ratingWidth+metricWidth+48
+    f.appearanceMetricInline=metricInline
+    local metricReserve=metricInline and metricWidth+24 or 0
+    local desiredIdentity=specNatural
+    local available=(ratingShown and total-ratingWidth-24 or total)-metricReserve
+    local beside=not compact and (not ratingShown or available>=math.min(260,desiredIdentity))
+    local identityWidth=compact and math.min(desiredIdentity,total) or (beside and math.min(desiredIdentity,math.max(1,available)) or total)
+    local currentY=titleBand+12
+    positioned(f.character,left,currentY,identityWidth); f.character:SetHeight(0)
+    local specWidth=identityWidth
+    local specLine=math.max(22,f.currentSpec.caption:GetHeight(),f.currentSpec.name:GetHeight())
+    local captionWidth=math.min(widthOf(f.currentSpec.caption)+4,math.max(1,specWidth-28))
+    local captionHeight=math.max(specLine,math.ceil(widthOf(f.currentSpec.caption)/captionWidth)*specLine)
+    local menuSpace=f.extraLogsButton and 32 or 0
+    local inline=captionWidth+widthOf(f.currentSpec.name)+32+menuSpace<=specWidth
+    local nameX=inline and captionWidth+32 or 28
+    local nameY=inline and 0 or captionHeight
+    local nameWidth=math.min(widthOf(f.currentSpec.name)+4,math.max(1,specWidth-nameX-menuSpace))
+    local nameHeight=math.max(specLine,math.ceil(widthOf(f.currentSpec.name)/nameWidth)*specLine)
+    f.currentSpec:ClearAllPoints(); f.currentSpec:SetPoint("TOPLEFT",left,-currentY); f.currentSpec:SetWidth(specWidth)
+    f.currentSpec.icon:ClearAllPoints(); f.currentSpec.icon:SetPoint("TOPLEFT",0,0); f.currentSpec.icon:SetSize(22,22)
+    positioned(f.currentSpec.caption,28,0,captionWidth); f.currentSpec.caption:SetHeight(captionHeight); f.currentSpec.caption:SetWordWrap(true)
+    positioned(f.currentSpec.name,nameX,nameY,nameWidth)
+    f.currentSpec.name:SetWordWrap(true); f.currentSpec.name:SetNonSpaceWrap(true); f.currentSpec.name:SetHeight(nameHeight)
+    local specHeight=math.max(captionHeight,nameY+nameHeight,f.extraLogsButton and 24 or 0)
+    if f.logSpec then
+        local selected=f.selectedSpec or "All specs"
+        f.logSpec:SetShown(selected~="All specs")
+        if selected~="All specs" then
+            f.logSpec:SetText(L["Logs: "]..MPL.SpecLabel(selected,f.class)..(hasProfile and "" or L[" — not loaded"]))
+            local width=math.max(1,specWidth-28)
+            local line=math.max(20,(f.logSpec.mplAppliedFontSize or 12)+4)
+            local height=math.max(line,math.ceil(widthOf(f.logSpec)/width)*line)
+            positioned(f.logSpec,28,specHeight+4,width); f.logSpec:SetHeight(height)
+            specHeight=specHeight+4+height
+        end
+    end
+    f.currentSpec:SetHeight(specHeight)
+    local identityBottom=currentY+specHeight
+    visible(f.scoreLabel,"showRating",hasProfile); visible(f.scoreValue,"showRating",hasProfile)
+    if f.ratingGroup then f.ratingGroup:SetShown(ratingShown) end
+    if ratingShown then
+        local ratingX=beside and left+identityWidth+24 or left
+        local ratingY=beside and currentY or identityBottom+12
+        local contentWidth=math.max(1,ratingWidth-16)
+        local labelLine=math.max(16,(f.scoreLabel.mplAppliedFontSize or 12)+4)
+        f.scoreLabel:SetWordWrap(true); f.scoreLabel:SetNonSpaceWrap(true)
+        local height
+        if compact then
+            local labelHeight=math.max(labelLine,math.ceil(widthOf(f.scoreLabel)/contentWidth)*labelLine)
+            f.scoreLabel:SetJustifyH("CENTER"); f.scoreValue:SetJustifyH("CENTER")
+            positioned(f.scoreLabel,ratingX+8,ratingY+5,contentWidth); f.scoreLabel:SetHeight(labelHeight)
+            positioned(f.scoreValue,ratingX+8,ratingY+labelHeight+7,contentWidth)
+            height=labelHeight+f.scoreValue:GetHeight()+12
+        else
+            local valueWidth=math.min(contentWidth,widthOf(f.scoreValue)+2)
+            local captionWidth=math.max(1,contentWidth-valueWidth-8)
+            local labelHeight=math.max(labelLine,math.ceil(widthOf(f.scoreLabel)/captionWidth)*labelLine)
+            local rowHeight=math.max(labelHeight,f.scoreValue:GetHeight())
+            if beside then ratingY=math.max(titleBand+6,currentY+(specHeight-rowHeight-12)/2) end
+            f.scoreLabel:SetJustifyH("LEFT"); f.scoreValue:SetJustifyH("LEFT")
+            positioned(f.scoreLabel,ratingX+8,ratingY+6+(rowHeight-labelHeight)/2,captionWidth)
+            f.scoreLabel:SetHeight(labelHeight)
+            positioned(f.scoreValue,ratingX+8+captionWidth+8,ratingY+6+(rowHeight-f.scoreValue:GetHeight())/2,valueWidth)
+            height=rowHeight+12
+        end
+        if f.ratingGroup then positioned(f.ratingGroup,ratingX,ratingY,ratingWidth); f.ratingGroup:SetHeight(height) end
+        identityBottom=math.max(identityBottom,ratingY+height)
+    end
+
+    -- Keep metric controls with character identity; narrow layouts wrap them
+    -- before the statistics rather than leaving a separate strip at the table.
+    if hasProfile then
+        local metricY=metricInline and currentY+(identityBottom-currentY-metricHeight)/2 or identityBottom+gap
+        local x=compact and left or left+total-metricWidth
+        for _,metric in ipairs({"dps","hps"}) do
+            local tab=f.metricTabs[metric]
+            positioned(tab,x,metricY+(metricHeight-tab:GetHeight())/2)
+            x=x+tab:GetWidth()+gap
+        end
+        identityBottom=math.max(identityBottom,metricY+metricHeight)
+    end
+    local filterBottom=identityBottom
+    f.appearanceSeasonY=filterBottom; f.appearanceSeasonHeight=0
+    f.contextFill:Hide()
+    f.context:SetShown(option("showSeason",true)); f.context:SetJustifyH("LEFT")
+    f.context:SetWordWrap(true); f.context:SetNonSpaceWrap(true)
+    f.specButton:Hide()
+    if f.extraLogsButton then
+        local menu=f.extraLogsButton
+        menu:Show(); menu:SetSize(24,24)
+        positioned(menu,left+nameX+nameWidth+8,currentY+nameY+math.max(0,(nameHeight-24)/2))
+        for i,stroke in ipairs(menu.arrow) do
+            stroke:ClearAllPoints(); stroke:SetPoint("CENTER",0,3-i); stroke:SetSize(9-i*2,1)
+        end
+    end
+    return filterBottom+12
+end
+
+-- Statistics follow the table and share its available width when wrapping.
+local function layoutFooterStats(f,hasProfile,statsY)
+    local total=f.viewportWidth
+    local left=windowPadding
+    local gap=blockSpacing
+    for _,help in ipairs(f.summaryHelp or {}) do help:Hide() end
+    for _,separator in ipairs(f.summarySeparators) do separator:Hide() end
+    local separatorCount=0
+    for _,field in ipairs({f.summary,f.medianSummary,f.runSummary}) do visible(field,"showSummary",hasProfile); field:SetJustifyH("LEFT") end
+    local ranks={}
+    if hasProfile and option("showSummary",true) and option("showSpecRanks",true) then
+        for _,entry in ipairs(f.specRankEntries) do if entry:IsShown() then ranks[#ranks+1]=entry end end
+    end
+    f.specRanks:SetShown(#ranks>0)
+    if #ranks==0 then for _,entry in ipairs(f.specRankEntries) do entry:Hide() end end
+    local ranksWidth=widthOf(f.specRanks)
+    for _,entry in ipairs(ranks) do
+        local numberWidth=widthOf(entry.number)+1
+        local symbolWidth=entry.hasIcon and 18 or math.min(widthOf(entry.specLabel),math.max(1,total-numberWidth-4))
+        entry.number:SetWidth(numberWidth); entry.specLabel:SetWidth(symbolWidth)
+        entry.specLabel:SetWordWrap(true)
+        local labelLine=math.max(18,(entry.specLabel.mplAppliedFontSize or 10)+4)
+        entry.specLabel:SetHeight(math.max(labelLine,math.ceil(widthOf(entry.specLabel)/math.max(1,symbolWidth))*labelLine))
+        entry:SetWidth(numberWidth+4+symbolWidth)
+        entry:SetHeight(math.max(18,entry.number:GetHeight(),entry.specLabel:GetHeight()))
+        ranksWidth=ranksWidth+8+entry:GetWidth()
+    end
+    f.appearanceCompactRowY=statsY
+    local groups={}
+    local compact=option("compactSummary",false)
+    if compact then
+        for _,caption in ipairs(f.summaryLabels or {}) do caption:Hide() end
+        if f.summary:IsShown() then
+            f.summary:SetText(compactSummaryText(f,false))
+            f.runSummary:SetText(L["Прохождения"]..": "..(f.profile.runs or "—"))
+            local data=f.headerSummaryData
+            local detail=data[1].help
+            if not MPL.UsesDungeonMetric() then detail=detail.."\n\n"..data[2].help.."\n\n"..L["Best and Median follow the table column order."] end
+            groups[#groups+1]={value=f.runSummary,width=widthOf(f.runSummary)+2,helpIndex=3,help=data[3].help,title=data[3].label}
+            groups[#groups+1]={value=f.summary,right=true,width=widthOf(f.summary)+2,helpIndex=1,help=detail,title=L["Profile summary"]}
+        end
+        f.medianSummary:Hide()
+    else
+        local values={f.summary,f.medianSummary,f.runSummary}
+        for i,data in ipairs(f.headerSummaryData or {}) do
+            if hasProfile and option("showSummary",true) then
+                local caption=f.summaryLabels[i]; local value=values[i]
+                caption:SetText(data.label:gsub(":%s*$","")..":"); caption:Show(); value:SetText(data.value)
+                value:SetWordWrap(true); value:SetNonSpaceWrap(true)
+                groups[#groups+1]={caption=caption,value=value,right=i<3,width=widthOf(caption)+widthOf(value)+12,helpIndex=i,help=data.help,title=caption:GetText()}
+            end
+        end
+    end
+    if #ranks>0 then
+        local width=ranksWidth+8
+        groups[#groups+1]={caption=f.specRanks,ranks=true,width=width}
+    end
+    -- Runs and specialization ranks start at the left edge; percentile
+    -- summaries keep their natural spacing against the right edge.
+    local ordered={}
+    for _,group in ipairs(groups) do if not group.right then ordered[#ordered+1]=group end end
+    for _,group in ipairs(groups) do if group.right then ordered[#ordered+1]=group end end
+    groups=ordered
+    local row,rowWidth={},0
+    local cursor=statsY
+    local groupGap=24
+    local stacked=option("verticalLayout",false)
+    local function flush()
+        if #row==0 then return end
+        local x,height=left,0
+        local rightWidth,rightCount=0,0
+        for _,group in ipairs(row) do
+            if group.right then rightWidth=rightWidth+group.width; rightCount=rightCount+1 end
+        end
+        local rightX=stacked and left or left+total-rightWidth-math.max(0,rightCount-1)*groupGap
+        local atRight=false
+        local previous
+        for _,group in ipairs(row) do
+            if group.right and not atRight then x=rightX; atRight=true end
+            group.actual=math.min(total,group.width)
+            local groupHeight
+            if group.ranks then
+                local captionWidth=math.min(widthOf(group.caption),group.actual)
+                local entryX,entryY,entryHeight=x+captionWidth+8,cursor,group.caption:GetHeight()
+                positioned(group.caption,x,cursor,captionWidth)
+                for _,entry in ipairs(ranks) do
+                    if entryX>x and entryX+entry:GetWidth()>x+group.actual then
+                        entryX=x; entryY=entryY+entryHeight+4; entryHeight=0
+                    end
+                    positioned(entry,entryX,entryY)
+                    entryX=entryX+entry:GetWidth()+8; entryHeight=math.max(entryHeight,entry:GetHeight())
+                end
+                height=math.max(height,entryY+entryHeight-cursor)
+                groupHeight=entryY+entryHeight-cursor
+                f.appearanceRanksY=cursor
+            elseif not group.caption then
+                local value=group.value
+                local line=math.max(20,(value.mplAppliedFontSize or 10)+4)
+                local textHeight=math.max(line,math.ceil(widthOf(value)/group.actual)*line)
+                value:SetWordWrap(true); value:SetNonSpaceWrap(true); value:SetHeight(textHeight)
+                positioned(value,x,cursor,group.actual)
+                height=math.max(height,textHeight)
+                groupHeight=textHeight
+            else
+                local caption,value=group.caption,group.value
+                local valueWidth=math.min(group.actual,widthOf(value)+4)
+                local captionWidth=math.max(1,group.actual-valueWidth-8)
+                local line=math.max(20,(caption.mplAppliedFontSize or 10)+4,(value.mplAppliedFontSize or 10)+4)
+                local wrapped=widthOf(caption)>captionWidth
+                if wrapped then
+                    captionWidth=group.actual
+                    local captionHeight=math.max(line,math.ceil(widthOf(caption)/captionWidth)*line)
+                    positioned(caption,x,cursor,captionWidth); caption:SetHeight(captionHeight)
+                    positioned(value,x,cursor+captionHeight+2,group.actual)
+                    height=math.max(height,captionHeight+2+value:GetHeight())
+                    groupHeight=captionHeight+2+value:GetHeight()
+                else
+                    positioned(caption,x,cursor+(line-caption:GetHeight())/2,captionWidth)
+                    positioned(value,x+captionWidth+8,cursor+(line-value:GetHeight())/2,valueWidth)
+                    height=math.max(height,line)
+                    groupHeight=line
+                end
+                caption:SetWordWrap(true)
+            end
+            local help=group.helpIndex and f.summaryHelp and f.summaryHelp[group.helpIndex]
+            if help then
+                help.tooltipTitle=group.title; help.tooltipDetail=group.help
+                positioned(help,x,cursor,group.actual); help:SetHeight(groupHeight or height); help:Show()
+            end
+            -- Mark nearby groups only; a wide gap already separates blocks.
+            -- A wrapped row starts cleanly, without a leading/trailing stroke.
+            local separation=previous and x-previous.right
+            if separation and separation>=8 and separation<=groupGap*2 then
+                separatorCount=separatorCount+1
+                local separator=f.summarySeparators[separatorCount]
+                if not separator then
+                    separator=f:CreateTexture(nil,"ARTWORK")
+                    f.summarySeparators[separatorCount]=separator
+                end
+                local sharedHeight=math.min(previous.height,groupHeight)
+                local strokeHeight=math.min(24,math.max(12,sharedHeight-8))
+                positioned(separator,(previous.right+x-1)/2,cursor+(sharedHeight-strokeHeight)/2,1)
+                separator:SetHeight(strokeHeight)
+                local r,g,b,a=color("mutedColor",{.72,.72,.75,1})
+                separator:SetColorTexture(r,g,b,a*.35); separator:Show()
+            end
+            previous={right=x+group.actual,height=groupHeight}
+            x=x+group.actual+groupGap
+        end
+        cursor=cursor+height+gap; row={}; rowWidth=0
+    end
+    for _,group in ipairs(groups) do
+        group.width=math.min(total,math.max(1,group.width))
+        if #row>0 and (stacked or rowWidth+group.width+groupGap*#row>total) then flush() end
+        row[#row+1]=group; rowWidth=rowWidth+group.width
+    end
+    flush()
+    f.appearanceRanksY=f.specRanks:IsShown() and f.appearanceRanksY or statsY
+    return cursor
+end
+
 -- Disjoint background tiles keep a 50% surface at 50%, instead of painting
 -- a second 50% table/header layer over a full-window background (75%).
-local function backdropTiles(f,tableTop,tableBottom,seasonY,hasProfile)
+local function backdropTiles(f,tableTop,tableBottom,hasProfile)
     f.appearanceBackdropParts=f.appearanceBackdropParts or {}
     local left=windowPadding
     local right=left+20
     local titleEnd=(f.appearanceTitleBand or 36)+1
-    local seasonHeight=f.appearanceSeasonHeight or 26
-    local rectangles={{1,titleEnd,f:GetWidth()-2,math.max(0,seasonY-titleEnd)},
-        {1,seasonY,left-1,seasonHeight},{f:GetWidth()-right,seasonY,right-1,seasonHeight},
-        {1,seasonY+seasonHeight,f:GetWidth()-2,math.max(0,tableTop-seasonY-seasonHeight)},
-        {1,tableTop,left-1,tableBottom-tableTop},{f:GetWidth()-right,tableTop,right-1,tableBottom-tableTop},
-        {1,tableBottom,f:GetWidth()-2,math.max(0,f:GetHeight()-tableBottom-1)}}
-    if not option("showSeason",true) then rectangles[2]={1,seasonY,f:GetWidth()-2,seasonHeight}; rectangles[3]={0,0,0,0} end
-    if not hasProfile then
-        rectangles[5]={1,tableTop,f:GetWidth()-2,tableBottom-tableTop}
-        rectangles[6]={0,0,0,0}
+    local rectangles
+    if option("headerLayout","modern")=="original" and f.contextFill:IsShown() then
+        local seasonY=f.appearanceSeasonY
+        local seasonHeight=f.appearanceSeasonHeight
+        rectangles={{1,titleEnd,f:GetWidth()-2,math.max(0,seasonY-titleEnd)},
+            {1,seasonY,left-1,seasonHeight},{f:GetWidth()-right,seasonY,right-1,seasonHeight},
+            {1,seasonY+seasonHeight,f:GetWidth()-2,math.max(0,tableTop-seasonY-seasonHeight)},
+            {1,tableTop,left-1,tableBottom-tableTop},{f:GetWidth()-right,tableTop,right-1,tableBottom-tableTop},
+            {1,tableBottom,f:GetWidth()-2,math.max(0,f:GetHeight()-tableBottom-1)}}
+        if not hasProfile then
+            rectangles[5]={1,tableTop,f:GetWidth()-2,tableBottom-tableTop}; rectangles[6]={0,0,0,0}
+        end
+    else
+        rectangles={{1,titleEnd,f:GetWidth()-2,math.max(0,tableTop-titleEnd)},
+            {1,tableTop,left-1,tableBottom-tableTop},{f:GetWidth()-right,tableTop,right-1,tableBottom-tableTop},
+            {1,tableBottom,f:GetWidth()-2,math.max(0,f:GetHeight()-tableBottom-1)}}
+        if not hasProfile then
+            rectangles[2]={1,tableTop,f:GetWidth()-2,tableBottom-tableTop}; rectangles[3]={0,0,0,0}
+        end
     end
+    -- Switching between layouts may leave additional tiles from the old strip.
+    for i=#rectangles+1,#f.appearanceBackdropParts do f.appearanceBackdropParts[i]:Hide() end
     f:SetBackdropColor(0,0,0,0)
     for i,rect in ipairs(rectangles) do
         local texture=f.appearanceBackdropParts[i]
@@ -739,13 +1136,42 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     local compactActions=f.appearanceCompact and buttonHeight+10 or (type(f.applicant)=="table" and 36 or 0)
     local secondaryLine=math.max(20,option("size_secondary",0)+6,option("fontSize",10)+6)
     local fields={}
-    if option("showSource",true) then fields[#fields+1]=f.source end
-    if option("showNotes",true) then fields[#fields+1]=f.note end
-    fields[#fields+1]=f.footer
-    local textHeight=#fields*secondaryLine
+    local function appendField(field,enabled)
+        local shown=enabled and (field:GetText() or ""):find("%S")~=nil
+        field:SetShown(shown)
+        if shown then fields[#fields+1]=field end
+    end
+    if option("headerLayout","modern")~="original" then appendField(f.context,option("showSeason",true)) end
+    appendField(f.source,option("showSource",true))
+    appendField(f.note,option("showNotes",true))
+    appendField(f.footer,true)
+    if not f.footer:IsShown() then extra=0 end
+    local textHeight=0
+    local fieldOffsets,fieldWidths,fieldX={},{},{}
+    local paired=option("headerLayout","modern")~="original" and f.context:IsShown() and f.source:IsShown()
+        and widthOf(f.context)+widthOf(f.source)+24<=total
+    local seasonWidth=paired and math.max(1,widthOf(f.context)+4) or total
+    for _,field in ipairs(fields) do
+        local shared=paired and field==f.source
+        local width=paired and (field==f.context and seasonWidth or field==f.source and total-seasonWidth-20) or total
+        fieldWidths[field]=width; fieldX[field]=shared and seasonWidth+20 or 0
+        fieldOffsets[field]=shared and fieldOffsets[f.context] or textHeight
+        if field==f.source then field:SetJustifyH("RIGHT"); field:SetWordWrap(true) end
+        if field==f.note then field:SetWordWrap(true); field:SetNonSpaceWrap(true) end
+        local height=(field==f.context or field==f.source or field==f.note) and math.max(secondaryLine,math.ceil(widthOf(field)/width)*secondaryLine)
+            or field==f.footer and secondaryLine+extra or secondaryLine
+        field:SetHeight(height)
+        if not shared then textHeight=textHeight+height end
+    end
     -- Size the lower area from its contents rather than the old fixed reserve.
-    local textGap,actionGap=legacyLayout() and 20 or 8,legacyLayout() and 28 or 8
-    local bottom=textGap+textHeight+extra+actionGap+buttonHeight+20+drawer+compactActions+horizontal
+    local textGap,actionGap=8,8
+    if #fields==0 then textGap=0 end
+    local modern=option("headerLayout","modern")~="original"
+    local bodyBottom=top+offset+style.headerHeight+scrollHeight
+    local statsY=bodyBottom+horizontal+8
+    local statsHeight=modern and layoutFooterStats(f,profile~=nil,statsY)-statsY or 0
+    local statsGap=statsHeight>0 and 8 or 0
+    local bottom=statsGap+statsHeight+textGap+textHeight+actionGap+buttonHeight+20+drawer+compactActions+horizontal
     f:SetHeight(top+offset+style.headerHeight+scrollHeight+bottom+((profile or legacyLayout()) and 0 or 44))
     positioned(f.staleBanner,left,top,total)
     positioned(f.headerViewport,left,top+offset,total); f.headerViewport:SetHeight(style.headerHeight)
@@ -753,11 +1179,14 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     f.scroll:ClearAllPoints(); f.scroll:SetPoint("TOPLEFT",left,-top-offset-style.headerHeight)
     f.scroll:SetPoint("BOTTOMRIGHT",-right,bottom)
     f.scroll:SetSize(total,scrollHeight)
-    local bodyBottom=top+offset+style.headerHeight+scrollHeight
     f.horizontalBar:ClearAllPoints(); f.horizontalBar:SetPoint("TOPLEFT",left,-bodyBottom-2); f.horizontalBar:SetWidth(total)
-    local textY=bodyBottom+textGap+horizontal
-    for i,field in ipairs(fields) do positioned(field,left,textY+(i-1)*secondaryLine,total) end
-    f.source:SetShown(option("showSource",true)); f.note:SetShown(option("showNotes",true))
+    local function placeFooter()
+        local textY=bodyBottom+horizontal
+        if modern then textY=layoutFooterStats(f,profile~=nil,textY+statsGap) end
+        textY=textY+textGap
+        for _,field in ipairs(fields) do positioned(field,left+fieldX[field],textY+fieldOffsets[field],fieldWidths[field]) end
+    end
+    placeFooter()
     if f.appearanceCompact then
         f.searchButton:SetWidth(math.max(100,math.min(210,total-130)))
         f.loadButton:ClearAllPoints(); f.loadButton:SetPoint("BOTTOMRIGHT",-right,20+buttonHeight+10+drawer)
@@ -770,7 +1199,7 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
         f:SetHeight(f:GetHeight()-(scrollHeight-available)); f.scroll:SetHeight(available)
         bodyBottom=top+offset+style.headerHeight+available
         f.horizontalBar:ClearAllPoints(); f.horizontalBar:SetPoint("TOPLEFT",left,-bodyBottom-2)
-        for i,field in ipairs(fields) do positioned(field,left,bodyBottom+textGap+horizontal+(i-1)*secondaryLine,total) end
+        placeFooter()
     end
     f.tableOutline:ClearAllPoints(); f.tableOutline:SetPoint("TOPLEFT",left,-top-offset)
     f.tableOutline:SetSize(total,bodyBottom-top-offset)
@@ -781,7 +1210,7 @@ function MPL.LayoutAppearanceBanner(f,profile,offset,extra,drawer)
     f.lookup:ClearAllPoints(); f.lookup:SetPoint("BOTTOMLEFT",left,20)
     f.lookupButton:ClearAllPoints(); f.lookupButton:SetPoint("BOTTOMRIGHT",-right,20)
     f.inviteButton:ClearAllPoints(); f.inviteButton:SetPoint("BOTTOMRIGHT",-right,20)
-    backdropTiles(f,top+offset,bodyBottom,f.appearanceSeasonY,profile~=nil)
+    backdropTiles(f,top+offset,bodyBottom,profile~=nil)
     if not f.appearanceEmptyFill then f.appearanceEmptyFill=f.scroll:CreateTexture(nil,"BACKGROUND") end
     local blank=math.max(0,f.scroll:GetHeight()-count*style.rowHeight)
     f.appearanceEmptyFill:ClearAllPoints(); f.appearanceEmptyFill:SetPoint("BOTTOMLEFT",0,0); f.appearanceEmptyFill:SetSize(total,blank)
@@ -810,6 +1239,17 @@ function MPL.ApplyAppearancePalette(f)
     for _,field in ipairs({f.context,f.source,f.note,f.footer,f.summary,f.medianSummary,f.runSummary,f.specRanks}) do textColor(field,"textColor",{225/255,242/255,245/255,1}) end
     textColor(f.note,"mutedColor",{225/255,242/255,245/255,1})
     textColor(f.scoreValue,"ratingColor",{226/255,104/255,168/255,1})
+    if f.ratingGroup then f.ratingGroup:SetBackdropBorderColor(color("borderColor",{.30,.24,.34,1})) end
+    if f.extraLogsButton then
+        for _,stroke in ipairs(f.extraLogsButton.arrow) do fill(stroke,"buttonTextColor",{.85,.82,.9,1}) end
+    end
+    local original=option("headerLayout","modern")=="original"
+    f.currentSpec:SetBackdropColor(original and .13 or 0,original and .10 or 0,original and .035 or 0,original and opacity or 0)
+    f.currentSpec:SetBackdropBorderColor(original and .70 or 0,original and .53 or 0,original and .18 or 0,original and 1 or 0)
+    textColor(f.currentSpec.caption,"mutedColor",original and {.85,.72,.42,1} or {.72,.72,.75,1})
+    textColor(f.currentSpec.name,"textColor",original and {1,.90,.55,1} or {225/255,242/255,245/255,1})
+    if f.logSpec then textColor(f.logSpec,"textColor",{225/255,242/255,245/255,1}) end
+    for _,field in ipairs(f.summaryLabels or {}) do textColor(field,"mutedColor",{.72,.72,.75,1}) end
     f.staleBanner:SetBackdropColor(color("warningColor",{.12,.075,.015,1}))
     -- Inline warning color codes otherwise override the chosen text color.
     local warning=f.staleBanner.message:GetText() or ""
@@ -817,7 +1257,7 @@ function MPL.ApplyAppearancePalette(f)
     local warningHex=string.format("|cff%02x%02x%02x",math.floor(wr*255+.5),math.floor(wg*255+.5),math.floor(wb*255+.5))
     f.staleBanner.message:SetText(warning:gsub("|c%x%x%x%x%x%x%x%x",warningHex))
     textColor(f.staleBanner.message,"warningTextColor",{1,1,1,1})
-    for _,button in ipairs({f.wclButton,f.searchButton,f.loadButton,f.lookupButton,f.inviteButton,f.closeButton,f.settingsButton or f.closeButton,f.appearanceButton or f.closeButton}) do
+    for _,button in ipairs({f.wclButton,f.searchButton,f.loadButton,f.lookupButton,f.inviteButton,f.closeButton,f.settingsButton or f.closeButton,f.appearanceButton or f.closeButton,f.extraLogsButton or f.closeButton}) do
         local fallback=button==f.loadButton and {.24,.13,.32,1} or (button==f.settingsButton and {.16,.1,.21,1} or {.12,.10,.16,1})
         button.appearanceDefaultColor=fallback
         button:SetBackdropColor(color("buttonColor",fallback))
@@ -928,6 +1368,7 @@ function MPL.ShowAppearancePreview()
         MPL.appearancePreview=f
         f.name,f.realm,f.class="Preview","Example","DRUID"
         f.title:SetText(L["MPlusLogs — Appearance preview"])
+        f.profileWindowTitle=f.title:GetText()
         f.character:SetText(L["Sample character — fictional data"])
         f.context:SetText("Midnight M+ Season 2")
         f.source:SetText(L["Appearance preview: sample data"])

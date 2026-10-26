@@ -95,27 +95,20 @@ class RankPercentProtocolTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(wcl.ProfileError): self.normalize(self.raw(percent=value))
 
-    def test_first_exchange_discovers_optional_metadata_and_next_exchange_loads_it(self):
+    def test_first_exchange_loads_complete_metadata_without_discovery_roundtrip(self):
         self.supports(None)
         _,request=self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs')
-        reply=self.exchange(request,self.raw(True))
-        self.assertEqual(self.mpl.ReceiveReply(reply,True),(1,None))
-        profile=self.mpl.GetProfile('Киндрих','Гордунни')[0]
-        self.assertIsNone(profile.dungeons[1].rankPercent)
-        self.assertEqual(profile.displayMetadata,'refresh')
-        self.assertIn(self.mpl.L['Некоторые данные отсутствуют. Обновите логи.'],self.mpl.panel.staleBanner.message.text)
-        _,request=self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs')
+        self.assertIn('rankcolors',request)
         self.assertEqual(self.mpl.ReceiveReply(self.exchange(request,self.raw(True)),True),(1,None))
         profile=self.mpl.GetProfile('Киндрих','Гордунни')[0]
         self.assertEqual(profile.displayMetadata,'complete')
         self.assertEqual(profile.dungeons[1].rankPercent,97.25)
         self.assertEqual(profile.specRanks[1].rankPercent,99.8)
+        self.assertFalse(self.mpl.panel.staleBanner.shown)
 
     def test_captured_profile_first_exchange_renders_rank_colors_and_temple_star(self):
         raw=json.loads((test_addon.ROOT/'experiments/wcl-points-and-damage.json').read_text(encoding='utf-8'))
         self.supports(None)
-        _,request=self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs')
-        self.assertEqual(self.mpl.ReceiveReply(self.exchange(request,raw),True),(1,None))
         _,request=self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs')
         self.assertEqual(self.mpl.ReceiveReply(self.exchange(request,raw),True),(1,None))
         profile=self.mpl.GetProfile('Киндрих','Гордунни')[0]
@@ -133,7 +126,7 @@ class RankPercentProtocolTests(unittest.TestCase):
             expected=[int(color[i:i+2],16)/255 for i in (0,2,4)]
             self.assertEqual(list(entry.number.textColor.values()),expected)
 
-    def test_display_metadata_is_requested_only_when_supported_single_and_batch(self):
+    def test_display_metadata_is_requested_unless_known_unsupported_single_and_batch(self):
         self.assertIn('rankcolors',clipboard_protocol.CAPABILITIES)
         for batch in (False,True):
             for support in (None,False,True):
@@ -144,16 +137,18 @@ class RankPercentProtocolTests(unittest.TestCase):
                             [dict(name='Киндрих',realm='Гордунни',role='TANK')],recursive=True))
                     else:
                         _,request=self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs')
-                    self.assertEqual('rankcolors' in request,support is True)
+                    self.assertEqual('rankcolors' in request,support is not False)
                     reply=self.exchange(request,self.raw(True))
                     payload=unquote(reply.split('MPLB1\n',1)[1])
-                    self.assertEqual(len(self.records(payload)[0]),16 if support else 15)
+                    self.assertEqual(len(self.records(payload)[0]),16 if support is not False else 15)
                     result=self.mpl.ReceiveReply(reply,True)
                     self.assertEqual(result[0] if isinstance(result,tuple) else result,1)
                     row=self.mpl.GetProfile('Киндрих','Гордунни')[0].dungeons[1]
-                    self.assertEqual(row.rankPercent,97.25 if support else None)
+                    self.assertEqual(row.rankPercent,97.25 if support is not False else None)
                     rank=self.mpl.GetProfile('Киндрих','Гордунни')[0].specRanks[1]
-                    self.assertEqual(rank.rankPercent,99.8 if support else None)
+                    self.assertEqual(rank.rankPercent,99.8 if support is not False else None)
+                    self.assertEqual(self.mpl.GetProfile('Киндрих','Гордунни')[0].displayMetadata,
+                                     'complete' if support is not False else 'refresh')
 
     def test_old_clients_get_exact_legacy_shapes_even_with_available_metadata(self):
         for required in (None,'specdetails'):
@@ -167,7 +162,7 @@ class RankPercentProtocolTests(unittest.TestCase):
             self.assertIsNone(self.mpl.GetProfile('Киндрих','Гордунни')[0].dungeons[1].rankPercent)
 
     def test_older_helper_loads_logs_and_marks_missing_display_metadata(self):
-        self.supports(None)
+        self.supports(False)
         self.assertEqual(self.mpl.Import(wcl.export(self.normalize(self.raw(True)),rank_colors=True)),1)
         _,request=self.mpl.SendRequest('Киндрих','Гордунни','dps','All specs')
         with patch.object(clipboard_protocol,'CAPABILITIES',clipboard_protocol.CAPABILITIES-{'rankcolors'}):
@@ -303,7 +298,7 @@ class RankPercentProtocolTests(unittest.TestCase):
 class RankPercentNameSearchTests(unittest.TestCase):
     setUp=test_name_search.NameSearchTests.setUp
 
-    def test_search_profile_metadata_only_when_supported(self):
+    def test_search_profile_metadata_on_first_exchange_unless_known_unsupported(self):
         class Client(test_name_search.Client):
             def __call__(self,args):
                 raw=super().__call__(args)
@@ -319,13 +314,13 @@ class RankPercentNameSearchTests(unittest.TestCase):
                     dict(version='1.0.0',capabilities=dict(rankcolors=support)),recursive=True))
                 self.mpl.BeginSearchGroupRequest()
                 request=self.mpl.searchGroupWindow.request
-                self.assertEqual('rankcolors' in request,support is True)
+                self.assertEqual('rankcolors' in request,support is not False)
                 reply=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,Client())
                 self.assertEqual(self.mpl.ReceiveSearchGroupReply(reply),2)
                 for player in self.mpl.searchGroupWindow.players.values():
                     profile=self.mpl.GetProfile(player.name,player.realm)[0]
-                    self.assertEqual(profile.dungeons[1].rankPercent,96.75 if support else None)
-                    self.assertEqual(profile.specRanks[1].rankPercent,96.25 if support else None)
+                    self.assertEqual(profile.dungeons[1].rankPercent,96.75 if support is not False else None)
+                    self.assertEqual(profile.specRanks[1].rankPercent,96.25 if support is not False else None)
 
 
 if __name__=='__main__':

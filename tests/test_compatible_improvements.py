@@ -52,6 +52,14 @@ class CompatibilityTests(unittest.TestCase):
 
     def test_new_addon_old_companion_loads_with_missing_display_metadata(self):
         old=self.old_companion()
+        # An unknown helper must support the first request's display fields.
+        request,reply,result=self.exchange(old)
+        self.assertIn('rankcolors',request)
+        self.assertIsNone(result[0])
+        self.assertIn('MPlusLogs Companion',result[1])
+        # Explicitly known old helpers retain the limited legacy exchange.
+        self.mpl.companionInfo=self.lua.table_from(
+            dict(version='1.0.0',capabilities=dict(rankcolors=False)),recursive=True)
         for _ in range(2):
             request,reply,result=self.exchange(old)
             self.assertNotIn("errorcodes",request)

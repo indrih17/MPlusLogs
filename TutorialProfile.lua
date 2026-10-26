@@ -53,6 +53,7 @@ function MPL.ShowTutorialProfile()
         f.name,f.realm,f.class="Tutorial","Example","DRUID"
         f.viewMetric="dps"; f.stale=false
         f.title:SetText(t("MPlusLogs / Учебный профиль","MPlusLogs / Tutorial profile"))
+        f.profileWindowTitle=f.title:GetText()
         f.character:SetText(t("Учебный друид / вымышленные данные","Tutorial druid / fictional data"))
         f.context:SetText("Midnight M+ Season 2")
         f.source:SetText(t("Учебные данные: внешний вид настоящего профиля MPlusLogs.",
@@ -69,7 +70,7 @@ function MPL.ShowTutorialProfile()
         f.wclButton:Disable(); f.wclButton:SetScript("OnClick",nil)
         f.loadButton:SetScript("OnUpdate",nil)
         f.loadButton:SetScript("OnClick",function()
-            f.footer:SetText(t("Это учебный профиль. Для настоящей загрузки откройте профиль игрока.",
+            MPL.SetProfileFooter(f,t("Это учебный профиль. Для настоящей загрузки откройте профиль игрока.",
                 "This is a sample profile. Open a player's profile to load actual logs."))
         end)
         for metric,tab in pairs(f.metricTabs) do
@@ -77,9 +78,9 @@ function MPL.ShowTutorialProfile()
             tab:SetScript("OnClick",function() f.viewMetric=selectedMetric; render(f) end)
         end
         f.specButton.canSelectSpecs=true
-        f.specButton:SetScript("OnClick",function()
+        f.specButton:SetScript("OnClick",function(anchor)
             if MenuUtil and MenuUtil.CreateContextMenu then
-                MenuUtil.CreateContextMenu(f.specButton,function(_,root)
+                MenuUtil.CreateContextMenu(anchor or f.specButton,function(_,root)
                     for _,spec in ipairs({"Guardian","Restoration"}) do
                         local selectedSpec=spec
                         root:CreateRadio(MPL.SpecLabel(spec,"DRUID"),
