@@ -46,18 +46,25 @@ local function fullIdentity(full)
 end
 
 local function listingKeys(info)
-    if not MPL.SafeString(info.name) or not safe(info.activityIDs) or type(info.activityIDs)~="table"
+    if not MPL.SafeString(info.name) or not safe(info.activityIDs)
         or not C_LFGList.GetActivityInfoTable then return end
+    local activities=info.activityIDs
+    if activities==nil and safe(info.activityID) and type(info.activityID)=="number" then activities={info.activityID} end
+    if type(activities)~="table" then return end
     local mythic=false
-    for _,id in ipairs(info.activityIDs) do
+    for _,id in ipairs(activities) do
         if not safe(id) then return end
         local activity=C_LFGList.GetActivityInfoTable(id)
-        if type(activity)~="table" or not safe(activity) or not safe(activity.isMythicPlusActivity)
-            or not activity.isMythicPlusActivity then return end
+        if type(activity)~="table" or not safe(activity) then return end
+        local keystone=safe(activity.isMythicPlusActivity) and activity.isMythicPlusActivity==true
+            or safe(activity.difficultyID) and activity.difficultyID==8
+        if not keystone then return end
         mythic=true
     end
     if not mythic then return end
-    local title=info.name
+    local title=info.name:gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r","")
+    -- Timed-run annotations such as +18+++ still describe a level-18 key.
+    title=title:gsub("(%d)%++(%s*)$","%1%2")
     local minimum,maximum
     local position=1
     while position<=#title do
@@ -116,11 +123,6 @@ function MPL.CollectSearchGroup(resultID)
     return players,table.concat(signature,";").."|keys:"..tostring(keyMin or "")..":"..tostring(keyMax or "")
 end
 
-local function button(parent,x,y,width,text,fn)
-    local b=CreateFrame("Button",nil,parent,"UIPanelButtonTemplate")
-    b:SetSize(width,24); b:SetPoint("TOPLEFT",x,y); b:SetText(text); b:SetScript("OnClick",fn)
-    return b
-end
 local function current(f)
     local _,signature=MPL.CollectSearchGroup(f.resultID)
     return signature and signature==f.signature
@@ -251,7 +253,7 @@ function MPL.OpenSearchGroupProfile(index,preserveView)
     for i,c in ipairs(p.candidates or {}) do
         local b=panel.searchChoices[i]
         if not b then
-            b=button(panel,20,-255-(i-1)*56,panel:GetWidth()-60,"")
+            b=MPL.CreateProfileChoiceButton(panel,panel:GetWidth()-60)
             panel.searchChoices[i]=b
         end
         -- Rebind the member when reusing a choice button for another tab.

@@ -85,6 +85,37 @@ class ProfileAppearanceTests(unittest.TestCase):
         result=self.mpl.SetAppearanceValue(key,value)
         self.assertTrue(result[0] if isinstance(result,tuple) else result)
 
+    def test_realm_choices_follow_palette_fonts_and_fit_wrapped_details(self):
+        self.mpl.ShowProfile=self.show_profile
+        self.lua.execute('return assert(loadstring(...))',(ROOT/'SearchGroup.lua').read_text(encoding='utf-8'))('MPlusLogs',self.mpl)
+        self.lua.execute('''
+            local MPL=...
+            local player={name="Coupdegrace",class="ROGUE",role="DAMAGER",candidates={
+                {name="Coupdegrace",realm="Blackhand",scores={0,0,3869},best=24,runs=149,
+                 specs="Assassination,Outlaw,Subtlety"},
+                {name="Coupdegrace",realm="Grim Batol",scores={},specs=""}}}
+            MPL.searchGroupWindow={players={player},selected=1,resultID=10}
+            MPL.OpenSearchGroupProfile(1)
+        ''',self.mpl)
+        choice=self.panel.searchChoices[1]
+        self.assertEqual(self.lua.eval('type')(choice.caption),'table')
+        self.set('buttonColor',[.11,.14,.17,1])
+        self.set('borderColor',[.31,.34,.37,1])
+        self.set('buttonTextColor',[.71,.74,.77,1])
+        self.set('hoverColor',[.41,.44,.47,1])
+        self.set('size_button',18)
+        for row in self.panel.searchChoices.values():
+            self.assertEqual(list(row.backdropColor.values()),[.11,.14,.17,1])
+            self.assertEqual(list(row.borderColor.values()),[.31,.34,.37,1])
+            self.assertEqual(list(row.caption.textColor.values()),[.71,.74,.77])
+            self.assertEqual(row.caption.fontSize,18)
+            self.assertEqual(row.caption.justifyH,'LEFT')
+            self.assertGreaterEqual(row.height,row.caption.GetStringHeight(row.caption)+12)
+        choice.scripts.OnEnter(choice)
+        self.assertEqual(list(choice.backdropColor.values()),[.41,.44,.47,1])
+        choice.scripts.OnLeave(choice)
+        self.assertEqual(list(choice.backdropColor.values()),[.11,.14,.17,1])
+
     def assert_table_first_header(self):
         panel=self.panel
         top=lambda field:-field.points.TOPLEFT[2]

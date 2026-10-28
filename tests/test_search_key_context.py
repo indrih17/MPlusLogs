@@ -24,10 +24,25 @@ class SearchKeyContextTests(unittest.TestCase):
     def test_title_key_levels_and_ranges(self):
         for title,expected in (('18',(18,18)),('+18',(18,18)),('KR +18 weekly',(18,18)),
                                ('18-19',(18,19)),('KR +18-19',(18,19)),('KR +18 - +19',(18,19)),
-                               ('S2 KR +18 ilvl 328',(18,18))):
+                               ('S2 KR +18 ilvl 328',(18,18)),('|cffffffff+18|r',(18,18)),
+                               ('+18+++',(18,18))):
             with self.subTest(title=title):
                 players,_=self.collect(title)
                 self.assertEqual((players[2].keyMin,players[2].keyMax),expected)
+
+    def test_legacy_activity_id_still_transports_listing_level(self):
+        self.lua.execute('''
+            C_LFGList.GetSearchResultInfo=function()
+                return {name="+18",leaderName=leaderName,activityID=1,numMembers=#searchMembers}
+            end
+        ''')
+        players,_=self.mpl.CollectSearchGroup(10)
+        self.assertEqual((players[2].keyMin,players[2].keyMax),(18,18))
+
+    def test_mythic_keystone_difficulty_identifies_activity(self):
+        self.lua.execute('C_LFGList.GetActivityInfoTable=function() return {difficultyID=8} end')
+        players,_=self.collect('+18')
+        self.assertEqual((players[2].keyMin,players[2].keyMax),(18,18))
 
     def test_incidental_or_ambiguous_numbers_are_not_key_context(self):
         for title in ('S2','ilvl 18','itemlevel 18','rating 18','rio 18','328','90','18:00',
@@ -130,6 +145,26 @@ class SearchKeyContextTests(unittest.TestCase):
         self.assertIsNone(count)
         self.assertIn('Companion',error)
         self.assertEqual(client.calls,[])
+
+    def test_twenty_title_excludes_public_empty_season_through_clipboard(self):
+        self.lua.globals().listingTitle='+20'
+        empty=test_name_search_roles.NameSearchRoleTests().empty_season_client()
+        leader=test_name_search.Client()
+        def client(args):
+            return empty(args) if args.name=='Mirkowrr' else leader(args)
+        client.name_search=empty.name_search
+        self.mpl.ShowSearchGroup(10)
+        self.mpl.BeginSearchGroupRequest()
+        request=self.mpl.searchGroupWindow.request
+        rows=[row.split('\t') for row in request.splitlines() if row.startswith('N\t')]
+        self.assertEqual(rows[1][9:11],['20','20'])
+        reply=test_name_search.clipboard_protocol.reply(request,
+            test_name_search.realm_resolver.load_mappings(),self.cache,client)
+        self.assertEqual(self.mpl.ReceiveSearchGroupReply(reply),2)
+        player=self.mpl.searchGroupWindow.players[2]
+        self.assertEqual(player.realm,'Silvermoon')
+        self.assertTrue(player.loaded)
+        self.assertIsNone(player.candidates)
 
 
 if __name__=='__main__': unittest.main()

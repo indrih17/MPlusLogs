@@ -125,6 +125,12 @@ local function profileButton(parent,text,x,y,width,callback,primary)
     b:SetPoint("BOTTOMLEFT",x,y)
     return b
 end
+function MPL.CreateProfileChoiceButton(parent,width)
+    local b=flatButton(parent,"",width,52)
+    b.caption:SetJustifyH("LEFT")
+    b.caption:SetWordWrap(true); b.caption:SetNonSpaceWrap(true)
+    return b
+end
 local function layoutProfileActions(f)
     local applicant=type(f.applicant)=="table"
     if applicant then f.lookupExpanded=false end
@@ -1896,7 +1902,7 @@ function MPL.ShowDownload(fullName, realm, profile,context,batch,refresh,searchR
                     end
                     f.phase="done"
                     local result=wasBatch and MPL.lastBatchResult
-                    if result then f.status:SetText(L["Загружено: "]..result.loaded..L[" из "]..#result.players..L[". Ошибки обновления: "]..result.errorCount)
+                    if result then f.status:SetText(L["Загружено: "]..result.loaded..L[" из "]..#result.players)
                     else f.status:SetText(count>0 and L["Логи получены."] or L["Логи не загружены"]) end
                     f.programmatic=true; edit:SetText(""); f.programmatic=false
                     f:Hide()
@@ -1980,86 +1986,6 @@ end
 
 function MPL.ShowBatchDownload()
     MPL.ShowDownload(L["Кандидаты"],GetNormalizedRealmName(),nil,nil,true)
-end
-
-function MPL.ShowBatchResults(players,profiles,failures,count,open)
-    local errorCount,loaded,retryAt=0,0
-    for _,player in ipairs(players) do
-        local key=MPL.Key(player.name,player.realm)
-        local failure=failures[key]
-        if failure then
-            errorCount=errorCount+1
-            if failure.errorCode~="auth" and failure.retryAt and failure.retryAt>GetServerTime() then retryAt=math.min(retryAt or failure.retryAt,failure.retryAt) end
-        elseif profiles[key] then loaded=loaded+1 end
-    end
-    if not open then
-        MPL.lastBatchResult={players=players,profiles=profiles,failures=failures,count=count,loaded=loaded,errorCount=errorCount}
-        if MPL.batchResultsWindow then MPL.batchResultsWindow:Hide() end
-        if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
-        -- A valid response may contain no loaded profiles. Show the failures
-        -- instead of silently dismissing them as a completed clipboard exchange.
-        if errorCount==0 then return end
-    end
-    if not MPL.batchResultsWindow then
-        local f=window("MPlusLogsBatchResults",L["Логи кандидатов"],660,420)
-        f.summary=label(f,24,-52,610,"","GameFontHighlight")
-        f.scroll=CreateFrame("ScrollFrame",nil,f,"UIPanelScrollFrameTemplate")
-        f.scroll:SetPoint("TOPLEFT",24,-94); f.scroll:SetPoint("BOTTOMRIGHT",-42,58)
-        f.content=CreateFrame("Frame",nil,f.scroll); f.content:SetSize(590,1)
-        f.scroll:SetScrollChild(f.content); f.rows={}
-        f.retryElapsed=0
-        f:SetScript("OnUpdate",function(_,elapsed)
-            f.retryElapsed=(f.retryElapsed or 0)+elapsed
-            if f.retryElapsed>=1 then
-                f.retryElapsed=0
-                local nextRetry
-                for _,failure in pairs(f.resultFailures) do
-                    if failure.errorCode~="auth" and failure.retryAt and failure.retryAt>GetServerTime() then nextRetry=math.min(nextRetry or failure.retryAt,failure.retryAt) end
-                end
-                f.retryAt=nextRetry or false
-                f.summary:SetText(f.resultSummary..(f.retryAt and f.retryAt>GetServerTime() and ("\n"..MPL.RetryDelayText(f.retryAt)) or ""))
-            end
-        end)
-        f.scroll:HookScript("OnScrollRangeChanged",function() MPL.UpdatePanelScroll(f) end)
-        button(f,L["Закрыть"],24,20,140,function() f:Hide() end)
-        MPL.batchResultsWindow=f
-    end
-    local f=MPL.batchResultsWindow
-    for _,row in ipairs(f.rows) do row:Hide() end
-    f.retryAt=retryAt or false
-    f.resultFailures=failures
-    f.resultSummary=L["Загружено: "]..loaded..L[" из "]..#players..L[". Ошибки обновления: "]..errorCount
-    f.summary:SetText(f.resultSummary..(retryAt and ("\n"..MPL.RetryDelayText(retryAt)) or ""))
-    local rowOffset=0
-    for index,player in ipairs(players) do
-        local key=MPL.Key(player.name,player.realm)
-        local row=f.rows[index]
-        if not row then
-            row=CreateFrame("Frame",nil,f.content); row:SetSize(590,88); row:SetPoint("TOPLEFT",0,-(index-1)*90)
-            row.name=label(row,0,-2,425,"","GameFontHighlight")
-            row.status=label(row,0,-22,425); row.status:SetHeight(64); row.status:SetJustifyV("TOP")
-            row.open=button(row,L["Показать"],450,20,135,function() MPL.ShowProfile(row.player.name,row.player.realm,row.player) end)
-            f.rows[index]=row
-        end
-        row:ClearAllPoints(); row:SetPoint("TOPLEFT",0,-rowOffset)
-        row.player=player
-        row.name:SetText(player.name.." — "..player.realm)
-        local failure=failures[key]
-        row.status:SetText(failure and ((profiles[key] and L["Сохранён кеш. "] or L["Не загружено. "])..companionError(MPL.T(failure.error),failure.errorCode,failure.retryAt)) or L["Логи загружены: доступны DPS и HPS"])
-        local measured=row.status:GetStringHeight()
-        local height=type(measured)=="number" and math.max(64,math.ceil(measured)) or 64
-        row.status:SetHeight(height); row:SetHeight(height+24)
-        rowOffset=rowOffset+height+26
-        if MPL.GetProfile(player.name,player.realm) then row.open:Enable() else row.open:Disable() end
-        row:Show()
-    end
-    f.content:SetHeight(math.max(1,rowOffset)); f:Show(); MPL.UpdatePanelScroll(f)
-end
-
-function MPL.OpenBatchResults()
-    local result=MPL.lastBatchResult
-    if not result then print(L["MPlusLogs: групповой загрузки ещё не было"]); return end
-    MPL.ShowBatchResults(result.players,result.profiles,result.failures,result.count,true)
 end
 
 -- Extra space belongs to the applicant viewer, rather than compressed columns.

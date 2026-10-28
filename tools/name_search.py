@@ -261,7 +261,8 @@ class _RawProfiles:
 def _member_rows(member,mapping,raw_profiles,prepared,lookup_error,
                  error_details,error_codes,available_specs,candidate_info,primary_metric,rank_colors):
     rows=[]
-    detail=dict(name=member['name'],region=member['region'],expected_class=member['class_name'],candidates=[])
+    detail=dict(name=member['name'],region=member['region'],expected_class=member['class_name'],
+                key_min=member.get('key_min'),key_max=member.get('key_max'),candidates=[])
     failure_identity=None
     try:
         if lookup_error:raise lookup_error
@@ -290,16 +291,17 @@ def _member_rows(member,mapping,raw_profiles,prepared,lookup_error,
                     profile=wcl.normalize(raw,args)
                 except wcl.NoSeasonLogs:
                     detail.setdefault('no_season_logs',[]).append(identity['realm'])
-                # Above +10, a public character with neither season logs nor
-                # completed-key evidence is not a useful identity candidate.
-                # Hidden profiles and API/schema failures raise before here;
-                # leaderboard-only characters still have completed-key evidence.
+                # Above +10, only public season logs may identify an unknown
+                # realm. Leaderboard scores alone do not keep a candidate.
+                # Hidden profiles and API/schema failures raise before here.
                 if (not member['realm'] and (member.get('key_min') or 0)>10
-                        and profile is None and evidence['best_level'] is None):
+                        and profile is None):
                     detail.setdefault('empty_high_key_excluded',[]).append(identity['realm'])
                     continue
                 matches.append((identity,profile,fetched_at,evidence))
         if not matches:
+            if detail.get('empty_high_key_excluded'):
+                raise wcl.NoSeasonLogs('Публичные логи M+ не найдены')
             raise ValueError('No matching character found for this name and class')
         if len(matches)>1 and not member['realm'] and member.get('key_min'):
             # Compare the listing against each character's highest completed

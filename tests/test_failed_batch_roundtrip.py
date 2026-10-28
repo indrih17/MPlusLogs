@@ -34,7 +34,7 @@ class FailedBatchRoundtripTests(unittest.TestCase):
         self.case.flush()
         return frame, reply
 
-    def test_failed_batch_is_visible_and_retry_matches_backend_cache(self):
+    def test_failed_batch_records_state_without_popup_and_retry_matches_cache(self):
         attempts = []
 
         def unavailable(args):
@@ -44,8 +44,7 @@ class FailedBatchRoundtripTests(unittest.TestCase):
 
         frame, _ = self.import_reply(unavailable)
         self.assertEqual(self.mpl.lastBatchResult.count, 0)
-        self.assertIsNotNone(self.mpl.batchResultsWindow)
-        self.assertTrue(self.mpl.batchResultsWindow.shown)
+        self.case.assert_no_results_window()
         self.assertNotEqual(frame.status.text, self.mpl.L['Логи получены.'])
         for name in ('Alice', 'Bob'):
             state = self.mpl.GetProfileState(name, 'Гордунни', '')
@@ -63,9 +62,9 @@ class FailedBatchRoundtripTests(unittest.TestCase):
         frame, _ = self.import_reply(self.case.fetch)
         self.assertEqual(self.mpl.lastBatchResult.count, 1)
         self.assertIsNotNone(self.mpl.GetProfile('Alice', 'Гордунни')[0])
-        self.assertTrue(self.mpl.batchResultsWindow.shown)
-        self.assertIn('1 из 2', self.mpl.batchResultsWindow.summary.text)
-        self.assertIn('скрыты', self.mpl.batchResultsWindow.rows[2].status.text)
+        self.case.assert_no_results_window()
+        failure=self.mpl.lastBatchResult.failures[self.mpl.Key('Bob','Гордунни')]
+        self.assertIn('hidden',failure.error.lower())
         self.assertNotEqual(frame.status.text, self.mpl.L['Логи получены.'])
 
     def test_real_client_network_failure_recovers_after_fifteen_seconds(self):

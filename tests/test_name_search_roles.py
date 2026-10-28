@@ -186,14 +186,15 @@ class NameSearchRoleTests(unittest.TestCase):
                 if kinds==['P']: self.assertIn('\tSilvermoon\t',result)
 
     def test_empty_high_key_search_never_falls_back_to_empty_identity(self):
-        result=self.response(self.empty_season_client(empty=('draenor','silvermoon')),key_range=(11,11))
+        result=self.response(self.empty_season_client(empty=('draenor','silvermoon')),key_range=(11,11),error_codes=True)
         self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],['F'])
+        self.assertIn('MPLERR1 empty ',unquote(result))
 
     def test_known_empty_realm_still_returns_no_logs(self):
         result=self.response(self.empty_season_client(empty=('silvermoon',)),realm='silvermoon',key_range=(11,11),error_details=True)
         self.assertTrue(result.splitlines()[1].startswith('F\t1\teu\tSilvermoon\t'),result)
 
-    def test_high_key_search_preserves_leaderboard_without_uploads(self):
+    def test_high_key_search_excludes_leaderboard_without_public_logs(self):
         class Leaderboard(RoleClient):
             def __call__(self,args):
                 raw=super().__call__(args)
@@ -202,8 +203,11 @@ class NameSearchRoleTests(unittest.TestCase):
                     for row in data['rankings']: row['bestRank']={'ilvl':18}
                     for run in data['throughputRankings'].values(): run['best_level']=18
                 return raw
-        result=self.response(Leaderboard(specs=('Arms','Arms'),empty=('draenor',)),key_range=(18,18))
-        self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],['C','C'])
+        for key_range in ((10,10),(11,11),(18,18)):
+            with self.subTest(key_range=key_range):
+                result=self.response(Leaderboard(specs=('Arms','Arms'),empty=('draenor',)),key_range=key_range)
+                self.assertEqual([r.split('\t')[0] for r in result.splitlines()[1:]],
+                                 ['C','C'] if key_range[0]<=10 else ['P'])
 
     def test_hidden_candidate_blocks_high_key_autoselection(self):
         class Hidden(RoleClient):

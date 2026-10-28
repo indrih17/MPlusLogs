@@ -140,6 +140,7 @@ function MPL.ApplyProfileFonts(f)
     for _,tab in ipairs(type(f.playerTabs)=="table" and f.playerTabs or {}) do
         if tab.caption then MPL.StyleAppearanceButton(tab,false) end
     end
+    for _,choice in ipairs(f.searchChoices or {}) do MPL.StyleAppearanceButton(choice,false) end
     for _,row in ipairs(f.rows) do
         for i,cell in ipairs(row.cells) do MPL.StyleProfileFont(cell,i==1 and "dungeon" or "numbers") end
         for _,digit in ipairs(row.levelDigits or {}) do MPL.StyleProfileFont(digit,"numbers") end
@@ -1301,7 +1302,9 @@ function MPL.ApplyAppearancePalette(f)
     local warningHex=string.format("|cff%02x%02x%02x",math.floor(wr*255+.5),math.floor(wg*255+.5),math.floor(wb*255+.5))
     f.staleBanner.message:SetText(warning:gsub("|c%x%x%x%x%x%x%x%x",warningHex))
     textColor(f.staleBanner.message,"warningTextColor",{1,1,1,1})
-    for _,button in ipairs({f.wclButton,f.searchButton,f.loadButton,f.lookupButton,f.inviteButton,f.closeButton,f.settingsButton or f.closeButton,f.appearanceButton or f.closeButton,f.extraLogsButton or f.closeButton}) do
+    local controls={f.wclButton,f.searchButton,f.loadButton,f.lookupButton,f.inviteButton,f.closeButton,f.settingsButton or f.closeButton,f.appearanceButton or f.closeButton,f.extraLogsButton or f.closeButton}
+    for _,choice in ipairs(f.searchChoices or {}) do controls[#controls+1]=choice end
+    for _,button in ipairs(controls) do
         local fallback=button==f.loadButton and {.24,.13,.32,1} or (button==f.settingsButton and {.16,.1,.21,1} or {.12,.10,.16,1})
         button.appearanceDefaultColor=fallback
         button:SetBackdropColor(color("buttonColor",fallback))

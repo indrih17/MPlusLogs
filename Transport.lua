@@ -242,7 +242,15 @@ function MPL.ReceiveReply(text, strict)
             companionReplied()
             if MPL.QueueCompanionUpdateNotice then MPL.QueueCompanionUpdateNotice(replyVersion) end
             MPL.pendingReply=nil
-            MPL.ShowBatchResults(pendingReply.players,result.profiles,result.failures,count)
+            local loaded,errorCount=0,0
+            for _,player in ipairs(pendingReply.players) do
+                local key=MPL.Key(player.name,player.realm)
+                if result.failures[key] then errorCount=errorCount+1
+                elseif result.profiles[key] then loaded=loaded+1 end
+            end
+            MPL.lastBatchResult={players=pendingReply.players,profiles=result.profiles,failures=result.failures,
+                count=count,loaded=loaded,errorCount=errorCount}
+            if MPL.UpdateBatchButton then MPL.UpdateBatchButton() end
             local f=MPL.panel
             -- Roster events replace the live player table while this snapshot
             -- is in flight. Match the displayed character, not table identity.

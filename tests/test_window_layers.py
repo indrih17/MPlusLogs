@@ -69,7 +69,6 @@ class WindowLayerTests(unittest.TestCase):
             (lambda:self.mpl.ShowStaleNotice('Киндрих','Гордунни',self.mpl.panel.profile,'16.10.2026'),'staleWindow'),
             (self.mpl.ShowRequests,'requestsWindow'),
             (self.mpl.ShowImport,'importWindow'),
-            (lambda:self.mpl.ShowBatchResults(self.lua.table(),self.lua.table(),self.lua.table(),0,True),'batchResultsWindow'),
         ]
         for open_window,key in cases:
             with self.subTest(window=key):

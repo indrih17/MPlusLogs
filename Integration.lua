@@ -535,7 +535,6 @@ SlashCmdList.MPLUSLOGS = function(text)
     elseif text == "import" then MPL.ShowImport()
     elseif text == "applicants" then MPL.ShowBatchDownload()
     elseif text == "testimport" then MPL.ShowImportTest()
-    elseif text == "results" then MPL.OpenBatchResults()
     elseif text == "requests" then MPL.ShowRequests()
     elseif text == "demo" then MPL.ShowProfile("Киндрих","Гордунни")
     elseif text == "tooltip" then

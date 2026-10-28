@@ -79,6 +79,12 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(players[1].role,"HEALER")
         self.assertEqual(players[2].name,"Bob")
 
+    def assert_no_results_window(self):
+        self.assertIsNone(self.mpl.batchResultsWindow)
+        self.assertIsNone(self.mpl.ShowBatchResults)
+        self.assertIsNone(self.mpl.OpenBatchResults)
+        self.assertIsNone(self.lua.globals().MPlusLogsBatchResults)
+
     def test_applicant_without_available_realm_is_skipped_and_recovers(self):
         self.lua.execute('''
             GetNormalizedRealmName=function() return nil end
@@ -153,28 +159,26 @@ class BatchTests(unittest.TestCase):
         f.edit.SetText(f.edit,response); f.edit.scripts.OnTextChanged(f.edit,True); self.flush()
         self.assertIsNone(self.mpl.pendingReply)
         self.assertFalse(f.shown)
-        self.assertTrue(self.mpl.batchResultsWindow.shown)
+        self.assert_no_results_window()
         self.assertEqual(self.mpl.lastBatchResult.count,1)
-        self.mpl.OpenBatchResults()
-        result=self.mpl.batchResultsWindow
-        self.assertTrue(result.shown)
-        self.assertIn("1 из 2",result.summary.text)
-        self.assertIn("скрыты",result.rows[2].status.text)
+        failure=self.mpl.lastBatchResult.failures[self.mpl.Key('Bob','Гордунни')]
+        self.assertIn('hidden',failure.error.lower())
         profile,_,_=self.mpl.GetProfile("Alice-Гордунни")
         self.assertEqual(profile.metric,"hps")
         self.assertTrue(profile.dual)
         self.assertEqual(self.lua.eval("function(t) local n=0; for _ in pairs(t) do n=n+1 end; return n end")(self.lua.globals().MPlusLogsDB.profiles),1)
 
-    def test_failure_only_batch_finishes_with_report(self):
+    def test_failure_only_batch_finishes_without_results_popup(self):
         _,request=self.mpl.SendBatchRequest(self.players())
         def fail(_): raise ValueError("WCL unavailable")
         response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,fail)
         self.assertTrue(response.startswith("MPLS1\n"))
         self.assertEqual(self.mpl.ReceiveReply(response,True),0)
         self.assertIsNone(self.mpl.pendingReply)
-        self.assertTrue(self.mpl.batchResultsWindow.shown)
-        self.mpl.OpenBatchResults()
-        self.assertIn("0 из 2",self.mpl.batchResultsWindow.summary.text)
+        self.assert_no_results_window()
+        self.assertEqual(self.mpl.lastBatchResult.loaded,0)
+        self.assertEqual(self.mpl.lastBatchResult.errorCount,2)
+        self.assertEqual(len(list(self.mpl.lastBatchResult.failures.values())),2)
 
     def error_reply(self, players, failures):
         request_id,_=self.mpl.SendBatchRequest(players)
@@ -196,12 +200,11 @@ class BatchTests(unittest.TestCase):
         f.edit.SetText(f.edit,response); f.edit.scripts.OnTextChanged(f.edit,True); self.flush()
         self.assertFalse(f.shown)
         self.assertNotEqual(f.status.text,'Логи получены.')
-        result=self.mpl.batchResultsWindow
-        self.assertTrue(result.shown)
-        self.assertIn('0 из 2',result.summary.text)
-        self.assertIn('Ошибки обновления: 2',result.summary.text)
-        self.assertIn('лимит',result.rows[1].status.text)
-        self.assertIn('WCL GraphQL error',result.rows[2].status.text)
+        self.assert_no_results_window()
+        self.assertEqual(self.mpl.lastBatchResult.loaded,0)
+        self.assertEqual(self.mpl.lastBatchResult.errorCount,2)
+        self.assertEqual(self.mpl.GetProfileState('Alice','Гордунни','All specs').errorCode,'budget')
+        self.assertEqual(self.mpl.GetProfileState('Bob','Гордунни','All specs').errorCode,'schema')
 
     def test_transient_errors_block_only_until_retry_timestamp_and_show_waiting(self):
         self.mpl.InstallBatchButton()
@@ -213,9 +216,7 @@ class BatchTests(unittest.TestCase):
         alice=self.mpl.GetProfileState('Alice','Гордунни','All specs')
         self.assertEqual(alice.errorCode,'budget')
         self.assertEqual(alice.expires,1791777660)
-        result=self.mpl.batchResultsWindow
-        result.scripts.OnUpdate(result,1)
-        self.assertIn('0 мин. 30 сек.',result.summary.text)
+        self.assert_no_results_window()
         details=self.lua.table()
         pending,loaded=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
         self.assertEqual((len(pending),loaded,details.waiting),(0,0,2))
@@ -229,8 +230,7 @@ class BatchTests(unittest.TestCase):
         self.assertIn('0 мин. 30 сек.',f.status.text)
         self.assertIsNone(self.mpl.SendRequest('Alice','Гордунни','dps')[0])
         self.lua.execute('GetServerTime=function() return 1791777631 end')
-        result.scripts.OnUpdate(result,1)
-        self.assertIn('0 мин. 29 сек.',result.summary.text)
+        self.assertEqual(self.mpl.ProfileRetryRemaining('Alice','Гордунни','All specs'),29)
         self.mpl.batchButton.scripts.OnUpdate(self.mpl.batchButton,1)
         self.assertTrue(self.mpl.batchButton.enabled)
         pending,loaded=self.mpl.FilterFreshProfiles(self.players(),None,None,details)
@@ -257,14 +257,8 @@ class BatchTests(unittest.TestCase):
         self.assertFalse(self.mpl.panel.emptyMessage.shown)
         self.assertIn('WCL GraphQL error',self.mpl.panel.footer.text)
         self.assertIn('62',self.mpl.panel.summary.text)
-        # A cached fallback may be imported, but was not freshly loaded.
-        players=self.players()
-        profiles=self.lua.table()
-        profiles[self.mpl.Key('Alice','Гордунни')]=profile
-        failures=self.lua.table()
-        failures[self.mpl.Key('Alice','Гордунни')]=self.lua.table_from({'error':'WCL unavailable'})
-        self.mpl.ShowBatchResults(players,profiles,failures,1,True)
-        self.assertIn('0 из 2',self.mpl.batchResultsWindow.summary.text)
+        self.assertEqual(self.mpl.lastBatchResult.loaded,0)
+        self.assert_no_results_window()
 
     def test_expired_or_legacy_batch_errors_do_not_create_permanent_retry_block(self):
         response=self.error_reply(self.players(),{
@@ -301,12 +295,8 @@ class BatchTests(unittest.TestCase):
         state=self.mpl.GetProfileState('Alice','Гордунни','All specs')
         self.assertEqual(state.errorCode,'auth')
         self.assertEqual(self.mpl.ProfileRetryRemaining('Alice','Гордунни','All specs'),0)
-        result=self.mpl.batchResultsWindow
-        self.assertIn('Companion',result.rows[1].status.text)
-        self.assertIn('Session expired',result.rows[1].status.text)
-        self.assertNotIn('Повторная загрузка доступна',result.summary.text)
-        result.scripts.OnUpdate(result,1)
-        self.assertNotIn('Повторная загрузка доступна',result.summary.text)
+        self.assert_no_results_window()
+        self.assertIn('Session expired',state.error)
         self.mpl.ShowProfile('Alice','Гордунни')
         self.assertIn('Session expired',self.mpl.panel.emptyMessage.text)
         self.assertNotIn('Повторная загрузка доступна',self.mpl.panel.emptyMessage.text)
@@ -446,8 +436,10 @@ class BatchTests(unittest.TestCase):
             return raw
         response=clipboard_protocol.reply(request,realm_resolver.load_mappings(),self.cache,empty)
         self.assertEqual(self.mpl.ReceiveReply(response,True),0)
-        self.mpl.OpenBatchResults()
-        self.assertIn("не найдены открытые логи M+",self.mpl.batchResultsWindow.rows[1].status.text)
+        self.assert_no_results_window()
+        self.assertEqual(self.mpl.GetProfileState('Alice','Гордунни','All specs').reason,'empty')
+        self.mpl.ShowProfile('Alice','Гордунни')
+        self.assertIn("не найдены открытые логи M+",self.mpl.panel.emptyMessage.text)
 
     def test_counter_tracks_current_candidates_and_expired_profiles(self):
         self.mpl.InstallBatchButton()
